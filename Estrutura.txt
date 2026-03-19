@@ -1,0 +1,237 @@
+# 📘 Documentação — Bot com n8n + OpenAI (Web & WhatsApp)
+## 🎯 Objetivo do Projeto
+
+Criar um bot que atenda usuários via:
+* 🌐 Frontend (chat no site)
+* 💬 WhatsApp
+
+Usando:
+* 🔁 n8n como orquestrador central
+* 🤖 OpenAI para gerar respostas
+* 📚 Base de conhecimento
+Com foco em:
+> 🔐 Segurança da automação, controle de uso e proteção contra vazamento e abuso.
+
+---
+1️⃣ Primeiro passo: Número de WhatsApp para o bot
+* 📞 Um número de telefone exclusivo para o bot
+* 🔌 Um provedor oficial de WhatsApp Business API (ex: Twilio, Z-API, Take Blip, etc.)
+
+## 2️⃣ Estrutura geral do sistema (arquitetura mental)
+```
+[ Usuário (Web / WhatsApp) ]
+              ↓
+      [ Entrada de Mensagens ]
+              ↓
+      [ n8n = Camada de Controle ]
+              ↓
+    [ IA + Integrações Externas ]
+              ↓
+      [ Filtragem da Resposta ]
+              ↓
+           [ Usuário ]
+              
+        ↕
+ [ Base de Conhecimento / Memória ]
+```
+
+### Papéis de cada camada
+* **Entrada**: recebe mensagens
+* **n8n**: decide o que pode acontecer
+* **IA**: gera respostas
+* **Base de conhecimento**: fornece contexto
+* **Saída**: controla o que volta para o usuário
+
+📌 Regra de ouro:
+> A IA nunca conversa direto com o mundo externo.
+> O n8n sempre está no meio.
+
+---
+
+3️⃣ Fluxo básico do bot (do ponto de vista do sistema)
+Fluxo conceitual de uma conversa:
+
+1. Usuário envia mensagem (site ou WhatsApp)
+2. Mensagem entra no n8n
+3. n8n valida e organiza a mensagem
+4. n8n decide:
+   * Se chama IA
+   * Se consulta base de conhecimento
+5. IA gera resposta
+6. n8n filtra a resposta
+7. Resposta volta para o usuário
+📌 Isso cria um “corredor controlado” entre usuário e IA.
+
+---
+
+4️⃣ Organização dos fluxos no n8n (boa prática de projeto)
+
+Desde o início, pense em **separar responsabilidades**:
+
+### 🔹 Fluxo 1 – Conversa (chatbot)
+
+Responsável por:
+
+* Receber mensagens
+* Orquestrar IA
+* Retornar respostas
+
+### 🔹 Fluxo 2 – Conhecimento (admin)
+
+Responsável por:
+
+* Subir documentos
+* Atualizar base vetorial
+* Gerenciar conteúdo do bot
+
+### 🔹 Fluxo 3 – Governança (controle)
+
+Responsável por:
+
+* Regras de uso
+* Limites
+* Monitoramento de volume
+* Decisões de bloqueio
+
+📌 Mesmo que tudo esteja no mesmo n8n, mentalmente são “módulos diferentes”.
+
+---
+
+## 5️⃣ Estrutura de segurança da automação (sem falar de servidor)
+
+A segurança do seu projeto se apoia em **3 pilares principais**:
+
+### 🔐 Pilar 1 — Proteção da Entrada
+
+Objetivo:
+
+> Nem toda mensagem deve virar uma chamada para a IA.
+
+Aqui você pensa em:
+
+* Identificação de usuário/sessão
+* Regras de uso (quantidade de mensagens)
+* Formato válido da entrada
+
+---
+
+### 🔐 Pilar 2 — Proteção da IA
+
+Objetivo:
+
+> A IA não deve receber dados demais nem controlar o sistema.
+
+Conceito:
+
+* IA é um **serviço controlado**
+* O sistema define:
+
+  * O que a IA vê
+  * Quando ela é chamada
+  * Como a resposta será usada
+
+---
+
+### 🔐 Pilar 3 — Proteção da Saída
+
+Objetivo:
+
+> O usuário só vê o que é permitido pelo sistema.
+
+Conceito:
+
+* A resposta da IA passa por uma “aprovação lógica”
+* Você define:
+
+  * O formato da resposta
+  * O tom
+  * O que nunca pode sair
+
+---
+
+## 6️⃣ Base de conhecimento e memória (como pensar nisso com segurança)
+
+Pense em três tipos de dados:
+
+1. 🧠 **Contexto de conversa**
+   → Curto prazo, por sessão ou usuário
+
+2. 📚 **Conhecimento do bot**
+   → Documentos, FAQ, conteúdo institucional
+
+3. 👤 **Dados do usuário**
+   → Informações pessoais (se existirem)
+
+📌 Regra de projeto:
+
+> Essas três coisas não devem se misturar sem critério.
+> A memória da IA não é um banco de dados oficial.
+
+---
+
+## 7️⃣ Ordem recomendada de implementação (passo a passo)
+
+### 🥇 Fase 1 — Estrutura básica
+
+* Definir canais: web e/ou WhatsApp
+* Montar fluxo simples no n8n:
+
+  * Entrada → IA → Resposta
+* Bot funcionando minimamente
+
+### 🥈 Fase 2 — Organização do fluxo
+
+* Separar:
+
+  * Entrada
+  * Controle
+  * IA
+  * Saída
+* Introduzir base de conhecimento (se necessário)
+
+### 🥉 Fase 3 — Governança e segurança
+
+* Introduzir regras de uso
+* Limites de mensagens
+* Controle de chamadas à IA
+* Separação de fluxos (chat, admin, governança)
+
+### 🏁 Fase 4 — Estrutura de produto
+
+* Pensar no bot como um “serviço”
+* Definir:
+
+  * O que ele pode fazer
+  * O que ele nunca fará
+  * Como ele evolui sem quebrar segurança
+
+---
+
+## 8️⃣ Checklist final de projeto bem estruturado
+
+Antes de considerar o projeto “pronto”:
+
+✔️ O n8n é o centro de controle
+✔️ A IA não é acessada diretamente por usuários
+✔️ O fluxo tem entrada → controle → IA → saída
+✔️ Existe separação entre conversa e base de conhecimento
+✔️ Existe uma camada conceitual de governança
+✔️ O bot é visto como um produto, não só uma automação
+
+---
+
+## 🧭 Conclusão (visão de maturidade do projeto)
+
+Seu projeto não é “um bot com OpenAI”.
+Ele é:
+
+> Um **sistema de automação com IA como componente**,
+> governado por regras, camadas e controle central no n8n.
+
+Esse mindset é o que diferencia:
+
+* Protótipo que funciona
+  vs
+* Produto que aguenta crescer sem virar uma bomba de segurança.
+
+---

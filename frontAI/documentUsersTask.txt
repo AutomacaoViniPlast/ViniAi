@@ -1,0 +1,12 @@
+1- Estruturação do Projeto
+ - Definição de Tarefas:
+   - Pedro = FrontEnd | N8N | Banco de Dados
+   - Maycon = FrontEnd | Banco de Dados
+   - Tales = N8N | Banco de Dados
+   - Derick = Banco de Dados 
+   - Felipe Giglioli = Banco de Dados
+
+ - Tarefas:
+   - N8N = Desenvolvimento dos Agentes de IA
+   - FrontEnd = Manutenção e Implementação de novas funcionalidades / Desenvolvimento de API / Validação
+   - Banco de Dados = Criação de Views PostgreSQL / Identificação de Tabelas / Conexão com N8N

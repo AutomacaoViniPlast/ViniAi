@@ -1,0 +1,90 @@
+INSTALAÇÃO DO N8N SELF-HOSTED (WINDOWS)
+
+1. PRÉ-REQUISITOS
+
+1.1 Instalar Node.js
+- Acessar: https://nodejs.org
+- Baixar versão 24.14.0
+- Executar instalação padrão
+
+1.2 Validar instalação
+Executar no cmd:
+
+node -v
+npm -v
+
+
+2. INSTALAÇÃO DO N8N
+
+Instalar globalmente:
+
+npm install -g n8n
+
+Validar:
+
+n8n --version
+
+
+3. EXECUÇÃO
+
+Iniciar servidor:
+
+n8n
+
+Acesso padrão:
+http://localhost:5678
+
+
+4. CONFIGURAÇÃO SECURE COOKIE
+
+Para ambiente local (HTTP):
+
+Prompt:
+set N8N_SECURE_COOKIE=false
+n8n
+
+PowerShell:
+$env:N8N_SECURE_COOKIE="false"
+n8n
+
+Obs: Em produção (HTTPS), não desabilitar.
+
+
+5. CONFIGURAÇÃO COMO SERVIÇO (WINDOWS)
+
+5.1 Instalar NSSM
+- Download: https://nssm.cc/download
+- Extrair arquivos
+
+5.2 Criar serviço
+Executar como administrador:
+
+nssm install n8n
+
+5.3 Configuração
+
+Path:
+C:\Program Files\nodejs\node.exe
+
+Arguments:
+C:\Users\<USUARIO>\AppData\Roaming\npm\node_modules\n8n\bin\n8n
+
+5.4 Configurar as Variáveis
+
+N8N_SECURE_COOKIE=false
+N8N_PORT=5678
+
+
+6. GERENCIAMENTO DO SERVIÇO
+
+Iniciar:
+nssm start n8n
+
+Parar:
+nssm stop n8n
+
+Reiniciar:
+nssm restart n8n
+
+Remover:
+nssm remove n8n
