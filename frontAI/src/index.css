@@ -2,37 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
 @layer base {
-:root {
+  :root {
     /* Cores Base da Paleta */
-    --background: 225 47% 4%;    /* Azul Marinho quase preto para o fundo */
-    --foreground: 0 0% 100%;     /* Branco Puro para textos principais */
+    --background: 225 47% 4%;
+    --foreground: 0 0% 100%;
 
-    /* Azul Escuro (Deep Blue) */
-    --primary: 215 50% 23%;      
-    
-    /* Vermelho Bordô (Burgundy) */
-    --secondary: 345 75% 30%;    
+    /* Azul Escuro */
+    --primary: 215 50% 23%;
 
-    /* Cinza Muito Claro (Substituindo o Branco puro em elementos secundários) */
+    /* Bordô */
+    --secondary: 345 75% 30%;
+
+    /* Tons auxiliares */
     --muted: 215 20% 15%;
     --muted-foreground: 210 20% 80%;
 
-    /* Gradientes Personalizados */
-    --gradient-primary: linear-gradient(135deg, hsl(345 75% 35%) 0%, hsl(210 20% 95%) 100%);    --gradient-glow: linear-gradient(135deg, hsl(345 75% 35% / 0.2) 0%, hsl(215 50% 23% / 0.2) 100%);
-    
-    /* Vidro e Bordas */
+    /* Extras para compatibilidade com componentes */
+    --border: 215 20% 18%;
+    --input: 215 20% 18%;
+    --ring: 345 75% 35%;
+    --card: 222 47% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 0 0% 100%;
+    --accent: 215 20% 15%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Gradientes */
+    --gradient-primary: linear-gradient(135deg, hsl(345 75% 35%) 0%, hsl(210 20% 95%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(345 75% 35% / 0.2) 0%, hsl(215 50% 23% / 0.2) 100%);
+
+    /* Vidro e bordas */
     --glass-bg: hsl(222 47% 10% / 0.4);
     --glass-border: hsl(0 0% 100% / 0.1);
-    
-    /* Sombra de Brilho (Glow) ajustada para o Bordô */
-    --shadow-glow: 0 0 40px hsl(345 75% 35% / 0.2);
-}
-}
 
-@layer base {
+    /* Glow */
+    --shadow-glow: 0 0 40px hsl(345 75% 35% / 0.2);
+  }
+
   * {
     @apply border-border;
   }
@@ -40,6 +50,7 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
+    margin: 0;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -114,11 +125,11 @@
 }
 
 @keyframes slide-up {
-  from { 
+  from {
     opacity: 0;
     transform: translateY(20px);
   }
-  to { 
+  to {
     opacity: 1;
     transform: translateY(0);
   }
@@ -141,7 +152,7 @@
   animation-delay: 0.4s;
 }
 
-/* Custom scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }

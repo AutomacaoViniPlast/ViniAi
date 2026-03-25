@@ -5,19 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Auth from "./pages/Auth";
-import { useAuth } from "./hooks/useAuth";
 
 const queryClient = new QueryClient();
 
-// ✅ Componente separado para poder usar hooks dentro do BrowserRouter
 const AppRoutes = () => {
-  const { user, loading } = useAuth();
-
-  if (loading) return <div className="text-white text-center mt-20">Carregando...</div>;
-
-  if (!user) return <Auth />;
-
   return (
     <Routes>
       <Route path="/" element={<Index />} />
@@ -32,7 +23,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppRoutes /> {/* ✅ Hooks usados aqui dentro, onde o BrowserRouter já existe */}
+        <AppRoutes />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -6,8 +6,7 @@ import { sendChatMessage } from "../services/n8n";
 
 import abrir from "../image/abrir.png";
 import fechar from "../image/fechar.png";
-import { supabase } from "../services/supabase";
-import { LogOut, Pin, Trash2 } from "lucide-react";
+import { Pin, Trash2 } from "lucide-react";
 
 interface Message {
   id: string;
@@ -38,77 +37,27 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [carregando, setCarregando] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { window.location.href = "/"; return; }
-
-      const uid = session.user.id;
-      setUserId(uid);
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("nome, setor")
-        .eq("id", uid)
-        .single();
-
-      if (profile) setUserProfile(profile);
-
-      await carregarTodasConversas(uid);
-      setCarregando(false);
-    };
-    init();
-  }, []);
-
-  const carregarTodasConversas = async (uid: string) => {
-    const { data, error } = await supabase
-      .from("conversations")
-      .select("session_id, role, content, created_at")
-      .eq("user_id", uid)
-      .order("created_at", { ascending: true });
-
-    if (error) { console.error("Erro ao carregar conversas:", error); return; }
-    if (!data || data.length === 0) return;
-
-    // Busca o pinned de cada conversa
-    const { data: metaData } = await supabase
-      .from("conversation_meta")
-      .select("session_id, pinned")
-      .eq("user_id", uid);
-
-    const metaMap: Record<string, boolean> = {};
-    metaData?.forEach((m) => { metaMap[m.session_id] = m.pinned; });
-
-    const grupos: Record<string, typeof data> = {};
-    data.forEach((row) => {
-      if (!grupos[row.session_id]) grupos[row.session_id] = [];
-      grupos[row.session_id].push(row);
-    });
-
-    const convs: Conversation[] = Object.entries(grupos).map(([sessionId, msgs]) => {
-      const primeiraMsgUsuario = msgs.find((m) => m.role === "user");
-      return {
-        id: sessionId,
-        title: primeiraMsgUsuario?.content.slice(0, 40) || "Nova conversa",
-        messages: msgs.map((m) => ({
-          id: generateId(),
-          content: m.content,
-          role: m.role as "user" | "assistant",
-        })),
-        createdAt: new Date(msgs[0].created_at).getTime(),
-        pinned: metaMap[sessionId] || false,
-      };
-    });
-
-    convs.sort((a, b) => b.createdAt - a.createdAt);
-    setConversations(convs);
-    setActiveId(convs[0]?.id || null);
+  const userProfile: UserProfile = {
+    nome: "Usuário Local",
+    setor: "GERAL",
   };
+
+  useEffect(() => {
+    const novaConversa: Conversation = {
+      id: generateId(),
+      title: "Nova conversa",
+      messages: [],
+      createdAt: Date.now(),
+      pinned: false,
+    };
+
+    setConversations([novaConversa]);
+    setActiveId(novaConversa.id);
+    setCarregando(false);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,43 +65,25 @@ const Index = () => {
 
   const activeConversation = conversations.find((c) => c.id === activeId);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      sessionStorage.clear();
-      window.location.href = "/";
-    } catch (error) {
-      console.error("Erro ao deslogar:", error);
-      window.location.href = "/";
-    }
+  const handleLogout = () => {
+    window.location.reload();
   };
 
   const createNewConversation = () => {
-    if (!userId) return;
-    const sessionId = `${userId}_${Date.now()}`;
-
-    // Registra o meta no banco
-    supabase.from("conversation_meta").insert({
-      session_id: sessionId,
-      user_id: userId,
-      pinned: false,
-    });
-
     const newConv: Conversation = {
-      id: sessionId,
+      id: generateId(),
       title: "Nova conversa",
       messages: [],
       createdAt: Date.now(),
       pinned: false,
     };
+
     setConversations((prev) => [newConv, ...prev]);
     setActiveId(newConv.id);
     setIsSidebarOpen(false);
   };
 
-  const deleteConversation = async (id: string) => {
-    await supabase.from("conversations").delete().eq("session_id", id);
-    await supabase.from("conversation_meta").delete().eq("session_id", id);
+  const deleteConversation = (id: string) => {
     setConversations((prev) => {
       const updated = prev.filter((c) => c.id !== id);
       if (id === activeId) setActiveId(updated[0]?.id || null);
@@ -160,82 +91,36 @@ const Index = () => {
     });
   };
 
-  const togglePin = async (id: string) => {
-    const conv = conversations.find((c) => c.id === id);
-    if (!conv || !userId) return;
-
-    const newPinned = !conv.pinned;
-
-    // Upsert: cria ou atualiza
-    await supabase.from("conversation_meta").upsert({
-      session_id: id,
-      user_id: userId,
-      pinned: newPinned,
-    });
-
+  const togglePin = (id: string) => {
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, pinned: newPinned } : c))
+      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c))
     );
   };
 
   const handleSend = async (content: string) => {
-    if (!activeConversation || !userId) return;
+    if (!activeConversation) return;
 
     const sessionId = activeConversation.id;
     const setor = userProfile?.setor || "GERAL";
-    const userName = userProfile?.nome || "Desconhecido";
 
     const userMessage: Message = { id: generateId(), content, role: "user" };
+
     setConversations((prev) =>
       prev.map((c) =>
         c.id === sessionId
           ? {
-            ...c,
-            title: c.messages.length === 0 ? content.slice(0, 40) : c.title,
-            messages: [...c.messages, userMessage],
-          }
+              ...c,
+              title: c.messages.length === 0 ? content.slice(0, 40) : c.title,
+              messages: [...c.messages, userMessage],
+            }
           : c
       )
     );
 
-    await supabase.from("conversations").insert({
-      session_id: sessionId,
-      user_id: userId,
-      setor,
-      user_name: userName,
-      user_setor: setor,
-      role: "user",
-      content,
-    });
-
     setIsTyping(true);
 
     try {
-      const data = await sendChatMessage(content, setor);
-
-      if (typeof data === "object" && data.action === "REDIRECIONAR") {
-        const redirectMsg: Message = {
-          id: generateId(),
-          content: data.output || "Redirecionando para atendimento humano...",
-          role: "assistant",
-        };
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === sessionId ? { ...c, messages: [...c.messages, redirectMsg] } : c
-          )
-        );
-        await supabase.from("conversations").insert({
-          session_id: sessionId,
-          user_id: userId,
-          setor,
-          user_name: userName,
-          user_setor: setor,
-          role: "assistant",
-          content: redirectMsg.content,
-        });
-        window.open("https://wa.me/5511963984612", "_blank");
-        return;
-      }
+      const data = await sendChatMessage(content, setor, sessionId);
 
       const responseText =
         data?.message ||
@@ -248,6 +133,7 @@ const Index = () => {
         content: responseText,
         role: "assistant",
       };
+
       setConversations((prev) =>
         prev.map((c) =>
           c.id === sessionId
@@ -255,23 +141,15 @@ const Index = () => {
             : c
         )
       );
-
-      await supabase.from("conversations").insert({
-        session_id: sessionId,
-        user_id: userId,
-        setor,
-        user_name: userName,
-        user_setor: setor,
-        role: "assistant",
-        content: responseText,
-      });
     } catch (error) {
       console.error(error);
+
       const errMsg: Message = {
         id: generateId(),
         content: "Desculpe, tive um problema de conexão.",
         role: "assistant",
       };
+
       setConversations((prev) =>
         prev.map((c) =>
           c.id === sessionId ? { ...c, messages: [...c.messages, errMsg] } : c
@@ -315,20 +193,27 @@ const Index = () => {
           {!isSidebarCollapsed && (
             <div>
               <h1 className="text-base font-semibold">ViniAI</h1>
-              {userProfile && (
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  {userProfile.nome} · <span className="text-primary">{userProfile.setor}</span>
-                </p>
-              )}
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {userProfile.nome} · <span className="text-primary">{userProfile.setor}</span>
+              </p>
             </div>
           )}
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className="hidden md:block text-zinc-400 hover:text-white"
           >
-            <img src={isSidebarCollapsed ? fechar : abrir} alt="Toggle Sidebar" className="w-5 h-5" />
+            <img
+              src={isSidebarCollapsed ? fechar : abrir}
+              alt="Toggle Sidebar"
+              className="w-5 h-5"
+            />
           </button>
-          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-400">✕</button>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden text-zinc-400"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="p-2">
@@ -356,15 +241,22 @@ const Index = () => {
           {filteredConversations.map((conv) => (
             <div
               key={conv.id}
-              className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${activeId === conv.id ? "bg-zinc-800" : "hover:bg-zinc-900"
-                }`}
+              className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
+                activeId === conv.id ? "bg-zinc-800" : "hover:bg-zinc-900"
+              }`}
             >
               <button
-                onClick={() => { setActiveId(conv.id); setIsSidebarOpen(false); }}
-                className={`text-left flex items-center gap-1 ${isSidebarCollapsed ? "w-full justify-center" : "flex-1 min-w-0"
-                  }`}
+                onClick={() => {
+                  setActiveId(conv.id);
+                  setIsSidebarOpen(false);
+                }}
+                className={`text-left flex items-center gap-1 ${
+                  isSidebarCollapsed ? "w-full justify-center" : "flex-1 min-w-0"
+                }`}
               >
-                {isSidebarCollapsed ? "💬" : (
+                {isSidebarCollapsed ? (
+                  "💬"
+                ) : (
                   <>
                     {conv.pinned && <Pin size={12} className="text-yellow-400 shrink-0" />}
                     <span className="truncate">{conv.title}</span>
@@ -395,8 +287,7 @@ const Index = () => {
               ${isSidebarCollapsed ? "justify-center" : "justify-start"}
             `}
           >
-            <LogOut size={18} />
-            {!isSidebarCollapsed && <span>Sair da conta</span>}
+            {!isSidebarCollapsed && <span>Recarregar</span>}
           </button>
         </div>
       </aside>
@@ -410,10 +301,7 @@ const Index = () => {
 
         <div className="flex-1 flex flex-col min-h-0">
           {!activeConversation || activeConversation.messages.length === 0 ? (
-            <EmptyState
-              onSuggestionClick={handleSend}
-              setor={userProfile?.setor}
-            />
+            <EmptyState onSuggestionClick={handleSend} setor={userProfile?.setor} />
           ) : (
             <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-6">
               {activeConversation.messages.map((msg) => (
