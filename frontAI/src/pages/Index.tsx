@@ -6,7 +6,7 @@ import { sendChatMessage } from "../services/n8n";
 
 import abrir from "../image/abrir.png";
 import fechar from "../image/fechar.png";
-import { Pin, Trash2 } from "lucide-react";
+import { Pin, Trash2, LogOut } from "lucide-react";
 
 interface Message {
   id: string;
@@ -38,14 +38,34 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [carregando, setCarregando] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const userProfile: UserProfile = {
-    nome: "Usuário Local",
-    setor: "GERAL",
-  };
-
   useEffect(() => {
+    const rawUser = localStorage.getItem("user");
+
+    let parsedUser: UserProfile = {
+      nome: "Usuário",
+      setor: "GERAL",
+    };
+
+    if (rawUser) {
+      try {
+        const user = JSON.parse(rawUser);
+        parsedUser = {
+          nome: user.nome || "Usuário",
+          setor: user.setor || "GERAL",
+        };
+      } catch {
+        parsedUser = {
+          nome: "Usuário",
+          setor: "GERAL",
+        };
+      }
+    }
+
+    setUserProfile(parsedUser);
+
     const novaConversa: Conversation = {
       id: generateId(),
       title: "Nova conversa",
@@ -66,7 +86,9 @@ const Index = () => {
   const activeConversation = conversations.find((c) => c.id === activeId);
 
   const handleLogout = () => {
-    window.location.reload();
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/auth";
   };
 
   const createNewConversation = () => {
@@ -194,7 +216,8 @@ const Index = () => {
             <div>
               <h1 className="text-base font-semibold">ViniAI</h1>
               <p className="text-xs text-zinc-400 mt-0.5">
-                {userProfile.nome} · <span className="text-primary">{userProfile.setor}</span>
+                {userProfile?.nome} ·{" "}
+                <span className="text-primary">{userProfile?.setor}</span>
               </p>
             </div>
           )}
@@ -258,7 +281,9 @@ const Index = () => {
                   "💬"
                 ) : (
                   <>
-                    {conv.pinned && <Pin size={12} className="text-yellow-400 shrink-0" />}
+                    {conv.pinned && (
+                      <Pin size={12} className="text-yellow-400 shrink-0" />
+                    )}
                     <span className="truncate">{conv.title}</span>
                   </>
                 )}
@@ -267,7 +292,10 @@ const Index = () => {
               {!isSidebarCollapsed && (
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition ml-2">
                   <button onClick={() => togglePin(conv.id)} title="Fixar">
-                    <Pin size={14} className={conv.pinned ? "text-primary" : "text-zinc-400"} />
+                    <Pin
+                      size={14}
+                      className={conv.pinned ? "text-primary" : "text-zinc-400"}
+                    />
                   </button>
                   <button onClick={() => deleteConversation(conv.id)} title="Excluir">
                     <Trash2 size={14} className="text-zinc-400 hover:text-red-400" />
@@ -287,7 +315,8 @@ const Index = () => {
               ${isSidebarCollapsed ? "justify-center" : "justify-start"}
             `}
           >
-            {!isSidebarCollapsed && <span>Recarregar</span>}
+            <LogOut size={18} />
+            {!isSidebarCollapsed && <span>Sair da conta</span>}
           </button>
         </div>
       </aside>
@@ -305,9 +334,16 @@ const Index = () => {
           ) : (
             <div className="flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-6">
               {activeConversation.messages.map((msg) => (
-                <ChatMessage key={msg.id} id={msg.id} content={msg.content} role={msg.role} />
+                <ChatMessage
+                  key={msg.id}
+                  id={msg.id}
+                  content={msg.content}
+                  role={msg.role}
+                />
               ))}
-              {isTyping && <ChatMessage id="typing" content="" role="assistant" isTyping />}
+              {isTyping && (
+                <ChatMessage id="typing" content="" role="assistant" isTyping />
+              )}
               <div ref={messagesEndRef} />
             </div>
           )}
