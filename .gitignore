@@ -2,4 +2,4 @@
 nssm.exe
 iniciar.bat
 dist/
-backend/dist/db.js
+backend/dist/
