@@ -3,3 +3,5 @@ nssm.exe
 iniciar.bat
 dist/
 backend/dist/
+frontAI/node_modules/
+backend/node_modules/
