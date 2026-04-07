@@ -145,6 +145,7 @@ const Index = () => {
       const data = await sendChatMessage(content, setor, sessionId);
 
       const responseText =
+        data?.answer ||
         data?.message ||
         data?.output ||
         data?.response ||
