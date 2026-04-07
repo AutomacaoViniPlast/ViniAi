@@ -13,8 +13,8 @@ REM ── Verificar NSSM ──────────────────
 set "NSSM=nssm"
 where nssm >nul 2>&1
 if errorlevel 1 (
-    if exist "C:\nssm\nssm.exe" (
-        set "NSSM=C:\nssm\nssm.exe"
+    if exist "C:\metabase\nssm\nssm.exe" (
+        set "NSSM=C:\metabase\nssm\nssm.exe"
     ) else (
         echo [ERRO] NSSM nao encontrado. Coloque o nssm.exe em C:\nssm\ ou no PATH.
         pause
