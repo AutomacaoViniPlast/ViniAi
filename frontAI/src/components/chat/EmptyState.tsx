@@ -1,5 +1,6 @@
 import { Code, Lightbulb, MessageSquare, Palette, TrendingUp, BarChart2, ClipboardList, Factory } from "lucide-react";
 import SuggestionCard from "./SuggestionCard";
+import logoVini from "../../image/logoviniai2.png";
 
 interface EmptyStateProps {
   onSuggestionClick: (text: string) => void;
@@ -165,25 +166,14 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
     sectorSuggestions.GERAL;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 animate-fade-in overflow-y-auto">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 pt-10 pb-4 animate-fade-in overflow-y-auto">
 
-      {/* Logo animada */}
-      <div className="relative mb-8">
-        <div
-          className="w-20 h-20 rounded-3xl flex items-center justify-center animate-float"
-          style={{
-            background: "linear-gradient(135deg, hsla(4, 96%, 37%, 1.00) 0%, hsla(4, 69%, 36%, 1.00) 100%)",
-            boxShadow: "0 8px 32px hsl(4 82% 47% / 0.35), 0 0 0 1px hsl(4 82% 47% / 0.2)",
-          }}
-        >
-          <span className="text-white font-bold text-lg" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-            ViniAI
-          </span>
-        </div>
-
-        {/* Decoração */}
-        <div
-          className="absolute -bottom-2 -left-3 w-5 h-5 rounded-full animate-pulse-slow"
+      {/* Logo da imagem */}
+      <div className="flex justify-center items-center mb-8 animate-float">
+        <img 
+          src={logoVini} 
+          alt="ViniAI Logo" 
+          className="w-40 md:w-56 h-auto max-h-24 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.05)]"
         />
       </div>
 
@@ -211,7 +201,7 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
       </div>
 
       {/* Cards de sugestão */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-4xl mt-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-4xl mt-6">
         {suggestions.map((suggestion, index) => (
           <SuggestionCard
             key={index}

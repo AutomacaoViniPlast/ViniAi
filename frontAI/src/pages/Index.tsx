@@ -4,6 +4,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import EmptyState from "@/components/chat/EmptyState";
 import { sendChatMessage } from "../services/n8n";
 
+import logo from "../image/logoviniai.png";
 import abrir from "../image/abrir.png";
 import fechar from "../image/fechar.png";
 import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -255,7 +256,7 @@ const Index = () => {
                   className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: "#c52318ff" }}
                 >
-                  <span className="text-white font-bold text-xs">VI</span>
+                  <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
                 </div>
                 <div className="overflow-hidden">
                   <p className="font-semibold text-sm leading-tight truncate" style={{ color: "hsl(0 0% 95%)" }}>ViniAI</p>
@@ -310,7 +311,7 @@ const Index = () => {
             >
               {isLogoHovered
                 ? <PanelLeftOpen size={16} />
-                : <span className="font-bold text-xs">VI</span>
+                : <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
               }
             </button>
           )}
@@ -510,9 +511,9 @@ const Index = () => {
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: "hsl(4 82% 47%)" }}
+              style={{ background: "#da2316ff" }}
             >
-              <span className="text-white font-bold text-xs">VI</span>
+              <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
             </div>
             <span className="font-semibold text-sm">ViniAI</span>
           </div>
@@ -544,7 +545,7 @@ const Index = () => {
 
         {/* Input area */}
         <div
-          className="shrink-0 px-4 md:px-6 py-4"
+          className="shrink-0 px-4 md:px-6 pt-1 pb-6 md:pb-10"
         >
           <div className="max-w-3xl mx-auto">
             <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
