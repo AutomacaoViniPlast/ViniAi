@@ -14,7 +14,7 @@ const ChatHeader = ({ onNewChat }: ChatHeaderProps) => {
           <button className="w-9 h-9 rounded-lg hover:bg-muted/50 flex items-center justify-center transition-colors md:hidden">
             <Menu className="w-5 h-5 text-muted-foreground" />
           </button>
-          
+
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <span className="text-sm font-display font-bold gradient-text">AI</span>
@@ -39,7 +39,7 @@ const ChatHeader = ({ onNewChat }: ChatHeaderProps) => {
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Nova</span>
           </button>
-          
+
           <button className="w-9 h-9 rounded-lg hover:bg-muted/50 flex items-center justify-center transition-colors">
             <Settings className="w-5 h-5 text-muted-foreground" />
           </button>

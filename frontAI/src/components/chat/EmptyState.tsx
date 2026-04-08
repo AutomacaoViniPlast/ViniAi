@@ -1,6 +1,5 @@
-import { Code, Lightbulb, MessageSquare, Palette } from "lucide-react";
+import { Code, Lightbulb, MessageSquare, Palette, TrendingUp, BarChart2, ClipboardList, Factory } from "lucide-react";
 import SuggestionCard from "./SuggestionCard";
-import { Description } from "@radix-ui/react-toast";
 
 interface EmptyStateProps {
   onSuggestionClick: (text: string) => void;
@@ -56,35 +55,35 @@ const sectorSuggestions = {
 
   PRODUÇÃO: [
     {
-      icon: Lightbulb,
+      icon: Factory,
       title: "Produção total por mês",
       description: "Qual foi a produção total do mês de dezembro de 2025 ?",
     },
     {
-      icon: Code,
+      icon: ClipboardList,
       title: "Produção em um dia específico",
       description: "Quanto nós produzimos no dia 2025-12-04 ?",
     },
   ],
 
-   CEO: [
+  CEO: [
     {
-      icon: Lightbulb,
+      icon: TrendingUp,
       title: "Perda média por família",
       description: "Qual foi a perda média das famílias G32 e K37 no mês de setembro de 2024?",
     },
     {
-      icon: Code,
+      icon: BarChart2,
       title: "Produção total do mês",
       description: "Qual foi a produção total do mês de dezembro de 2025 ?",
     },
     {
-      icon: Palette,
+      icon: ClipboardList,
       title: "Último registro de Ordem de Produção",
       description: "Qual foi a última OP registrada no sistema?",
     },
     {
-      icon: MessageSquare,
+      icon: Lightbulb,
       title: "Maior volume em KG do mês",
       description: "Qual foi a condição que teve o maior volume de quilos em agosto de 2024 e qual era o percentual de perda dela?",
     }
@@ -92,69 +91,68 @@ const sectorSuggestions = {
 
   DIRETORIA: [
     {
-      icon: Lightbulb,
+      icon: TrendingUp,
       title: "Perda média por família",
       description: "Qual foi a perda média das famílias G32 e K37 no mês de setembro de 2024?",
     },
     {
-      icon: Code,
+      icon: BarChart2,
       title: "Produção total do mês",
       description: "Qual foi a produção total do mês de dezembro de 2025 ?",
     },
     {
-      icon: Palette,
+      icon: ClipboardList,
       title: "Último registro de Ordem de Produção",
       description: "Qual foi a última OP registrada no sistema?",
     },
     {
-      icon: MessageSquare,
+      icon: Lightbulb,
       title: "Maior volume em KG do mês",
       description: "Qual foi a condição que teve o maior volume de quilos em agosto de 2024 e qual era o percentual de perda dela?",
     }
   ],
 
-    DESENVOLVEDOR: [
+  DESENVOLVEDOR: [
     {
-      icon: Lightbulb,
+      icon: TrendingUp,
       title: "Perda média por família",
       description: "Qual foi a perda média das famílias G32 e K37 no mês de setembro de 2024?",
     },
     {
-      icon: Code,
+      icon: BarChart2,
       title: "Produção total do mês",
       description: "Qual foi a produção total do mês de dezembro de 2025 ?",
     },
     {
-      icon: Palette,
+      icon: ClipboardList,
       title: "Último registro de Ordem de Produção",
       description: "Qual foi a última OP registrada no sistema?",
     },
     {
-      icon: MessageSquare,
+      icon: Lightbulb,
       title: "Maior volume em KG do mês",
       description: "Qual foi a condição que teve o maior volume de quilos em agosto de 2024 e qual era o percentual de perda dela?",
     }
   ],
-
 
   PCP: [
     {
-      icon: Lightbulb,
+      icon: ClipboardList,
       title: "Última OP registrada",
       description: "Qual foi a última OP registrada no sistema?",
     },
     {
-      icon: Code,
+      icon: BarChart2,
       title: "Status da produção",
       description: "Qual o status atual da produção?",
     },
     {
-      icon: Palette,
+      icon: Factory,
       title: "Produção do mês",
       description: "Qual foi a produção total deste mês?",
     },
     {
-      icon: MessageSquare,
+      icon: Code,
       title: "Consumo por OP",
       description: "Me mostre o consumo de matéria-prima por OP",
     },
@@ -162,48 +160,69 @@ const sectorSuggestions = {
 };
 
 const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
-
   const suggestions =
     sectorSuggestions[setor as keyof typeof sectorSuggestions] ||
     sectorSuggestions.GERAL;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 animate-fade-in overflow-hidden">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 animate-fade-in overflow-y-auto">
 
-      <div className="relative mb-10 top-5">
-        <div className="w-20 h-20 rounded-2xl glass gradient-border flex items-center justify-center glow animate-float">
-          <span className="text-1xl font-display font-bold gradient-text">
+      {/* Logo animada */}
+      <div className="relative mb-8">
+        <div
+          className="w-20 h-20 rounded-3xl flex items-center justify-center animate-float"
+          style={{
+            background: "linear-gradient(135deg, hsla(4, 96%, 37%, 1.00) 0%, hsla(4, 69%, 36%, 1.00) 100%)",
+            boxShadow: "0 8px 32px hsl(4 82% 47% / 0.35), 0 0 0 1px hsl(4 82% 47% / 0.2)",
+          }}
+        >
+          <span className="text-white font-bold text-lg" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             ViniAI
           </span>
         </div>
 
-        <div className="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-primary/20 blur-sm animate-pulse-slow" />
-        <div className="absolute -bottom-2 -left-4 w-6 h-6 rounded-full bg-secondary/30 blur-sm animate-pulse-slow" />
+        {/* Decoração */}
+        <div
+          className="absolute -bottom-2 -left-3 w-5 h-5 rounded-full animate-pulse-slow"
+        />
       </div>
 
-      <div className="flex flex-col items-center w-full">
-
-        <h1 className="text-2xl md:text-3xl font-display font-bold text-center mb-3">
-          Como posso ajudar <span className="gradient-text">hoje?</span>
+      {/* Título */}
+      <div className="text-center mb-2">
+        <h1
+          className="text-3xl md:text-4xl font-bold mb-3"
+          style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(0 0% 95%)", letterSpacing: "-0.02em" }}
+        >
+          Como posso{" "}
+          <span
+            style={{
+              background: "linear-gradient(135deg, hsla(4, 100%, 50%, 1.00), hsla(4, 84%, 63%, 1.00))",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            ajudar hoje?
+          </span>
         </h1>
-
-        <p className="text-muted-foreground text-center text-base max-w-md mb-5">
-          Pergunte qualquer coisa. Estou aqui para ajudar com o que eu puder.
+        <p className="text-base max-w-md mx-auto" style={{ color: "hsl(215 15% 58%)" }}>
+          Faça uma pergunta ou escolha uma das sugestões abaixo para começar.
         </p>
-
-        <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-5xl">
-          {suggestions.map((suggestion, index) => (
-            <SuggestionCard
-              key={index}
-              icon={suggestion.icon}
-              title={suggestion.title}
-              description={suggestion.description}
-              onClick={() => onSuggestionClick(suggestion.description)}
-            />
-          ))}
-        </div>
-
       </div>
+
+      {/* Cards de sugestão */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-4xl mt-10">
+        {suggestions.map((suggestion, index) => (
+          <SuggestionCard
+            key={index}
+            icon={suggestion.icon}
+            title={suggestion.title}
+            description={suggestion.description}
+            onClick={() => onSuggestionClick(suggestion.description)}
+          />
+        ))}
+      </div>
+
     </div>
   );
 };

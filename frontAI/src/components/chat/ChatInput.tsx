@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowUp, Sparkles } from "lucide-react";
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -10,10 +9,13 @@ interface ChatInputProps {
 const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
+
+  const canSend = message.trim() && !disabled;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (message.trim() && !disabled) {
+    if (canSend) {
       onSend(message.trim());
       setMessage("");
     }
@@ -30,54 +32,87 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
     }
   }, [message]);
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
-      <div className="glass rounded-2xl overflow-hidden ">
-        <div className="flex items-end gap-3 p-3">
-          <div className="flex-1 relative">
+    <form onSubmit={handleSubmit}>
+      <div
+        className="rounded-2xl overflow-hidden transition-all duration-200"
+        style={{
+          background: "#0d111bff",
+          border: focused
+            ? "1px solid hsl(4 82% 47% / 0.5)"
+            : "1px solid hsl(220 15% 17%)",
+          boxShadow: focused
+            ? "0 0 0 3px hsl(4 82% 47% / 0.1), 0 4px 20px hsl(0 0% 0% / 0.3)"
+            : "0 4px 20px hsl(0 0% 0% / 0.2)",
+        }}
+      >
+        <div className="flex items-end gap-3 px-4 py-3">
+          {/* Textarea */}
+          <div className="flex-1">
             <textarea
               ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Digite sua mensagem..."
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder="Escreva sua mensagem..."
               disabled={disabled}
               rows={1}
-              className={cn(
-                "w-full bg-transparent text-foreground placeholder:text-muted-foreground",
-                "resize-none outline-none text-sm py-2 px-1",
-                "max-h-[150px] min-h-[24px]",
-                disabled && "opacity-50 cursor-not-allowed"
-              )}
+              className="w-full bg-transparent text-sm outline-none resize-none"
+              style={{
+                color: "hsl(0 0% 92%)",
+                caretColor: "hsl(4 82% 55%)",
+                maxHeight: "160px",
+                minHeight: "24px",
+                lineHeight: "1.6",
+                opacity: disabled ? 0.5 : 1,
+                cursor: disabled ? "not-allowed" : "text",
+              }}
             />
+            <style>{`
+              textarea::placeholder { color: hsl(215 15% 45%); }
+            `}</style>
           </div>
 
+          {/* Botão enviar */}
           <button
             type="submit"
-            disabled={!message.trim() || disabled}
-            className={cn(
-              "flex-shrink-0 w-10 h-10 rounded-xl",
-              "flex items-center justify-center",
-              "transition-all duration-300",
-              
-              message.trim() && !disabled
-                ? "bg-primary text-primary-foreground hover:scale-105 active:scale-95"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            )}
+            disabled={!canSend}
+            className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200"
+            style={{
+              background: canSend ? "#ad1e13ff" : "hsl(220 20% 17%)",
+              color: canSend ? "#fff" : "hsl(215 15% 45%)",
+              cursor: canSend ? "pointer" : "not-allowed",
+              boxShadow: canSend ? "0 2px 10px hsl(4 82% 47% / 0.4)" : "none",
+              transform: "scale(1)",
+            }}
+            onMouseEnter={e => {
+              if (canSend) {
+                (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
+                (e.currentTarget as HTMLButtonElement).style.background = "hsl(4 82% 40%)";
+              }
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(4 82% 47%)" : "hsl(220 20% 17%)";
+            }}
           >
-            <Send className="w-4 h-4" />
+            <ArrowUp size={16} strokeWidth={2.5} />
           </button>
         </div>
       </div>
 
-      {/* Powered by indicator */}
-      <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-muted-foreground">
-        <Sparkles className="w-3 h-3" />
-        <span> 2026 ViniPlast</span>
+      {/* Rodapé */}
+      <div className="flex items-center justify-center gap-1.5 mt-2.5">
+        <Sparkles size={11} style={{ color: "hsl(215 15% 40%)" }} />
+        <span className="text-xs" style={{ color: "hsl(215 15% 40%)" }}>
+          ViniPlast © 2026
+        </span>
       </div>
     </form>
   );

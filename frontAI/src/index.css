@@ -1,70 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Cores Base da Paleta */
-    --background: 225 47% 4%;
-    --foreground: 0 0% 100%;
+    /* === PALETA: Azul Escuro + Vermelho + Branco === */
 
-    /* Azul Escuro */
-    --primary: 215 50% 23%;
+    /* Fundo principal - azul muito escuro */
+    --background: 220 30% 7%;
 
-    /* Bordô */
-    --secondary: 345 75% 30%;
+    /* Texto principal - branco */
+    --foreground: 0 0% 95%;
 
-    /* Tons auxiliares */
-    --muted: 215 20% 15%;
-    --muted-foreground: 210 20% 80%;
+    /* Sidebar - azul escuro ligeiramente mais claro */
+    --sidebar: 220 28% 10%;
 
-    /* Extras para compatibilidade com componentes */
-    --border: 215 20% 18%;
-    --input: 215 20% 18%;
-    --ring: 345 75% 35%;
-    --card: 222 47% 10%;
-    --card-foreground: 0 0% 100%;
-    --popover: 222 47% 10%;
-    --popover-foreground: 0 0% 100%;
-    --accent: 215 20% 15%;
-    --accent-foreground: 0 0% 100%;
+    /* Primário - vermelho ViniPlast */
+    --primary: 4 82% 47%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Hover do primário */
+    --primary-hover: 4 82% 40%;
+
+    /* Secundário - azul médio */
+    --secondary: 214 60% 20%;
+    --secondary-foreground: 0 0% 95%;
+
+    /* Tons neutros */
+    --muted: 220 20% 14%;
+    --muted-foreground: 215 15% 58%;
+
+    /* Bordas */
+    --border: 220 15% 16%;
+    --input: 220 20% 13%;
+    --ring: 4 82% 47%;
+
+    /* Cards */
+    --card: 220 25% 11%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 25% 11%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Accent */
+    --accent: 220 20% 14%;
+    --accent-foreground: 0 0% 95%;
+
+    /* Destrutivo */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
     /* Gradientes */
-    --gradient-primary: linear-gradient(135deg, hsl(345 75% 35%) 0%, hsl(210 20% 95%) 100%);
-    --gradient-glow: linear-gradient(135deg, hsl(345 75% 35% / 0.2) 0%, hsl(215 50% 23% / 0.2) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(4 82% 47%) 0%, hsl(4 82% 60%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(4 82% 47% / 0.15) 0%, hsl(214 60% 20% / 0.15) 100%);
 
-    /* Vidro e bordas */
-    --glass-bg: hsl(222 47% 10% / 0.4);
-    --glass-border: hsl(0 0% 100% / 0.1);
+    /* Vidro */
+    --glass-bg: hsl(220 25% 11% / 0.6);
+    --glass-border: hsl(0 0% 100% / 0.07);
 
-    /* Glow */
-    --shadow-glow: 0 0 40px hsl(345 75% 35% / 0.2);
+    /* Sombra */
+    --shadow-glow: 0 0 40px hsl(4 82% 47% / 0.15);
+    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.4), 0 1px 2px hsl(0 0% 0% / 0.3);
   }
 
   * {
     @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     margin: 0;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
+
+  /* === Glass Morphism === */
   .glass {
     background: var(--glass-bg);
-    backdrop-filter: blur(20px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
   }
 
+  /* === Gradient Text === */
   .gradient-text {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -72,6 +112,7 @@
     background-clip: text;
   }
 
+  /* === Gradient Border === */
   .gradient-border {
     position: relative;
   }
@@ -82,16 +123,19 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: var(--gradient-primary);
+    background: linear-gradient(135deg, hsl(4 82% 47% / 0.5), hsl(214 60% 30% / 0.3));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
+    pointer-events: none;
   }
 
+  /* === Glow === */
   .glow {
     box-shadow: var(--shadow-glow);
   }
 
+  /* === Animações === */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -101,47 +145,162 @@
   }
 
   .animate-fade-in {
-    animation: fade-in 0.5s ease-out forwards;
+    animation: fade-in 0.4s ease-out forwards;
   }
 
   .animate-slide-up {
-    animation: slide-up 0.5s ease-out forwards;
+    animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* === Sidebar item hover === */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 cursor-pointer;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .sidebar-item:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+
+  .sidebar-item.active {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+  }
+
+  /* === Input focus ring === */
+  .input-ring {
+    @apply outline-none transition-all duration-200;
+    border: 1px solid hsl(var(--border));
+  }
+
+  .input-ring:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+  }
+
+  /* === Botão primário === */
+  .btn-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    @apply px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200;
+  }
+
+  .btn-primary:hover {
+    background: hsl(var(--primary-hover));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.35);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* === Ícone badge === */
+  .icon-badge {
+    @apply w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200;
   }
 }
 
+/* ===================== KEYFRAMES ===================== */
+
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 @keyframes pulse-slow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-@keyframes typing-dot {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-4px); }
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
+
+@keyframes typing-dot {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ===================== TYPING INDICATOR ===================== */
 
 .typing-dot {
   animation: typing-dot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(1) {
+  animation-delay: 0s;
 }
 
 .typing-dot:nth-child(2) {
@@ -152,9 +311,10 @@
   animation-delay: 0.4s;
 }
 
-/* Scrollbar */
+/* ===================== SCROLLBAR ===================== */
+
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -162,10 +322,122 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 3px;
+  background: hsl(var(--border));
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
+}
+
+/* ===================== MARKDOWN CONTENT ===================== */
+
+.prose-chat {
+  color: hsl(var(--foreground));
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.prose-chat p {
+  margin: 0.5em 0;
+}
+
+.prose-chat p:first-child {
+  margin-top: 0;
+}
+
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  margin: 1em 0 0.5em;
+  color: hsl(var(--foreground));
+}
+
+.prose-chat code {
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+  font-size: 0.82em;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  color: hsl(4 82% 65%);
+}
+
+.prose-chat pre {
+  background: hsl(220 30% 6%);
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+
+.prose-chat pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: hsl(var(--foreground));
+  font-size: 0.85em;
+}
+
+.prose-chat ul,
+.prose-chat ol {
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+
+.prose-chat li {
+  margin: 0.25em 0;
+}
+
+.prose-chat blockquote {
+  border-left: 3px solid hsl(var(--primary));
+  padding-left: 1em;
+  color: hsl(var(--muted-foreground));
+  margin: 0.75em 0;
+}
+
+.prose-chat strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.prose-chat a {
+  color: hsl(4 82% 65%);
+  text-decoration: underline;
+}
+
+.prose-chat hr {
+  border-color: hsl(var(--border));
+  margin: 1em 0;
+}
+
+.prose-chat table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.85em;
+}
+
+.prose-chat th {
+  background: hsl(var(--muted));
+  padding: 0.5em 0.75em;
+  text-align: left;
+  border: 1px solid hsl(var(--border));
+  font-weight: 600;
+}
+
+.prose-chat td {
+  padding: 0.5em 0.75em;
+  border: 1px solid hsl(var(--border));
+}
+
+.prose-chat tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.4);
 }
