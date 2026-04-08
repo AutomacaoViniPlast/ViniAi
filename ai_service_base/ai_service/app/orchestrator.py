@@ -43,28 +43,29 @@ class ChatOrchestrator:
         # ── Capacidades ───────────────────────────────────────────────────────
         if ir.intent == "tipos_informacao":
             answer = (
-                "Aqui está o que eu consigo responder:\n\n"
-                "LD (Material com defeito — revisão)\n"
-                "  • \"Quem gerou mais LD em janeiro de 2026?\"\n"
-                "  • \"Top 5 com mais LD em 2025\"\n"
-                "  • \"Quanto o ezequiel.nunes identificou de LD em março?\"\n"
-                "  • \"Qual produto gerou mais LD no mês passado?\"\n\n"
-                "Produção geral\n"
-                "  • \"Ranking de produção em 2025\"\n"
-                "  • \"Quanto o kaua.chagas produziu em fevereiro de 2026?\"\n"
-                "  • \"Produção por turno em março de 2026\"\n"
-                "  • \"Total geral em 2025\"\n\n"
-                "Setores\n"
-                "  • \"Operadores da revisão\"\n"
-                "  • \"Operadores da expedição\"\n"
-                "  • \"Top 3 da revisão com mais LD em 2026\"\n\n"
-                "Períodos\n"
-                "  • Qualquer mês/ano: \"em jan de 2026\", \"em março\", \"em 2025\"\n"
-                "  • Atalhos: \"este mês\", \"mês passado\", \"este ano\", \"ano passado\"\n\n"
-                "Tipos de movimentação\n"
-                "  • \"Top 5 LD em SD3\" (Movimentação Interna)\n"
-                "  • SD1 = Entrada · SD2 = Saída · SD3 = Movimentação Interna\n\n"
-                "Cobertura de dados: Jul/2019 até o mês atual.\n"
+                "### O que consigo responder\n\n"
+                "**LD (Material com defeito — revisão)**\n"
+                "- \"Quem gerou mais LD em janeiro de 2026?\"\n"
+                "- \"Top 5 com mais LD em 2025\"\n"
+                "- \"Quanto o ezequiel.nunes identificou de LD em março?\"\n"
+                "- \"Qual produto gerou mais LD no mês passado?\"\n\n"
+                "**Produção geral**\n"
+                "- \"Ranking de produção em 2025\"\n"
+                "- \"Quanto o kaua.chagas produziu em fevereiro de 2026?\"\n"
+                "- \"Produção por turno em março de 2026\"\n"
+                "- \"Total geral em 2025\"\n\n"
+                "**Setores**\n"
+                "- \"Operadores da revisão\"\n"
+                "- \"Operadores da expedição\"\n"
+                "- \"Top 3 da revisão com mais LD em 2026\"\n\n"
+                "**Períodos**\n"
+                "- Qualquer mês/ano: \"em jan de 2026\", \"em março\", \"em 2025\"\n"
+                "- Atalhos: \"este mês\", \"mês passado\", \"este ano\", \"ano passado\"\n\n"
+                "**Tipos de movimentação**\n"
+                "- \"Top 5 LD em SD3\" (Movimentação Interna)\n"
+                "- `SD1` = Entrada · `SD2` = Saída · `SD3` = Movimentação Interna\n\n"
+                "---\n"
+                "Cobertura de dados: **Jul/2019** até o mês atual.\n"
                 "Digite \"quais meses você tem dados?\" para ver os períodos disponíveis."
             )
             self.context.append_assistant_message(payload.session_id, answer)
@@ -73,8 +74,8 @@ class ChatOrchestrator:
         # ── Smalltalk ─────────────────────────────────────────────────────────
         if ir.route == "smalltalk":
             answer = (
-                "Olá! Sou o ViniAI, assistente de produção da fábrica.\n\n"
-                "Posso te ajudar com LD, produção, rankings, turnos e muito mais.\n"
+                "Olá! Sou o **ViniAI**, assistente de produção da fábrica.\n\n"
+                "Posso te ajudar com **LD**, **produção**, **rankings**, **turnos** e muito mais.\n"
                 "Digite \"o que você sabe fazer?\" para ver todas as possibilidades.\n\n"
                 "Como posso ajudar?"
             )
@@ -84,14 +85,14 @@ class ChatOrchestrator:
         # ── Clarificação ──────────────────────────────────────────────────────
         if ir.route == "clarify":
             answer = (
-                "Não entendi sua solicitação. Tente reformular. Exemplos:\n\n"
-                "• \"Quem mais produziu LD em janeiro de 2026?\"\n"
-                "• \"Top 5 da expedição com mais LD em 2025\"\n"
-                "• \"Qual produto gerou mais LD no mês passado?\"\n"
-                "• \"Produção da revisão em março de 2026\"\n"
-                "• \"Quanto o ezequiel.nunes produziu?\"\n"
-                "• \"Produção por turno em 2025\"\n"
-                "• \"Total da fábrica em SD3\""
+                "Não entendi sua solicitação. Tente reformular com algo como:\n\n"
+                "- \"Quem mais produziu LD em janeiro de 2026?\"\n"
+                "- \"Top 5 da expedição com mais LD em 2025\"\n"
+                "- \"Qual produto gerou mais LD no mês passado?\"\n"
+                "- \"Produção da revisão em março de 2026\"\n"
+                "- \"Quanto o ezequiel.nunes produziu?\"\n"
+                "- \"Produção por turno em 2025\"\n"
+                "- \"Total da fábrica em SD3\""
             )
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir, requires_clarification=True)
@@ -163,20 +164,20 @@ class ChatOrchestrator:
                 meses = p["meses"]
                 todos = list(range(1, 13))
                 if meses == todos:
-                    linhas.append(f"  {ano}: ano completo (Jan–Dez)")
+                    linhas.append(f"- **{ano}**: ano completo (Jan–Dez)")
                 else:
                     nomes = ", ".join(_MESES_NOME[m - 1] for m in meses)
-                    linhas.append(f"  {ano}: {nomes}")
+                    linhas.append(f"- **{ano}**: {nomes}")
                     if len(meses) < 6:
                         avisos.append(f"{ano} (dados esparsos — {len(meses)} meses)")
 
             corpo = "\n".join(linhas)
             nota  = ""
             if avisos:
-                nota = "\n\nAtenção — dados incompletos em: " + ", ".join(avisos)
-            nota += "\n\nPara consultas confiáveis, recomendo usar 2022 em diante."
+                nota = "\n\n> ⚠️ Dados incompletos em: " + ", ".join(avisos)
+            nota += "\n\n> Para consultas confiáveis, recomendo usar **2022 em diante**."
 
-            return f"Períodos com dados disponíveis:\n{corpo}{nota}"
+            return f"### Períodos com dados disponíveis\n\n{corpo}{nota}"
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
@@ -186,10 +187,10 @@ class ChatOrchestrator:
             if not ops:
                 return f"Nenhum operador cadastrado para o setor {label}."
             encontrados = self.sql.get_review_operators(ops)
-            linhas  = "\n".join(f"  • {op}" for op in ops)
+            linhas  = "\n".join(f"- {op}" for op in ops)
             sem_reg = [o for o in ops if o not in encontrados]
-            nota = f"\n\n  (Sem registros no banco: {', '.join(sem_reg)})" if sem_reg else ""
-            return f"Operadores da {label}:\n{linhas}{nota}"
+            nota = f"\n\n> Sem registros no banco: {', '.join(sem_reg)}" if sem_reg else ""
+            return f"### Operadores da {label}\n\n{linhas}{nota}"
 
         # ── Ranking de revisão por LD ─────────────────────────────────────────
         # "quem gerou mais LD" é uma pergunta de revisão, não de produção
@@ -203,11 +204,13 @@ class ChatOrchestrator:
                 contexto = f" da {setor_label}" if setor_label else ""
                 return f"Nenhum dado de LD encontrado{contexto}{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
+            header = f"### Top {top_n} — Revisão de LD{contexto}{periodo}{orig_lbl}\n\n"
+            header += "| # | Operador | Total |\n|---|----------|-------|\n"
             linhas = "\n".join(
-                f"  {r['posicao']}º {r['operador']}: {_fmt_kg(r['total_kg'])}"
+                f"| {r['posicao']}º | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
                 for r in rows
             )
-            return f"Top {top_n} — revisão de LD{contexto}{periodo}{orig_lbl}:\n{linhas}"
+            return header + linhas
 
         # ── Ranking produtos por LD ───────────────────────────────────────────
         if ir.intent == "ranking_produtos_ld":
@@ -218,11 +221,13 @@ class ChatOrchestrator:
             )
             if not rows:
                 return f"Nenhum produto com LD encontrado{periodo}{orig_lbl}."
+            header = f"### Top {top_n} — Produtos com mais LD{periodo}{orig_lbl}\n\n"
+            header += "| # | Produto | Total | Registros |\n|---|---------|-------|-----------|\n"
             linhas = "\n".join(
-                f"  {r['posicao']}º {r['produto']}: {_fmt_kg(r['total_kg'])} ({r['ocorrencias']} registros)"
+                f"| {r['posicao']}º | `{r['produto']}` | **{_fmt_kg(r['total_kg'])}** | {r['ocorrencias']} |"
                 for r in rows
             )
-            return f"Top {top_n} produtos com mais LD{periodo}{orig_lbl}:\n{linhas}"
+            return header + linhas
 
         # ── LD por operador específico ─────────────────────────────────────────
         if ir.intent == "geracao_ld_por_operador":
@@ -240,8 +245,10 @@ class ChatOrchestrator:
                     "Verifique o nome ou o período informado."
                 )
             return (
-                f"LD identificado em revisão — {ir.entity_value}{setor_info}{periodo}{orig_lbl}:\n"
-                f"  Total: {_fmt_kg(float(total))}"
+                f"### LD identificado em revisão\n\n"
+                f"**Operador:** {ir.entity_value}{setor_info}  \n"
+                f"**Período:** {periodo.strip() or 'geral'}  \n"
+                f"**Total:** {_fmt_kg(float(total))}"
             )
 
         # ── Movimentação da expedição por operador ────────────────────────────
@@ -263,19 +270,23 @@ class ChatOrchestrator:
                         "Verifique o nome ou o período informado."
                     )
                 return (
-                    f"Bobinas liberadas (Expedição) — {ir.entity_value}{periodo}{orig_lbl}:\n"
-                    f"  Total movimentado: {_fmt_kg(float(total))}"
+                    f"### Bobinas liberadas — Expedição\n\n"
+                    f"**Operador:** {ir.entity_value}  \n"
+                    f"**Período:** {periodo.strip() or 'geral'}  \n"
+                    f"**Total movimentado:** {_fmt_kg(float(total))}"
                 )
 
             total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
                 return (
-                    f"Nenhum registro encontrado para {ir.entity_value}{setor_info}{periodo}{orig_lbl}.\n"
+                    f"Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
                     "Verifique o nome ou o período informado."
                 )
             return (
-                f"Produção — {ir.entity_value}{setor_info}{periodo}{orig_lbl}:\n"
-                f"  Total: {_fmt_kg(float(total))}"
+                f"### Produção\n\n"
+                f"**Operador:** {ir.entity_value}{setor_info}  \n"
+                f"**Período:** {periodo.strip() or 'geral'}  \n"
+                f"**Total:** {_fmt_kg(float(total))}"
             )
 
         # ── Produção por produto específico ───────────────────────────────────
@@ -286,8 +297,10 @@ class ChatOrchestrator:
             if float(total) == 0:
                 return f"Nenhuma produção encontrada para {ir.entity_value}{periodo}{orig_lbl}."
             return (
-                f"Produção do produto {ir.entity_value}{periodo}{orig_lbl}:\n"
-                f"  Total: {_fmt_kg(float(total))}"
+                f"### Produção por produto\n\n"
+                f"**Produto:** `{ir.entity_value}`  \n"
+                f"**Período:** {periodo.strip() or 'geral'}  \n"
+                f"**Total:** {_fmt_kg(float(total))}"
             )
 
         # ── Ranking geral de produção (exclui expedição por padrão) ──────────
@@ -301,11 +314,13 @@ class ChatOrchestrator:
                 contexto = f" da {setor_label}" if setor_label else ""
                 return f"Nenhum dado encontrado{contexto}{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
+            header = f"### Top {top_n} — Produção{contexto}{periodo}{orig_lbl}\n\n"
+            header += "| # | Operador | Total |\n|---|----------|-------|\n"
             linhas = "\n".join(
-                f"  {r['posicao']}º {r['operador']}: {_fmt_kg(r['total_kg'])}"
+                f"| {r['posicao']}º | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
                 for r in rows
             )
-            return f"Top {top_n} — produção{contexto}{periodo}{orig_lbl}:\n{linhas}"
+            return header + linhas
 
         # ── Produção por turno (exclui expedição por padrão) ─────────────────
         if ir.intent == "producao_por_turno":
@@ -317,11 +332,13 @@ class ChatOrchestrator:
             if not rows:
                 return f"Nenhum dado de turno encontrado{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
+            header = f"### Produção por turno{contexto}{periodo}{orig_lbl}\n\n"
+            header += "| Turno | Total | Registros |\n|-------|-------|-----------|\n"
             linhas = "\n".join(
-                f"  Turno {r['turno']}: {_fmt_kg(r['total_kg'])} ({r['registros']} registros)"
+                f"| {r['turno']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
                 for r in rows
             )
-            return f"Produção por turno{contexto}{periodo}{orig_lbl}:\n{linhas}"
+            return header + linhas
 
         # ── Total da fábrica ──────────────────────────────────────────────────
         if ir.intent == "total_fabrica":
@@ -331,9 +348,10 @@ class ChatOrchestrator:
                 return f"Nenhum dado de produção encontrado{periodo}{orig_lbl}."
             pct_ld = (float(total_ld) / float(total) * 100) if float(total) > 0 else 0
             return (
-                f"Produção total da fábrica{periodo}{orig_lbl}:\n"
-                f"  Total geral: {_fmt_kg(float(total))}\n"
-                f"  Total de LD:  {_fmt_kg(float(total_ld))} ({pct_ld:.1f}%)"
+                f"### Produção total da fábrica{periodo}{orig_lbl}\n\n"
+                f"| Métrica | Valor |\n|---------|-------|\n"
+                f"| Total geral | **{_fmt_kg(float(total))}** |\n"
+                f"| Total de LD | **{_fmt_kg(float(total_ld))}** ({pct_ld:.1f}%) |"
             )
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
