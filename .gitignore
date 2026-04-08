@@ -1,6 +1,10 @@
 .env
 nssm.exe
 iniciar.bat
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 dist/
 backend/dist/
 frontAI/node_modules/
