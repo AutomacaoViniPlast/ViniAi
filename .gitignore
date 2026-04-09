@@ -9,3 +9,5 @@ dist/
 backend/dist/
 frontAI/node_modules/
 backend/node_modules/
+logs/
+*.log
