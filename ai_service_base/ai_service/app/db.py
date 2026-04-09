@@ -22,11 +22,17 @@ _DB_URL = (
 _pool = ConnectionPool(_DB_URL, min_size=1, max_size=10, open=True)
 
 # Pool secundário — banco N8N (histórico de conversas)
-_N8N_DB_URL = (
-    f"postgresql://{os.environ['N8N_DB_USER']}:{quote_plus(os.environ['N8N_DB_PASSWORD'])}"
-    f"@{os.environ['N8N_DB_HOST']}:{os.environ['N8N_DB_PORT']}/{os.environ['N8N_DB_NAME']}"
-)
-_n8n_pool = ConnectionPool(_N8N_DB_URL, min_size=1, max_size=5, open=True)
+# Inicialização tolerante a falhas: se o banco N8N estiver indisponível no startup,
+# o FastAPI ainda sobe — o histórico de conversas simplesmente fica vazio.
+_n8n_pool: ConnectionPool | None = None
+try:
+    _N8N_DB_URL = (
+        f"postgresql://{os.environ['N8N_DB_USER']}:{quote_plus(os.environ['N8N_DB_PASSWORD'])}"
+        f"@{os.environ['N8N_DB_HOST']}:{os.environ['N8N_DB_PORT']}/{os.environ['N8N_DB_NAME']}"
+    )
+    _n8n_pool = ConnectionPool(_N8N_DB_URL, min_size=1, max_size=5, open=True)
+except Exception as exc:
+    print(f"[db] Pool N8N não inicializado: {exc}")
 
 
 @contextmanager
@@ -39,5 +45,7 @@ def get_conn():
 @contextmanager
 def get_n8n_conn():
     """Fornece uma conexão do pool N8N (conversas/mensagens)."""
+    if _n8n_pool is None:
+        raise RuntimeError("Pool N8N não disponível")
     with _n8n_pool.connection() as conn:
         yield conn
