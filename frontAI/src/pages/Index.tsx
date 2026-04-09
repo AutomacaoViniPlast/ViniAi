@@ -13,6 +13,7 @@ import {
   updateTitle,
 } from "../services/conversations";
 import { getUser } from "../lib/storage";
+import { toast } from "@/components/ui/sonner";
 
 import abrir from "../image/abrir.png";
 import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -87,6 +88,7 @@ const Index = () => {
         }
       } catch (err) {
         console.error("Erro ao carregar conversas:", err);
+        toast.error("Erro ao carregar conversas. Verifique sua conexão e tente novamente.");
       } finally {
         setCarregando(false);
       }
@@ -152,6 +154,9 @@ const Index = () => {
       setIsSidebarOpen(false);
     } catch (err) {
       console.error("Erro ao criar conversa:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Erro ao criar conversa. Tente novamente."
+      );
     }
   };
 
