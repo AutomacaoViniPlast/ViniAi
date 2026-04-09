@@ -3,9 +3,18 @@ import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import EmptyState from "@/components/chat/EmptyState";
 import { sendChatMessage } from "../services/n8n";
+import {
+  listConversations,
+  createConversation,
+  deleteConversation as apiDeleteConversation,
+  togglePin as apiTogglePin,
+  getMessages,
+  saveMessage,
+  updateTitle,
+} from "../services/conversations";
+import { getUser } from "../lib/storage";
 
 import abrir from "../image/abrir.png";
-import fechar from "../image/fechar.png";
 import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 interface Message {
@@ -19,16 +28,14 @@ interface Conversation {
   title: string;
   messages: Message[];
   createdAt: number;
-  pinned?: boolean;
+  pinned: boolean;
+  messagesLoaded: boolean;
 }
 
 interface UserProfile {
   nome: string;
   setor: string;
 }
-
-const generateId = () =>
-  Math.random().toString(36).substring(2) + Date.now().toString(36);
 
 const Index = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -42,43 +49,79 @@ const Index = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Carrega perfil + conversas do banco ──────────────────────────────────────
   useEffect(() => {
-    const rawUser = localStorage.getItem("user");
+    const user = getUser();
+    setUserProfile({
+      nome: user?.nome || "Usuário",
+      setor: user?.setor || "GERAL",
+    });
 
-    let parsedUser: UserProfile = {
-      nome: "Usuário",
-      setor: "GERAL",
-    };
-
-    if (rawUser) {
+    async function init() {
       try {
-        const user = JSON.parse(rawUser);
-        parsedUser = {
-          nome: user.nome || "Usuário",
-          setor: user.setor || "GERAL",
-        };
-      } catch {
-        parsedUser = {
-          nome: "Usuário",
-          setor: "GERAL",
-        };
+        const apiConvs = await listConversations();
+
+        if (apiConvs.length > 0) {
+          const convs: Conversation[] = apiConvs.map((c) => ({
+            id: c.id,
+            title: c.titulo,
+            messages: [],
+            createdAt: new Date(c.criado_em).getTime(),
+            pinned: c.pinned,
+            messagesLoaded: false,
+          }));
+          setConversations(convs);
+          setActiveId(convs[0].id);
+        } else {
+          // Primeiro acesso — cria uma conversa inicial
+          const nova = await createConversation();
+          setConversations([{
+            id: nova.id,
+            title: nova.titulo,
+            messages: [],
+            createdAt: new Date(nova.criado_em).getTime(),
+            pinned: false,
+            messagesLoaded: true,
+          }]);
+          setActiveId(nova.id);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar conversas:", err);
+      } finally {
+        setCarregando(false);
       }
     }
 
-    setUserProfile(parsedUser);
-
-    const novaConversa: Conversation = {
-      id: generateId(),
-      title: "Nova conversa",
-      messages: [],
-      createdAt: Date.now(),
-      pinned: false,
-    };
-
-    setConversations([novaConversa]);
-    setActiveId(novaConversa.id);
-    setCarregando(false);
+    init();
   }, []);
+
+  // ── Carrega mensagens ao trocar de conversa ───────────────────────────────────
+  useEffect(() => {
+    if (!activeId) return;
+
+    const conv = conversations.find((c) => c.id === activeId);
+    if (!conv || conv.messagesLoaded) return;
+
+    getMessages(activeId)
+      .then((msgs) => {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeId
+              ? {
+                  ...c,
+                  messagesLoaded: true,
+                  messages: msgs.map((m) => ({
+                    id: m.id,
+                    content: m.conteudo,
+                    role: m.role,
+                  })),
+                }
+              : c
+          )
+        );
+      })
+      .catch((err) => console.error("Erro ao carregar mensagens:", err));
+  }, [activeId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -92,55 +135,84 @@ const Index = () => {
     window.location.href = "/auth";
   };
 
-  const createNewConversation = () => {
-    const newConv: Conversation = {
-      id: generateId(),
-      title: "Nova conversa",
-      messages: [],
-      createdAt: Date.now(),
-      pinned: false,
-    };
-
-    setConversations((prev) => [newConv, ...prev]);
-    setActiveId(newConv.id);
-    setIsSidebarOpen(false);
+  // ── Nova conversa ─────────────────────────────────────────────────────────────
+  const createNewConversation = async () => {
+    try {
+      const nova = await createConversation();
+      const newConv: Conversation = {
+        id: nova.id,
+        title: nova.titulo,
+        messages: [],
+        createdAt: new Date(nova.criado_em).getTime(),
+        pinned: false,
+        messagesLoaded: true,
+      };
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveId(newConv.id);
+      setIsSidebarOpen(false);
+    } catch (err) {
+      console.error("Erro ao criar conversa:", err);
+    }
   };
 
-  const deleteConversation = (id: string) => {
-    setConversations((prev) => {
-      const updated = prev.filter((c) => c.id !== id);
-      if (id === activeId) setActiveId(updated[0]?.id || null);
-      return updated;
-    });
+  // ── Deletar conversa ──────────────────────────────────────────────────────────
+  const deleteConversation = async (id: string) => {
+    try {
+      await apiDeleteConversation(id);
+      setConversations((prev) => {
+        const updated = prev.filter((c) => c.id !== id);
+        if (id === activeId) setActiveId(updated[0]?.id || null);
+        return updated;
+      });
+    } catch (err) {
+      console.error("Erro ao deletar conversa:", err);
+    }
   };
 
-  const togglePin = (id: string) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c))
-    );
+  // ── Alternar pin ──────────────────────────────────────────────────────────────
+  const togglePin = async (id: string) => {
+    try {
+      const updated = await apiTogglePin(id);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, pinned: updated.pinned } : c))
+      );
+    } catch (err) {
+      console.error("Erro ao alternar pin:", err);
+    }
   };
 
+  // ── Enviar mensagem ───────────────────────────────────────────────────────────
   const handleSend = async (content: string) => {
     if (!activeConversation) return;
 
     const sessionId = activeConversation.id;
     const setor = userProfile?.setor || "GERAL";
+    const isFirstMessage = activeConversation.messages.length === 0;
 
-    const userMessage: Message = { id: generateId(), content, role: "user" };
+    // Atualiza título na primeira mensagem
+    const novoTitulo = content.slice(0, 50);
+    if (isFirstMessage) {
+      updateTitle(sessionId, novoTitulo).catch(() => {});
+    }
 
+    // Adiciona mensagem do usuário no estado imediatamente
+    const tempUserId = `temp_${Date.now()}`;
     setConversations((prev) =>
       prev.map((c) =>
         c.id === sessionId
           ? {
-            ...c,
-            title: c.messages.length === 0 ? content.slice(0, 40) : c.title,
-            messages: [...c.messages, userMessage],
-          }
+              ...c,
+              title: isFirstMessage ? novoTitulo : c.title,
+              messages: [...c.messages, { id: tempUserId, content, role: "user" }],
+            }
           : c
       )
     );
 
     setIsTyping(true);
+
+    // Grava mensagem do usuário no banco (em paralelo com a chamada ao n8n)
+    saveMessage(sessionId, "user", content).catch(() => {});
 
     try {
       const data = await sendChatMessage(content, setor, sessionId);
@@ -152,31 +224,39 @@ const Index = () => {
         data?.response ||
         (typeof data === "string" ? data : "Sem resposta.");
 
-      const assistantMessage: Message = {
-        id: generateId(),
-        content: responseText,
-        role: "assistant",
-      };
+      // Grava resposta da IA no banco
+      saveMessage(sessionId, "assistant", responseText).catch(() => {});
 
       setConversations((prev) =>
         prev.map((c) =>
           c.id === sessionId
-            ? { ...c, messages: [...c.messages, assistantMessage] }
+            ? {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  { id: `ai_${Date.now()}`, content: responseText, role: "assistant" },
+                ],
+              }
             : c
         )
       );
     } catch (error) {
       console.error(error);
 
-      const errMsg: Message = {
-        id: generateId(),
-        content: "Desculpe, tive um problema de conexão.",
-        role: "assistant",
-      };
+      const errMsg = "Desculpe, tive um problema de conexão.";
+      saveMessage(sessionId, "assistant", errMsg).catch(() => {});
 
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === sessionId ? { ...c, messages: [...c.messages, errMsg] } : c
+          c.id === sessionId
+            ? {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  { id: `err_${Date.now()}`, content: errMsg, role: "assistant" },
+                ],
+              }
+            : c
         )
       );
     } finally {
@@ -192,7 +272,6 @@ const Index = () => {
       return b.createdAt - a.createdAt;
     });
 
-  /* ── Avatar iniciais do usuário ── */
   const initials = userProfile?.nome
     ? userProfile.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
     : "U";
@@ -248,7 +327,6 @@ const Index = () => {
           className="flex items-center justify-between p-3 shrink-0"
           style={{ borderBottom: "1px solid hsl(220 15% 16%)", minHeight: "60px" }}
         >
-          {/* Modo EXPANDIDO: logo + nome à esquerda, botão de recolher à direita */}
           {!isSidebarCollapsed && (
             <>
               <div className="flex items-center gap-2.5 overflow-hidden">
@@ -268,7 +346,6 @@ const Index = () => {
                   </p>
                 </div>
               </div>
-              {/* Botão de recolher — só aparece quando expandida */}
               <button
                 onClick={() => setIsSidebarCollapsed(true)}
                 className="hidden md:flex items-center justify-center w-7 h-7 rounded-full transition-all duration-200 shrink-0"
@@ -285,7 +362,6 @@ const Index = () => {
               >
                 <PanelLeftClose size={16} />
               </button>
-              {/* Botão fechar mobile */}
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 className="md:hidden flex items-center justify-center w-7 h-7 rounded-full"
@@ -296,7 +372,6 @@ const Index = () => {
             </>
           )}
 
-          {/* Modo COLAPSADO: só o logo VI; no hover vira ícone de expandir */}
           {isSidebarCollapsed && (
             <button
               onClick={() => setIsSidebarCollapsed(false)}
@@ -322,10 +397,7 @@ const Index = () => {
           <button
             onClick={createNewConversation}
             className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200"
-            style={{
-              background: "#b62015ff",
-              color: "#fff",
-            }}
+            style={{ background: "#b62015ff", color: "#fff" }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLButtonElement).style.background = "hsl(4 82% 40%)";
               (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px hsl(4 82% 47% / 0.4)";
@@ -354,10 +426,7 @@ const Index = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 bg-transparent text-sm outline-none"
-                style={{
-                  color: "hsl(0 0% 95%)",
-                  caretColor: "hsl(4 82% 47%)",
-                }}
+                style={{ color: "hsl(0 0% 95%)", caretColor: "hsl(4 82% 47%)" }}
               />
             </div>
           </div>
@@ -408,7 +477,6 @@ const Index = () => {
                       <span className="truncate text-[13px]">{conv.title}</span>
                     </div>
                   </button>
-                  {/* Ações hover */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
@@ -444,16 +512,11 @@ const Index = () => {
         </div>
 
         {/* Rodapé sidebar */}
-        <div
-          className="p-2 shrink-0"
-        >
-          {/* Avatar + nome do usuário */}
+        <div className="p-2 shrink-0">
           {!isSidebarCollapsed && (
             <div
               className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl mb-1"
-              style={{
-                background: "#0d111bff",
-              }}
+              style={{ background: "#0d111bff" }}
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
@@ -544,9 +607,7 @@ const Index = () => {
         </div>
 
         {/* Input area */}
-        <div
-          className="shrink-0 px-4 md:px-6 py-4"
-        >
+        <div className="shrink-0 px-4 md:px-6 py-4">
           <div className="max-w-3xl mx-auto">
             <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
           </div>

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.config import OPERADORES_ATIVOS, ORIGENS, SETORES, get_excluidos_producao, get_label_setor, get_operadores_setor, get_setor_de
-from app.context_manager import InMemoryContextManager
+from app.context_manager import PostgresContextManager
 from app.interpreter import InterpretationResult, RuleBasedInterpreter
 from app.schemas import ChatProcessRequest, ChatProcessResponse
 from app.sql_service import SQLService
@@ -31,7 +31,7 @@ def _origem_label(origem: str | None) -> str:
 
 class ChatOrchestrator:
     def __init__(self) -> None:
-        self.context     = InMemoryContextManager()
+        self.context     = PostgresContextManager()
         self.interpreter = RuleBasedInterpreter()
         self.sql         = SQLService()
 
