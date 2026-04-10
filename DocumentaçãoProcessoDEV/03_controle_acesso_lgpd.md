@@ -1,6 +1,6 @@
 # ViniAI — Controle de Acesso e LGPD
 
-**Versão:** 1.1  
+**Versão:** 1.2  
 **Última atualização:** Abril/2026  
 **Base legal:** Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD)
 
@@ -8,21 +8,18 @@
 
 ## Estrutura Organizacional da Viniplast
 
-A empresa é dividida em **departamentos**. Cada departamento tem acesso apenas
-aos agentes de IA do seu próprio domínio. Nenhum departamento acessa dados de outro.
-
 ```
 VINIPLAST
 │
 ├── PRODUÇÃO ──────────────────────────────────────────────┐
-│   │                                                       │ Usuário "producao"
+│   │                                                       │ Perfil "producao"
 │   ├── Extrusora  ┐                                        │ acessa a AYLA —
 │   ├── Pesagem    ├──► Ayla  (atende todos os sub-setores) │ ela cobre tudo
 │   ├── Qualidade  │                                        │
 │   └── Expedição  ┘                                        │
 │                                                           ┘
 ├── PCP (Planejamento e Controle de Produção)
-│   └── → Iris  + consulta Ayla (necessita de dados de produção)
+│   └── → Iris  +  consulta Ayla  (PCP precisa ver dados de produção)
 │
 ├── RH (Recursos Humanos)
 │   └── → Nina  (somente dados de RH)
@@ -40,39 +37,37 @@ VINIPLAST
 
 ## Tabela de Permissões por Departamento
 
-| Perfil (`user_setor`) | Agentes Acessíveis | Obs. |
-|----------------------|-------------------|------|
-| `admin` | Todos | Acesso total |
-| `gerencia` | Todos | Acesso total |
-| `ti` | Todos | Acesso total |
-| `producao` | Ayla | Atende Extrusora, Pesagem, Qualidade e Expedição |
-| `pcp` | Iris + Ayla | PCP precisa consultar dados de produção |
-| `rh` | Nina | Apenas RH |
-| `controladoria` | Maya | Apenas financeiro/custos |
-| `vendas` | Eva | Apenas vendas |
-| Não informado | Sem restrição | Retrocompatibilidade |
+| Perfil (`user_setor`) | Agente(s) acessível(is) | Observação |
+|----------------------|------------------------|------------|
+| `admin` | Todos | Acesso irrestrito |
+| `gerencia` | Todos | Acesso irrestrito |
+| `ti` | Todos | Acesso irrestrito |
+| `producao` | **Ayla** | Cobre Extrusora, Pesagem, Qualidade e Expedição |
+| `pcp` | **Iris** + **Ayla** | PCP precisa consultar dados de produção |
+| `rh` | **Nina** | Somente RH |
+| `controladoria` | **Maya** | Somente financeiro/custos |
+| `vendas` | **Eva** | Somente vendas |
+| Não informado | Sem restrição | Retrocompatibilidade — nenhum controle aplicado |
 
 ---
 
-## Lógica de Restrição
+## Regras Fundamentais
 
-A restrição é **entre departamentos**, nunca dentro do mesmo departamento.
+1. **Restrição entre departamentos** — nunca dentro do mesmo departamento.
+   - Um usuário de `producao` vê todos os sub-setores da Produção via Ayla (Extrusora, Pesagem, Qualidade, Expedição).
+   - Um usuário de `rh` não vê dados de Produção, Controladoria ou Vendas.
 
-**Correto:**
-- Usuário de `producao` vê dados de Extrusora, Pesagem, Qualidade e Expedição (todas sub-áreas da Produção)
-- Usuário de `rh` **não** vê dados de produção
-- Usuário de `producao` **não** vê dados de RH ou Controladoria
+2. **Conversa sempre liberada** — saudações, dúvidas gerais e apresentação do agente (*"o que você faz?"*) nunca são bloqueados, independentemente do perfil.
 
-**Sempre liberado (sem restrição):**
-- Saudações e conversa casual (`smalltalk`)
-- Mensagens não identificadas (`clarify`)
-- "O que você faz?" (`tipos_informacao`)
+3. **Sem setor informado = sem restrição** — para compatibilidade com integrações que ainda não enviam `user_setor`.
+
+4. **Perfil não mapeado = sem restrição** — evita bloquear novos perfis ainda não cadastrados em `permissions.py`.
 
 ---
 
 ## Como Funciona Tecnicamente
 
-### 1. Frontend envia o departamento no payload
+### Payload enviado pelo frontend
 
 ```json
 {
@@ -83,43 +78,62 @@ A restrição é **entre departamentos**, nunca dentro do mesmo departamento.
 }
 ```
 
-### 2. Orchestrator verifica antes de qualquer query
+### Fluxo de verificação
 
 ```
-Mensagem recebida | user_setor="rh" | agent_id="producao"
-       ↓
-permissions.verificar_permissao("rh", "producao", "ranking_usuarios_ld")
-       ↓
-"rh" só acessa {"rh"} → "producao" não está no conjunto
-       ↓
-Retorna MENSAGEM_LGPD — query SQL não executada
+Mensagem recebida
+       │
+       ▼
+É intent livre? (smalltalk / clarify / tipos_informacao)
+       │
+     Sim → Libera sempre
+       │
+      Não
+       │
+       ▼
+user_setor informado?
+       │
+      Não → Libera (retrocompatível)
+       │
+      Sim
+       │
+       ▼
+Perfil mapeado em _AGENTES_POR_DEPARTAMENTO?
+       │
+      Não → Libera (perfil futuro, sem restrição)
+       │
+      Sim
+       │
+       ▼
+agent_id está no conjunto de agentes permitidos?
+       │
+    ┌──┴──┐
+   Sim    Não
+    │      │
+  Libera  Bloqueia → retorna MENSAGEM_LGPD
 ```
 
-### 3. Arquivo de configuração
+### Arquivo de configuração
 
-`ai_service_base/ai_service/app/permissions.py`
-
-Variável principal: `_AGENTES_POR_DEPARTAMENTO`
+`ai_service_base/ai_service/app/permissions.py`  
+Variável: `_AGENTES_POR_DEPARTAMENTO`
 
 ---
 
 ## Adicionar Novo Departamento
 
-Edite `_AGENTES_POR_DEPARTAMENTO` em `permissions.py`:
-
 ```python
+# em permissions.py → _AGENTES_POR_DEPARTAMENTO
 "novo_departamento": {
-    "agent_id_1",   # agente principal do departamento
-    "agent_id_2",   # agente adicional se necessário
+    "id_agente_1",   # agente principal
+    "id_agente_2",   # se precisar acessar outro agente também
 },
 ```
 
 ---
 
-## Mensagem de Bloqueio (LGPD)
+## Mensagem de Bloqueio
 
-Texto exibido ao usuário quando o acesso é negado.  
-Pode ser personalizado com a política oficial da Viniplast editando
-a variável `MENSAGEM_LGPD` em `permissions.py`.
+Texto exibido ao usuário quando o acesso é negado. Baseado na LGPD — Art. 6º, incisos I, III, V e VII.
 
-Referência aplicada: **Art. 6º, incisos I, III, V e VII — Lei 13.709/2018**.
+Personalize em `permissions.py` → variável `MENSAGEM_LGPD` com o texto oficial da política de privacidade da Viniplast.

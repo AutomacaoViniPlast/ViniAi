@@ -1,26 +1,37 @@
 """
 agents.py — Registro central de todos os agentes do ViniAI.
 
-Cada agente representa uma IA especializada em um domínio da empresa.
+Cada agente representa uma IA especializada em um departamento da empresa.
 Contém: nome, área de atuação, system prompt (personalidade para o ChatGPT)
 e capabilities (texto de ajuda exibido quando o usuário pergunta "o que você faz?").
 
+Estado atual
+────────────
+  producao → Ayla (ATIVO)
+    Ayla é a assistente de toda a área de Produção. Ela atende os seguintes
+    sub-setores sem necessidade de agentes separados:
+      • Extrusora (produção de bobinas)
+      • Pesagem (controle de peso)
+      • Qualidade / Revisão (inspeção, identificação de LD)
+      • Expedição (liberação de bobinas para clientes)
+
+Agentes futuros (nomes reservados — não ativos)
+────────────────────────────────────────────────
+  pcp           → Iris   (Planejamento e Controle de Produção)
+  controladoria → Maya   (Financeiro e Custos)
+  rh            → Nina   (Recursos Humanos)
+  vendas        → Eva    (Vendas e Clientes)
+
+  Nota: pesagem, qualidade e logistica estão registrados como nomes reservados,
+  mas ATUALMENTE são cobertos pela Ayla. Só se tornarão agentes ativos se a
+  necessidade de especialização surgir no futuro.
+
 Como adicionar um novo agente
 ──────────────────────────────
-  1. Adicione a entrada no dicionário AGENTS com todos os campos.
+  1. Preencha o system_prompt e capabilities do agente aqui.
   2. Instancie ChatOrchestrator(agent_id="novo_id") no endpoint correspondente.
-  3. Configure as permissões do setor em permissions.py.
-
-Agentes planejados
-──────────────────
-  producao      → Ayla   (ativo)
-  pcp           → Iris   (futuro)
-  controladoria → Maya   (futuro)
-  pesagem       → Lara   (futuro)
-  rh            → Nina   (futuro)
-  vendas        → Eva    (futuro)
-  qualidade     → Luna   (futuro)
-  logistica     → Vera   (futuro)
+  3. Atualize as permissões em permissions.py (_AGENTES_POR_DEPARTAMENTO).
+  4. Documente em DocumentaçãoProcessoDEV/02_sistema_de_agentes.md.
 """
 from __future__ import annotations
 
@@ -120,16 +131,24 @@ Digite *"quais meses você tem dados?"* para ver os períodos disponíveis.\
 """,
     },
 
-    # ── Iris — PCP (futuro) ───────────────────────────────────────────────────
+    # =========================================================================
+    # AGENTES FUTUROS — nomes e domínios reservados, ainda não implementados.
+    # Para ativar: preencha system_prompt e capabilities, depois atualize
+    # permissions.py e DocumentaçãoProcessoDEV/02_sistema_de_agentes.md.
+    # =========================================================================
+
+    # ── Iris — PCP ────────────────────────────────────────────────────────────
+    # Planejamento e Controle de Produção. Previsto como agente independente.
     "pcp": {
         "name": "Iris",
         "domain": "PCP",
         "description": "Assistente de Planejamento e Controle de Produção.",
-        "system_prompt": "",    # a definir quando o agente for implementado
+        "system_prompt": "",
         "capabilities": "",
     },
 
-    # ── Maya — Controladoria (futuro) ─────────────────────────────────────────
+    # ── Maya — Controladoria ──────────────────────────────────────────────────
+    # Departamento financeiro e de custos. Agente independente.
     "controladoria": {
         "name": "Maya",
         "domain": "Controladoria",
@@ -138,16 +157,8 @@ Digite *"quais meses você tem dados?"* para ver os períodos disponíveis.\
         "capabilities": "",
     },
 
-    # ── Lara — Pesagem (futuro) ───────────────────────────────────────────────
-    "pesagem": {
-        "name": "Lara",
-        "domain": "Pesagem",
-        "description": "Assistente de controle de pesagem de bobinas.",
-        "system_prompt": "",
-        "capabilities": "",
-    },
-
-    # ── Nina — RH (futuro) ────────────────────────────────────────────────────
+    # ── Nina — RH ─────────────────────────────────────────────────────────────
+    # Recursos Humanos. Agente independente.
     "rh": {
         "name": "Nina",
         "domain": "RH",
@@ -156,7 +167,8 @@ Digite *"quais meses você tem dados?"* para ver os períodos disponíveis.\
         "capabilities": "",
     },
 
-    # ── Eva — Vendas (futuro) ─────────────────────────────────────────────────
+    # ── Eva — Vendas ──────────────────────────────────────────────────────────
+    # Departamento comercial. Agente independente.
     "vendas": {
         "name": "Eva",
         "domain": "Vendas",
@@ -165,20 +177,28 @@ Digite *"quais meses você tem dados?"* para ver os períodos disponíveis.\
         "capabilities": "",
     },
 
-    # ── Luna — Qualidade (futuro) ─────────────────────────────────────────────
-    "qualidade": {
-        "name": "Luna",
-        "domain": "Qualidade",
-        "description": "Assistente de controle de qualidade.",
+    # ── Lara / Luna / Vera — Sub-setores da Produção (nomes reservados) ───────
+    # ATENÇÃO: atualmente esses sub-setores são atendidos pela Ayla.
+    # Estes registros existem apenas para reservar os nomes.
+    # Só serão ativados se a especialização por sub-setor for necessária.
+    "pesagem": {
+        "name": "Lara",
+        "domain": "Pesagem",
+        "description": "Reservado — atualmente coberto pela Ayla (Produção).",
         "system_prompt": "",
         "capabilities": "",
     },
-
-    # ── Vera — Logística (futuro) ─────────────────────────────────────────────
+    "qualidade": {
+        "name": "Luna",
+        "domain": "Qualidade",
+        "description": "Reservado — atualmente coberto pela Ayla (Produção).",
+        "system_prompt": "",
+        "capabilities": "",
+    },
     "logistica": {
         "name": "Vera",
         "domain": "Logística",
-        "description": "Assistente de logística e expedição.",
+        "description": "Reservado — atualmente coberto pela Ayla (Produção).",
         "system_prompt": "",
         "capabilities": "",
     },

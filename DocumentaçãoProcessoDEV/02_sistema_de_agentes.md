@@ -1,6 +1,6 @@
 # ViniAI — Sistema de Agentes
 
-**Versão:** 1.0  
+**Versão:** 1.2  
 **Última atualização:** Abril/2026
 
 ---
@@ -10,127 +10,151 @@
 Cada agente é uma IA especializada em um departamento da Viniplast. Ele tem:
 
 - **Nome próprio** (ex: Ayla)
-- **Domínio de dados** (ex: Produção)
+- **Departamento** que atende (ex: Produção)
 - **Personalidade** definida via system prompt enviado ao ChatGPT
-- **Texto de capacidades** exibido quando o usuário pergunta "o que você faz?"
+- **Texto de capacidades** exibido quando o usuário pergunta *"o que você faz?"*
 
 Os agentes são registrados centralmente em `app/agents.py`.
 
 ---
 
-## Agentes Cadastrados
+## Estado Atual dos Agentes
 
-| ID | Nome | Departamento | Status |
-|----|------|-------------|--------|
-| `producao` | **Ayla** | Produção (inclui Revisão e Expedição) | Ativo |
-| `pcp` | **Iris** | PCP — Planejamento e Controle de Produção | Futuro |
-| `controladoria` | **Maya** | Controladoria / Custos | Futuro |
-| `pesagem` | **Lara** | Pesagem de Bobinas | Futuro |
-| `rh` | **Nina** | Recursos Humanos | Futuro |
-| `vendas` | **Eva** | Vendas e Clientes | Futuro |
-| `qualidade` | **Luna** | Controle de Qualidade | Futuro |
-| `logistica` | **Vera** | Logística e Expedição | Futuro |
+| Nome | ID | Departamento | Sub-setores atendidos | Status |
+|------|----|--------------|-----------------------|--------|
+| **Ayla** | `producao` | Produção | Extrusora, Pesagem, Qualidade, Expedição | **Ativo** |
+| **Iris** | `pcp` | PCP | — | Futuro |
+| **Maya** | `controladoria` | Controladoria | — | Futuro |
+| **Nina** | `rh` | RH | — | Futuro |
+| **Eva** | `vendas` | Vendas | — | Futuro |
+| Lara | `pesagem` | — | Coberto pela Ayla | Nome reservado |
+| Luna | `qualidade` | — | Coberto pela Ayla | Nome reservado |
+| Vera | `logistica` | — | Coberto pela Ayla | Nome reservado |
+
+> **Lara, Luna e Vera** são nomes reservados para eventual especialização futura.
+> Enquanto isso, a **Ayla** cobre todos esses sub-setores.
 
 ---
 
-## Ayla — Agente de Produção (Ativo)
+## Ayla — Assistente de Produção (Ativo)
 
-### Domínio
-Ayla responde consultas sobre dados de produção da fábrica, extraídos da view `v_kardex_ld` no banco METABASE.
+### Escopo
+A Ayla é a assistente de **toda a área de Produção**. Ela atende os seguintes sub-setores sem necessidade de agentes separados:
 
-### O que ela sabe responder
+| Sub-setor | O que cobre |
+|-----------|------------|
+| **Extrusora** | Produção de bobinas — volume gerado, rankings de operadores, turnos |
+| **Pesagem** | Controle de peso das bobinas produzidas |
+| **Qualidade / Revisão** | Inspeção do material — identificação de LD (defeito) ou Inteiro |
+| **Expedição** | Liberação de bobinas para clientes — movimentação de material |
 
-**LD (Material com Defeito — Revisão de Qualidade)**
+### O que ela responde
+
+**Qualidade / LD — Material com Defeito**
 - Quem gerou mais LD em determinado período
 - Ranking de produtos com mais LD
 - Total de LD por operador específico
 
-**Produção Geral**
+**Produção — Extrusora**
 - Ranking de produção por operador
 - Produção por turno
 - Produção por produto específico
 - Total geral da fábrica
 
-**Setores e Operadores**
-- Listar operadores da revisão ou expedição
-- Filtrar rankings por setor
+**Expedição**
+- Operadores da expedição e seus volumes
+- Movimentação de bobinas no período
 
-**Períodos**
-- Qualquer mês/ano desde Jul/2019
-- Atalhos: "este mês", "mês passado", "este ano", "ano passado"
+**Geral**
+- Listar operadores por sub-setor
+- Períodos disponíveis no banco (Jul/2019 até hoje)
+- Conversa natural via ChatGPT para dúvidas gerais
 
 ### Operadores Cadastrados
 
-| Setor | Operadores |
-|-------|-----------|
-| Revisão | raul.araujo, igor.chiva, ezequiel.nunes |
+| Sub-setor | Operadores |
+|-----------|-----------|
+| Qualidade/Revisão | raul.araujo, igor.chiva, ezequiel.nunes |
 | Expedição | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
-| Produção | kaua.chagas (outros em cadastramento) |
-
-> **Importante:** A Ayla atende **toda** a área de Produção — Extrusora, Pesagem, Qualidade e Expedição
-> são sub-setores cobertos por ela. Não há agentes separados por sub-setor por enquanto.
-> Um único perfil `producao` no frontend dá acesso a todos esses dados via Ayla.
+| Extrusora/Produção | kaua.chagas (outros em cadastramento) |
 
 ### Conversa Natural
-A Ayla usa o **ChatGPT (gpt-4o-mini)** para responder:
+Para mensagens que não são consultas de dados, a Ayla usa o **ChatGPT (gpt-4o-mini)**:
 - Saudações e conversa casual
-- Perguntas gerais sobre a fábrica
-- Mensagens que não foram identificadas como consultas de dados
+- Dúvidas conceituais sobre a fábrica
+- Mensagens não identificadas como consulta
 
-Para consultas de dados (produção, LD, rankings), ela usa **SQL direto** no banco — sem custo de LLM.
+Para dados (produção, LD, rankings), usa **SQL direto no banco** — sem custo de LLM.
 
 ---
 
 ## Como Adicionar um Novo Agente
 
-### 1. Registrar em `agents.py`
+### 1. Registrar em `app/agents.py`
 
 ```python
-"novo_setor": {
+"id_do_agente": {
     "name": "NomeDoAgente",
     "domain": "Departamento",
-    "description": "Breve descrição do que o agente faz.",
+    "description": "Breve descrição.",
     "system_prompt": """
         Você é o/a NomeDoAgente, assistente de [departamento] da Viniplast.
-        [Definir personalidade, domínio e regras de resposta]
+        [Personalidade, domínio, regras de resposta]
     """,
     "capabilities": """
         ### O que o/a NomeDoAgente consegue responder
-        [Listar exemplos de perguntas que o agente responde]
+        [Exemplos de perguntas]
     """,
 },
 ```
 
-### 2. Configurar permissões em `permissions.py`
+### 2. Configurar permissões em `app/permissions.py`
 
 ```python
-_AGENTES_POR_PERFIL = {
+_AGENTES_POR_DEPARTAMENTO = {
     ...
-    "novo_setor": {"novo_setor"},  # usuários desse perfil acessam apenas esse agente
+    "novo_departamento": {"id_do_agente"},
 }
 ```
 
-### 3. Criar endpoint (se necessário) em `main.py`
-
-Se o agente tiver seu próprio endpoint, instanciar o orquestrador com o `agent_id` correto:
+### 3. Criar endpoint em `app/main.py` (se necessário)
 
 ```python
-orchestrator_novo = ChatOrchestrator(agent_id="novo_setor")
+orchestrator_novo = ChatOrchestrator(agent_id="id_do_agente")
+
+@app.post("/v1/novo_agente/process")
+def process_novo(payload: ChatProcessRequest):
+    return orchestrator_novo.process(payload)
 ```
+
+### 4. Documentar
+
+Atualizar este arquivo e `03_controle_acesso_lgpd.md`.
 
 ---
 
 ## Fluxo de Decisão do Agente
 
 ```
-Mensagem recebida
-       │
-       ▼
-RuleBasedInterpreter (sem LLM — rápido)
-       │
-       ├─► Consulta de dados (SQL) ──► SQLService ──► Banco METABASE
-       │
-       ├─► Conversa natural / Não identificado ──► ChatGPT (OpenAI)
-       │
-       └─► "O que você faz?" ──► Texto de capabilities do agents.py
+Mensagem recebida (com user_setor)
+           │
+           ▼
+   Verifica permissão LGPD
+   (permissions.py)
+           │
+    ┌──────┴──────┐
+   Negado       Permitido
+    │               │
+    ▼               ▼
+Mensagem      RuleBasedInterpreter
+LGPD          (classifica sem LLM)
+                    │
+      ┌─────────────┼──────────────┐
+      ▼             ▼              ▼
+  "o que       Consulta        Conversa
+  você faz?"   de dados       natural /
+      │            │          não identificado
+      ▼            ▼              ▼
+capabilities   SQLService      ChatGPT
+(agents.py)   (METABASE)      (OpenAI)
 ```
