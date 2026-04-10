@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.agents import get_agent
 from app.config import OPERADORES_ATIVOS, ORIGENS, SETORES, get_excluidos_producao, get_label_setor, get_operadores_setor, get_setor_de
 from app.context_manager import PostgresContextManager
 from app.interpreter import InterpretationResult, RuleBasedInterpreter
@@ -31,11 +32,16 @@ def _origem_label(origem: str | None) -> str:
 
 
 class ChatOrchestrator:
-    def __init__(self) -> None:
+    def __init__(self, agent_id: str = "producao") -> None:
+        agent            = get_agent(agent_id)
+        self.agent_name  = agent["name"]
         self.context     = PostgresContextManager()
         self.interpreter = RuleBasedInterpreter()
         self.sql         = SQLService()
-        self.llm         = LLMHandler()
+        self.llm         = LLMHandler(
+            agent_name=agent["name"],
+            system_prompt=agent["system_prompt"],
+        )
 
     def process(self, payload: ChatProcessRequest) -> ChatProcessResponse:
         self.context.append_user_message(payload.session_id, payload.message)
@@ -45,7 +51,7 @@ class ChatOrchestrator:
         # ── Capacidades ───────────────────────────────────────────────────────
         if ir.intent == "tipos_informacao":
             answer = (
-                "### O que consigo responder\n\n"
+                f"### O que a {self.agent_name} consegue responder\n\n"
                 "**LD (Material com defeito — revisão)**\n"
                 "- \"Quem gerou mais LD em janeiro de 2026?\"\n"
                 "- \"Top 5 com mais LD em 2025\"\n"
