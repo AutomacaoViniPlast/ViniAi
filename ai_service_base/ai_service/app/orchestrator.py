@@ -113,10 +113,16 @@ class ChatOrchestrator:
         # ── 4b. Conversa natural → ChatGPT ───────────────────────────────────
         # Saudações, perguntas gerais, clarificações e mensagens não identificadas
         if ir.route in ("smalltalk", "clarify"):
+            user_context = {
+                "name":  payload.user_name,
+                "setor": payload.user_setor,
+                "cargo": payload.user_cargo,
+            }
             answer = self.llm.respond(
                 message=payload.message,
                 history=recent,
                 intent=ir.intent,
+                user_context=user_context,
             )
             self.context.append_assistant_message(payload.session_id, answer)
             requires_clarification = ir.route == "clarify"

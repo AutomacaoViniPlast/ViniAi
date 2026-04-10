@@ -65,19 +65,28 @@ class LLMHandler:
         message: str,
         history: list[ConversationTurn] | None = None,
         intent: str | None = None,
+        user_context: dict | None = None,
     ) -> str:
         """
         Gera resposta natural via ChatGPT.
 
         Parâmetros:
-          message : mensagem atual do usuário
-          history : histórico recente da conversa (ConversationTurn)
-          intent  : intenção identificada pelo RuleBasedInterpreter (para fallback)
+          message      : mensagem atual do usuário
+          history      : histórico recente da conversa (ConversationTurn)
+          intent       : intenção identificada pelo RuleBasedInterpreter (para fallback)
+          user_context : dados do usuário autenticado — injetados no system prompt
+                         para que o agente saiba com quem está conversando.
+                         Campos aceitos: name, setor, cargo
         """
         if not self._enabled:
             return self._fallback(intent)
 
-        messages = self._build_messages(self._system_prompt, history, message)
+        # Monta o system prompt: base do agente + bloco do usuário atual (se disponível)
+        system = self._system_prompt
+        if user_context:
+            system = system + "\n\n" + self._build_user_block(user_context)
+
+        messages = self._build_messages(system, history, message)
 
         try:
             response = self._client.chat.completions.create(
@@ -92,6 +101,25 @@ class LLMHandler:
             return self._fallback(intent)
 
     # ── Internos ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _build_user_block(user_context: dict) -> str:
+        """
+        Monta um bloco de texto com os dados do usuário autenticado para injeção
+        no system prompt — assim o agente sabe com quem está conversando.
+        """
+        lines = ["## Usuário atual"]
+        if user_context.get("name"):
+            lines.append(f"- **Nome:** {user_context['name']}")
+        if user_context.get("setor"):
+            lines.append(f"- **Departamento:** {user_context['setor']}")
+        if user_context.get("cargo"):
+            lines.append(f"- **Cargo:** {user_context['cargo']}")
+        lines.append(
+            "\nUse essas informações para saudar o usuário pelo nome e personalizar "
+            "a conversa ao contexto do departamento dele."
+        )
+        return "\n".join(lines)
 
     @staticmethod
     def _build_messages(

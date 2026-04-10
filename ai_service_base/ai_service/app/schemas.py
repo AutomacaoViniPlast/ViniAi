@@ -20,12 +20,20 @@ class ChatProcessRequest(BaseModel):
     channel: str = Field(default="web", description="Canal de origem: web, mobile, etc.")
     message: str = Field(..., min_length=1, description="Mensagem digitada pelo usuário")
 
-    # Setor do usuário autenticado — usado para verificação de permissão LGPD.
-    # Exemplos: "revisao", "expedicao", "producao", "gerencia", "admin".
-    # Se não informado, nenhuma restrição é aplicada (retrocompatibilidade).
+    # Dados do usuário autenticado — enviados pelo frontend para personalizar respostas.
+    # O agente recebe essas informações e pode usá-las para saudar pelo nome,
+    # contextualizar respostas ao setor, etc.
+    user_name: str | None = Field(
+        default=None,
+        description="Nome completo do usuário autenticado (ex: Pedro Martins)",
+    )
     user_setor: str | None = Field(
         default=None,
-        description="Setor do usuário autenticado (usado no controle de acesso LGPD)",
+        description="Departamento do usuário (ex: producao, rh) — usado no controle de acesso LGPD",
+    )
+    user_cargo: str | None = Field(
+        default=None,
+        description="Cargo ou função do usuário (opcional — ex: Supervisor de Produção)",
     )
 
     metadata: dict[str, Any] = Field(
