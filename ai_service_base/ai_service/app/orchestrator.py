@@ -7,9 +7,23 @@ Coordena o fluxo completo de processamento de uma mensagem:
   2. Interpreta a intenção da mensagem (interpreter)
   3. Verifica se o usuário tem permissão para aquela consulta (permissions)
      → Se não tiver: retorna mensagem formal de LGPD
-  4. Roteia para o handler correto:
+  4. Aplica RAG conversacional: se a mensagem for ambígua mas contiver um
+     período, reutiliza o intent da última mensagem SQL do histórico.
+  5. Injeta automaticamente o login do usuário autenticado quando a intenção
+     é sobre o próprio operador (entity_value=None + user_name disponível).
+  6. Roteia para o handler correto:
      → smalltalk / clarify  : ChatGPT (llm_handler) responde naturalmente
      → sql                  : SQLService executa a query e formata o resultado
+
+RAG Conversacional (Context Carry-over)
+────────────────────────────────────────
+  Quando o usuário diz algo como "Quero saber desse mês!" após ter feito uma
+  consulta de LD, o orchestrator:
+    1. Detecta que o intent atual é clarify com confiança baixa
+    2. Verifica se um período foi extraído da mensagem
+    3. Busca no histórico a última mensagem SQL completa do usuário
+    4. Reutiliza esse intent com o novo período (carry-over)
+  Isso evita que o LLM "esqueça" o contexto e recomece a conversa do zero.
 
 Regra de importações (anti-circular):
   agents → sem deps internas
@@ -22,16 +36,18 @@ Regra de importações (anti-circular):
 """
 from __future__ import annotations
 
+import re
+
 from app.agents import get_agent
 from app.config import (
     OPERADORES_ATIVOS, ORIGENS,
-    get_label_setor, get_operadores_setor, get_setor_de,
+    get_label_setor, get_operadores_setor, get_setor_de, todos_operadores,
 )
 from app.context_manager import PostgresContextManager
-from app.interpreter import InterpretationResult, RuleBasedInterpreter
+from app.interpreter import InterpretationResult, RuleBasedInterpreter, _periodo_from_text
 from app.llm_handler import LLMHandler
 from app.permissions import MENSAGEM_LGPD, verificar_permissao
-from app.schemas import ChatProcessRequest, ChatProcessResponse
+from app.schemas import ChatProcessRequest, ChatProcessResponse, ConversationTurn
 from app.sql_service import SQLService
 
 
@@ -57,6 +73,33 @@ def _origem_label(origem: str | None) -> str:
         return ""
     nome = ORIGENS.get(origem, origem)
     return f" [{nome}]"
+
+
+def _user_login_from_name(user_name: str | None) -> str | None:
+    """
+    Tenta mapear o nome do usuário autenticado para um login de operador.
+
+    Exemplos:
+      "Ezequiel Nunes" → "ezequiel.nunes"
+      "Tales"          → None (não é operador cadastrado)
+      "igor"           → "igor.chiva"
+
+    Busca pelo primeiro nome ou nome completo contra todos os operadores cadastrados.
+    """
+    if not user_name:
+        return None
+
+    # Se já está no formato login (ex: "ezequiel.nunes"), retorna direto
+    if "." in user_name and user_name.lower() in todos_operadores():
+        return user_name.lower()
+
+    # Busca por primeiro nome ou nome completo nos operadores cadastrados
+    for operador in todos_operadores():
+        primeiro_nome = operador.split(".")[0]
+        if re.search(rf"\b{re.escape(primeiro_nome)}\b", user_name, re.IGNORECASE):
+            return operador
+
+    return None
 
 
 # ── Orquestrador ──────────────────────────────────────────────────────────────
@@ -90,7 +133,7 @@ class ChatOrchestrator:
 
         # 1. Lê o histórico para passar ao LLM como contexto
         self.context.append_user_message(payload.session_id, payload.message)
-        recent = self.context.get_recent(payload.session_id, limit=6)
+        recent = self.context.get_recent(payload.session_id, limit=8)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
@@ -101,13 +144,12 @@ class ChatOrchestrator:
         # 3. Interpreta a intenção da mensagem
         ir = self.interpreter.interpret(payload.message)
 
-        # 4. Verifica permissão LGPD: o perfil do usuário tem acesso a este agente?
+        # 4. Verifica permissão LGPD
         if not verificar_permissao(user_setor, self.agent_id, ir.intent):
             self.context.append_assistant_message(payload.session_id, MENSAGEM_LGPD)
             return self._ok(MENSAGEM_LGPD, ir)
 
         # ── 4a. Capacidades do agente ("o que você faz?") ─────────────────────
-        # Resposta estruturada com hints de uso — vinda do agents.py
         if ir.intent == "tipos_informacao":
             answer = self.capabilities or (
                 f"Sou a **{self.agent_name}** e posso responder consultas do meu domínio. "
@@ -116,14 +158,21 @@ class ChatOrchestrator:
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir)
 
-        # ── 4b. Conversa natural → ChatGPT ───────────────────────────────────
-        # Saudações, perguntas gerais, clarificações e mensagens não identificadas
+        # ── 4b. RAG Conversacional — context carry-over ───────────────────────
+        # Quando a mensagem atual é ambígua (baixa confiança) mas contém um
+        # período reconhecido, reutilizamos o intent SQL da última mensagem
+        # completa do usuário no histórico — aplicando o novo período.
+        if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75:
+            ini_new, fim_new, lbl_new = _periodo_from_text(payload.message)
+            if ini_new or fim_new:
+                followup_ir = self._try_context_followup(recent, ini_new, fim_new, lbl_new)
+                if followup_ir:
+                    ir = followup_ir
+                    print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
+
+        # ── 4c. Conversação natural → LLM ────────────────────────────────────
         if ir.route in ("smalltalk", "clarify"):
-            user_context = {
-                "name":  user_name,
-                "setor": user_setor,
-                "cargo": user_cargo,
-            }
+            user_context = {"name": user_name, "setor": user_setor, "cargo": user_cargo}
             print(f"[{self.agent_name}] user_context recebido: {user_context}")
             answer = self.llm.respond(
                 message=payload.message,
@@ -137,7 +186,19 @@ class ChatOrchestrator:
             resp.debug["user_context_received"] = user_context
             return resp
 
-        # ── 4c. Consulta ao banco de dados → SQL ──────────────────────────────
+        # ── 4d. Auto-inject: quando intent é de operador mas nenhum foi ───────
+        #        extraído do texto, usa o próprio usuário autenticado.
+        #        Evita pedir o nome de quem já está logado.
+        if (
+            ir.intent in ("geracao_ld_por_operador", "producao_por_operador")
+            and not ir.entity_value
+        ):
+            user_login = _user_login_from_name(user_name)
+            if user_login:
+                ir.entity_value = user_login
+                print(f"[{self.agent_name}] Auto-inject: entity_value='{user_login}' (usuário autenticado).")
+
+        # ── 4e. Consulta ao banco de dados → SQL ─────────────────────────────
         answer = self._handle_sql(ir)
         self.context.append_assistant_message(payload.session_id, answer)
         return ChatProcessResponse(
@@ -147,23 +208,86 @@ class ChatOrchestrator:
             confidence=ir.confidence,
             used_sql=True,
             debug={
-                "agent":       self.agent_name,
-                "intent":      ir.intent,
-                "metric":      ir.metric,
-                "entity_type": ir.entity_type,
-                "entity_value":ir.entity_value,
-                "period_text": ir.period_text,
-                "data_inicio": ir.data_inicio,
-                "data_fim":    ir.data_fim,
-                "top_n":       ir.top_n,
-                "setor":       ir.setor,
-                "origem":      ir.origem,
-                "history_size":len(recent),
-                "reasoning":   ir.reasoning,
-                "user_setor":  user_setor,
-                "user_name":   user_name,
+                "agent":        self.agent_name,
+                "intent":       ir.intent,
+                "metric":       ir.metric,
+                "entity_type":  ir.entity_type,
+                "entity_value": ir.entity_value,
+                "period_text":  ir.period_text,
+                "data_inicio":  ir.data_inicio,
+                "data_fim":     ir.data_fim,
+                "top_n":        ir.top_n,
+                "setor":        ir.setor,
+                "origem":       ir.origem,
+                "history_size": len(recent),
+                "reasoning":    ir.reasoning,
+                "user_setor":   user_setor,
+                "user_name":    user_name,
             },
         )
+
+    # ── RAG Conversacional ────────────────────────────────────────────────────
+
+    def _try_context_followup(
+        self,
+        recent: list[ConversationTurn],
+        ini_new: str | None,
+        fim_new: str | None,
+        lbl_new: str | None,
+    ) -> InterpretationResult | None:
+        """
+        RAG conversacional: quando a mensagem atual só especifica um período
+        sem intent claro, reutiliza o intent SQL da última mensagem completa
+        do histórico — combinando a entidade (operador) de clarificações curtas.
+
+        Estratégia:
+          1. Varre o histórico em ordem reversa (mais recente primeiro).
+          2. Extrai operador de mensagens curtas (clarificações como "Ezequiel").
+          3. Busca a última mensagem "completa" (> 3 palavras) com intent SQL.
+          4. Aplica: entidade da clarificação + intent da mensagem completa + novo período.
+
+        Exemplo:
+          Histórico: ["Qual foi o LD nesse mês?", "Ezequiel", "Quero saber desse mês!"]
+          Resultado: intent=geracao_ld_por_operador, entity=ezequiel.nunes, período=atual
+        """
+        user_msgs = [t.content for t in reversed(recent) if t.role == "user"]
+
+        if not user_msgs:
+            return None
+
+        # Passo 1: extrai operador de mensagens curtas (clarificações de nome)
+        entity_override: str | None = None
+        for msg in user_msgs:
+            if len(msg.strip().split()) <= 3:
+                op = self.interpreter._extract_operator(msg)
+                if op:
+                    entity_override = op
+                    break
+
+        # Passo 2: busca a última mensagem "completa" com intent SQL claro
+        for msg in user_msgs:
+            if len(msg.strip().split()) <= 3:
+                continue  # pula clarificações curtas
+
+            prev_ir = self.interpreter.interpret(msg)
+            if prev_ir.route == "sql" and prev_ir.confidence >= 0.55:
+                # Aplica entidade clarificada (ex: "Ezequiel" dito depois)
+                if entity_override and not prev_ir.entity_value:
+                    prev_ir.entity_value = entity_override
+
+                # Aplica novo período mantendo o restante do contexto
+                if ini_new:
+                    prev_ir.data_inicio = ini_new
+                if fim_new:
+                    prev_ir.data_fim = fim_new
+                if lbl_new:
+                    prev_ir.period_text = lbl_new
+
+                prev_ir.route     = "sql"
+                prev_ir.reasoning = f"[context-carry] {prev_ir.reasoning}"
+                return prev_ir
+
+        return None
 
     # ── Handler SQL ───────────────────────────────────────────────────────────
 
@@ -173,14 +297,14 @@ class ChatOrchestrator:
         except Exception as exc:
             return f"Ocorreu um erro ao consultar o banco de dados: {exc}"
 
-    def _dispatch(self, ir: InterpretationResult) -> str:
+    def _dispatch(self, ir: InterpretationResult) -> str:  # noqa: C901
         """Despacha o intent para a query SQL correspondente e formata a resposta."""
 
         periodo  = _periodo_label(ir)
         orig_lbl = _origem_label(ir.origem)
-        ini      = ir.data_inicio or "01/01/2025"
-        fim      = ir.data_fim    or "31/12/2026"
-        top_n    = ir.top_n       or 5
+        ini      = ir.data_inicio
+        fim      = ir.data_fim
+        top_n    = ir.top_n or 5
         origem   = ir.origem
         setor    = ir.setor
 
@@ -214,7 +338,7 @@ class ChatOrchestrator:
             if avisos:
                 nota = "\n\n> Dados incompletos em: " + ", ".join(avisos)
             nota += "\n\n> Para consultas confiáveis, recomendo usar **2022 em diante**."
-            return f"### Períodos com dados disponíveis\n\n" + "\n".join(linhas) + nota
+            return "### Períodos com dados disponíveis\n\n" + "\n".join(linhas) + nota
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
@@ -264,7 +388,11 @@ class ChatOrchestrator:
         # ── LD por operador específico ─────────────────────────────────────────
         if ir.intent == "geracao_ld_por_operador":
             if not ir.entity_value:
-                return "Não identifiquei o operador. Informe o nome (ex: ezequiel.nunes ou só 'Ezequiel')."
+                return (
+                    "Não consegui identificar o operador. "
+                    "Informe o nome (ex: *ezequiel.nunes* ou só *'Ezequiel'*) "
+                    "ou pergunte como *'meu LD'* se for sobre você mesmo."
+                )
             setor_op   = get_setor_de(ir.entity_value)
             setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
             total = self.sql.get_ld_por_operador(ir.entity_value, ini, fim, origem)
@@ -283,7 +411,11 @@ class ChatOrchestrator:
         # ── Produção / movimentação por operador específico ───────────────────
         if ir.intent == "producao_por_operador":
             if not ir.entity_value:
-                return "Não identifiquei o operador. Informe o nome (ex: john.moraes ou só 'John')."
+                return (
+                    "Não consegui identificar o operador. "
+                    "Informe o nome (ex: *john.moraes* ou só *'John'*) "
+                    "ou pergunte como *'minha produção'* se for sobre você mesmo."
+                )
             setor_op   = get_setor_de(ir.entity_value)
             setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
             total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
@@ -292,8 +424,7 @@ class ChatOrchestrator:
                     f"Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
                     "Verifique o nome ou o período informado."
                 )
-            # Expedição recebe label diferente (movimentação, não produção)
-            titulo = "Bobinas liberadas — Expedição" if setor_op == "expedicao" else "Produção"
+            titulo  = "Bobinas liberadas — Expedição" if setor_op == "expedicao" else "Produção"
             metrica = "Total movimentado" if setor_op == "expedicao" else "Total"
             return (
                 f"### {titulo}\n\n"
