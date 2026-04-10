@@ -67,8 +67,9 @@ Ayla responde consultas sobre dados de produção da fábrica, extraídos da vie
 | Expedição | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
 | Produção | kaua.chagas (outros em cadastramento) |
 
-> **Importante:** Revisão, Expedição e Produção são todos sub-setores da área de Produção.
-> Um usuário com perfil `producao` tem acesso a dados de todos esses sub-setores na Ayla.
+> **Importante:** A Ayla atende **toda** a área de Produção — Extrusora, Pesagem, Qualidade e Expedição
+> são sub-setores cobertos por ela. Não há agentes separados por sub-setor por enquanto.
+> Um único perfil `producao` no frontend dá acesso a todos esses dados via Ayla.
 
 ### Conversa Natural
 A Ayla usa o **ChatGPT (gpt-4o-mini)** para responder:

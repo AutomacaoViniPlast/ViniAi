@@ -63,20 +63,17 @@ _AGENTES_POR_DEPARTAMENTO: dict[str, set[str] | None] = {
     "gerencia": None,
     "ti":       None,
 
-    # ── Produção — acessa todos os agentes das sub-áreas de produção ──────────
-    # Sub-áreas: Extrusora (Ayla), Pesagem (Lara), Qualidade (Luna), Expedição (Vera)
+    # ── Produção — Ayla atende todos os sub-setores ──────────────────────────
+    # Sub-setores atendidos pela Ayla: Extrusora, Pesagem, Qualidade, Expedição.
+    # Não há agentes separados por sub-setor por enquanto — Ayla resolve tudo.
     "producao": {
-        "producao",   # Ayla   — Extrusora / dados gerais de produção
-        "pesagem",    # Lara   — Pesagem de bobinas
-        "qualidade",  # Luna   — Controle de qualidade
-        "logistica",  # Vera   — Expedição / logística
+        "producao",   # Ayla — assistente geral de Produção
     },
 
     # ── PCP — Planejamento e Controle de Produção ─────────────────────────────
-    # Acessa o agente de PCP e também dados de produção (necessário para planejamento)
     "pcp": {
-        "pcp",        # Iris   — PCP
-        "producao",   # Ayla   — consulta de dados de produção para planejar
+        "pcp",        # Iris  — PCP
+        "producao",   # Ayla  — consulta de dados de produção para planejar
     },
 
     # ── RH — Recursos Humanos ─────────────────────────────────────────────────

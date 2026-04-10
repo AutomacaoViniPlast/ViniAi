@@ -15,11 +15,11 @@ aos agentes de IA do seu próprio domínio. Nenhum departamento acessa dados de 
 VINIPLAST
 │
 ├── PRODUÇÃO ──────────────────────────────────────────────┐
-│   │                                                       │ Usuário com perfil
-│   ├── Extrusora  → Ayla  (dados gerais de produção)      │ "producao" acessa
-│   ├── Pesagem    → Lara  (pesagem de bobinas)            │ TODOS esses agentes
-│   ├── Qualidade  → Luna  (controle de qualidade)         │
-│   └── Expedição  → Vera  (logística e expedição)         │
+│   │                                                       │ Usuário "producao"
+│   ├── Extrusora  ┐                                        │ acessa a AYLA —
+│   ├── Pesagem    ├──► Ayla  (atende todos os sub-setores) │ ela cobre tudo
+│   ├── Qualidade  │                                        │
+│   └── Expedição  ┘                                        │
 │                                                           ┘
 ├── PCP (Planejamento e Controle de Produção)
 │   └── → Iris  + consulta Ayla (necessita de dados de produção)
@@ -45,7 +45,7 @@ VINIPLAST
 | `admin` | Todos | Acesso total |
 | `gerencia` | Todos | Acesso total |
 | `ti` | Todos | Acesso total |
-| `producao` | Ayla, Lara, Luna, Vera | Todas as sub-áreas de produção |
+| `producao` | Ayla | Atende Extrusora, Pesagem, Qualidade e Expedição |
 | `pcp` | Iris + Ayla | PCP precisa consultar dados de produção |
 | `rh` | Nina | Apenas RH |
 | `controladoria` | Maya | Apenas financeiro/custos |
