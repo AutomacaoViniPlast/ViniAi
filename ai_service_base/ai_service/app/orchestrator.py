@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.config import OPERADORES_ATIVOS, ORIGENS, SETORES, get_excluidos_producao, get_label_setor, get_operadores_setor, get_setor_de
 from app.context_manager import PostgresContextManager
 from app.interpreter import InterpretationResult, RuleBasedInterpreter
+from app.llm_handler import LLMHandler
 from app.schemas import ChatProcessRequest, ChatProcessResponse
 from app.sql_service import SQLService
 
@@ -34,6 +35,7 @@ class ChatOrchestrator:
         self.context     = PostgresContextManager()
         self.interpreter = RuleBasedInterpreter()
         self.sql         = SQLService()
+        self.llm         = LLMHandler()
 
     def process(self, payload: ChatProcessRequest) -> ChatProcessResponse:
         self.context.append_user_message(payload.session_id, payload.message)
@@ -71,28 +73,22 @@ class ChatOrchestrator:
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir)
 
-        # ── Smalltalk ─────────────────────────────────────────────────────────
+        # ── Smalltalk / Conversa natural → Claude LLM ────────────────────────
         if ir.route == "smalltalk":
-            answer = (
-                "Olá! Sou o **ViniAI**, assistente de produção da fábrica.\n\n"
-                "Posso te ajudar com **LD**, **produção**, **rankings**, **turnos** e muito mais.\n"
-                "Digite \"o que você sabe fazer?\" para ver todas as possibilidades.\n\n"
-                "Como posso ajudar?"
+            answer = self.llm.respond(
+                message=payload.message,
+                history=recent,
+                intent=ir.intent,
             )
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir)
 
-        # ── Clarificação ──────────────────────────────────────────────────────
+        # ── Clarificação → Claude LLM (resposta natural ao invés de template) ─
         if ir.route == "clarify":
-            answer = (
-                "Não entendi sua solicitação. Tente reformular com algo como:\n\n"
-                "- \"Quem mais produziu LD em janeiro de 2026?\"\n"
-                "- \"Top 5 da expedição com mais LD em 2025\"\n"
-                "- \"Qual produto gerou mais LD no mês passado?\"\n"
-                "- \"Produção da revisão em março de 2026\"\n"
-                "- \"Quanto o ezequiel.nunes produziu?\"\n"
-                "- \"Produção por turno em 2025\"\n"
-                "- \"Total da fábrica em SD3\""
+            answer = self.llm.respond(
+                message=payload.message,
+                history=recent,
+                intent=ir.intent,
             )
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir, requires_clarification=True)

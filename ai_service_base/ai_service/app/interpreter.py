@@ -126,7 +126,23 @@ class RuleBasedInterpreter:
     _QUEM     = re.compile(r"\bquem\b", re.IGNORECASE)
     _QUAL     = re.compile(r"\bqual\b", re.IGNORECASE)
     _LISTA    = re.compile(r"list[ae]|mostre|exib[ae]|quais|s[aã]o os|da revis[aã]o|da expedi[cç][aã]o|da produ[cç][aã]o", re.IGNORECASE)
-    _SMALLTALK = re.compile(r"^(oi|ol[aá]|bom dia|boa tarde|boa noite|tudo bem|e a[ií])\b", re.IGNORECASE)
+    _SMALLTALK = re.compile(
+        r"^(oi|ol[aá]|bom\s+dia|boa\s+tarde|boa\s+noite|"
+        r"tudo\s+bem|tudo\s+bom|tudo\s+certo|e\s+a[ií]|"
+        r"como\s+vai|como\s+voc[eê]\s+est[aá]|"
+        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|"
+        r"oi\s+tudo|preciso\s+de\s+ajuda|pode\s+me\s+ajudar|"
+        r"boa\b|ol[aá]\s+boa|e\s+a[ií]\s+boa)\b",
+        re.IGNORECASE,
+    )
+    _SMALLTALK_LONGA = re.compile(
+        r"(como\s+voc[eê]\s+est[aá]|como\s+vai\s+voc[eê]|"
+        r"o\s+que\s+[eé]\s+ld|me\s+conta\s+sobre|"
+        r"me\s+explica|conta\s+pra\s+mim|"
+        r"quero\s+entender|n[aã]o\s+entendi|"
+        r"boa\s+noite\s+vin|oi\s+vin|ol[aá]\s+vin)",
+        re.IGNORECASE,
+    )
     _COMPARA  = re.compile(r"compar[ae]|diferen[cç]a|versus|vs\.?|contra", re.IGNORECASE)
     _CAPACIDADES = re.compile(
         r"tipos?\s+de\s+informa[cç][aã]o|o\s+que\s+voc[eê]?\s+sabe|o\s+que\s+conseg|"
@@ -160,11 +176,16 @@ class RuleBasedInterpreter:
                 confidence=0.93, reasoning="Pergunta sobre cobertura temporal dos dados.",
             )
 
-        # ── 3. Saudação ───────────────────────────────────────────────────────
-        if self._SMALLTALK.search(low) and len(text.split()) <= 6:
+        # ── 3. Saudação / conversa natural ───────────────────────────────────
+        if self._SMALLTALK.search(low) and len(text.split()) <= 8:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
                 confidence=0.98, reasoning="Saudação identificada.",
+            )
+        if self._SMALLTALK_LONGA.search(low):
+            return InterpretationResult(
+                intent="smalltalk", route="smalltalk",
+                confidence=0.90, reasoning="Conversa natural identificada.",
             )
 
         # Extração comum
