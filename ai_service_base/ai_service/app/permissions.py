@@ -1,66 +1,98 @@
 """
 permissions.py — Controle de acesso e conformidade LGPD.
 
-Define quais agentes/domínios cada perfil de usuário pode acessar.
+Estrutura organizacional da Viniplast
+──────────────────────────────────────
+  A empresa é dividida em DEPARTAMENTOS. Cada departamento tem acesso
+  apenas aos agentes de IA do seu próprio domínio.
 
-Lógica de restrição
-────────────────────
-  A restrição NÃO é dentro do mesmo agente (ex: revisão vs. expedição são
-  ambos parte da Produção e um usuário de produção vê tudo da Ayla).
+  Departamento PRODUÇÃO
+  ├── Extrusora  → Ayla        (agent_id: "producao")
+  ├── Pesagem    → Lara        (agent_id: "pesagem")
+  ├── Qualidade  → Luna        (agent_id: "qualidade")
+  └── Expedição  → Vera        (agent_id: "logistica")
 
-  A restrição é ENTRE departamentos: um usuário de RH não deve acessar
-  dados de Produção (Ayla), e um usuário de Produção não deve acessar
-  dados financeiros (Maya), por exemplo.
+  Departamento PCP (Planejamento e Controle de Produção)
+  └── PCP        → Iris        (agent_id: "pcp")
 
-Perfis disponíveis
-──────────────────
-  admin / gerencia / ti  → acesso irrestrito a todos os agentes
-  producao               → acesso total ao agente Ayla (Produção)
-  rh                     → acesso ao agente Nina (RH) — futuro
-  vendas                 → acesso ao agente Eva (Vendas) — futuro
-  controladoria          → acesso ao agente Maya — futuro
-  (vazio / None)         → sem restrição (compatibilidade retroativa)
+  Departamento RH
+  └── RH         → Nina        (agent_id: "rh")
+
+  Departamento CONTROLADORIA
+  └── Financeiro → Maya        (agent_id: "controladoria")
+
+  Departamento VENDAS
+  └── Vendas     → Eva         (agent_id: "vendas")
+
+  Gestão / TI → acesso irrestrito a todos os agentes
+
+Regra geral
+───────────
+  Um usuário do departamento X acessa APENAS os agentes do departamento X.
+  Nenhum departamento acessa dados de outro — exceto Admin, Gerência e TI.
+
+Intents sempre liberados
+─────────────────────────
+  smalltalk, clarify e tipos_informacao não são dados sensíveis.
+  São liberados para qualquer perfil — saudações e apresentação do agente
+  não precisam de controle de acesso.
 
 Como funciona
 ─────────────
-  1. O frontend envia `user_setor` no payload (ex: "producao", "rh").
-  2. O orchestrator chama `verificar_permissao(user_setor, agent_id, intent)`.
-  3. Se negado, retorna `MENSAGEM_LGPD` ao usuário sem executar a query.
-
-Intents livres
-──────────────
-  smalltalk, clarify e tipos_informacao são sempre liberados para qualquer
-  perfil — conversa natural e apresentação do agente não são dados sensíveis.
+  1. Frontend envia `user_setor` no payload (ex: "producao", "rh").
+  2. Orchestrator chama `verificar_permissao(user_setor, agent_id, intent)`.
+  3. Se negado: retorna MENSAGEM_LGPD. Query SQL não é executada.
 """
 from __future__ import annotations
 
-# ── Intents sempre liberados (conversa, ajuda, saudações) ─────────────────────
+# ── Intents sempre liberados para qualquer perfil ─────────────────────────────
 _INTENTS_LIVRES = {
     "smalltalk",
     "clarify",
     "tipos_informacao",
 }
 
-# ── Agentes acessíveis por perfil ─────────────────────────────────────────────
+# ── Agentes de cada departamento (sub-áreas inclusas) ────────────────────────
 # None = sem restrição (acesso a todos os agentes).
-# set  = conjunto de agent_ids permitidos.
-_AGENTES_POR_PERFIL: dict[str, set[str] | None] = {
-    # Gestão e TI — acesso total
-    "admin":          None,
-    "gerencia":       None,
-    "ti":             None,
+# set  = agent_ids que esse departamento pode acessar.
 
-    # Produção (inclui revisão, expedição, extrusora) → Ayla
-    "producao":       {"producao"},
+_AGENTES_POR_DEPARTAMENTO: dict[str, set[str] | None] = {
 
-    # Futuros departamentos — liberar conforme os agentes forem implementados
-    "rh":             {"rh"},
-    "vendas":         {"vendas"},
-    "controladoria":  {"controladoria"},
-    "pcp":            {"pcp"},
-    "pesagem":        {"pesagem"},
-    "qualidade":      {"qualidade"},
-    "logistica":      {"logistica"},
+    # ── Gestão e TI — acesso total ────────────────────────────────────────────
+    "admin":    None,
+    "gerencia": None,
+    "ti":       None,
+
+    # ── Produção — acessa todos os agentes das sub-áreas de produção ──────────
+    # Sub-áreas: Extrusora (Ayla), Pesagem (Lara), Qualidade (Luna), Expedição (Vera)
+    "producao": {
+        "producao",   # Ayla   — Extrusora / dados gerais de produção
+        "pesagem",    # Lara   — Pesagem de bobinas
+        "qualidade",  # Luna   — Controle de qualidade
+        "logistica",  # Vera   — Expedição / logística
+    },
+
+    # ── PCP — Planejamento e Controle de Produção ─────────────────────────────
+    # Acessa o agente de PCP e também dados de produção (necessário para planejamento)
+    "pcp": {
+        "pcp",        # Iris   — PCP
+        "producao",   # Ayla   — consulta de dados de produção para planejar
+    },
+
+    # ── RH — Recursos Humanos ─────────────────────────────────────────────────
+    "rh": {
+        "rh",         # Nina   — RH
+    },
+
+    # ── Controladoria — Financeiro e Custos ───────────────────────────────────
+    "controladoria": {
+        "controladoria",  # Maya — Controladoria
+    },
+
+    # ── Vendas ────────────────────────────────────────────────────────────────
+    "vendas": {
+        "vendas",     # Eva    — Vendas
+    },
 }
 
 # ── Mensagem formal de LGPD ───────────────────────────────────────────────────
@@ -100,27 +132,30 @@ def verificar_permissao(
     intent: str,
 ) -> bool:
     """
-    Retorna True se o perfil do usuário tem permissão para acessar o agente/intent.
+    Retorna True se o departamento do usuário tem permissão para acessar o agente.
+
+    Parâmetros:
+      user_setor : departamento do usuário autenticado (ex: "producao", "rh")
+      agent_id   : ID do agente sendo acessado (ex: "producao", "pesagem")
+      intent     : intenção detectada pelo interpretador
 
     Regras:
       - Intents livres (smalltalk, clarify, tipos_informacao) → sempre permitido.
-      - user_setor None ou vazio → sem restrição (retrocompatibilidade).
-      - Perfil não mapeado → sem restrição (evita bloquear perfis futuros).
-      - Perfil mapeado com None → acesso total (admin/gerencia/ti).
-      - Perfil mapeado com set → verifica se agent_id está no conjunto.
+      - user_setor None/vazio → sem restrição (retrocompatibilidade).
+      - Departamento não mapeado → sem restrição (evita bloquear perfis futuros).
+      - Departamento com None → acesso total (admin/gerencia/ti).
+      - Departamento com set → verifica se agent_id está no conjunto.
     """
-    # Intents de conversa e ajuda são sempre liberados
     if intent in _INTENTS_LIVRES:
         return True
 
-    # Sem setor informado = sem restrição (retrocompatibilidade)
     if not user_setor:
         return True
 
-    setor = user_setor.strip().lower()
-    regra = _AGENTES_POR_PERFIL.get(setor)
+    depto = user_setor.strip().lower()
+    regra = _AGENTES_POR_DEPARTAMENTO.get(depto)
 
-    # Perfil não mapeado ou regra None = acesso total
+    # Não mapeado ou None = acesso total
     if regra is None:
         return True
 
