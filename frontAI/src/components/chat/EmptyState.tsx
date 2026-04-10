@@ -166,14 +166,14 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
     sectorSuggestions.GERAL;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 pt-10 pb-4 animate-fade-in overflow-y-auto">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 pt-2 pb-16 md:pb-12 animate-fade-in overflow-y-auto">
 
       {/* Logo da imagem */}
-      <div className="flex justify-center items-center mb-8 animate-float">
-        <img 
-          src={logoVini} 
-          alt="ViniAI Logo" 
-          className="w-40 md:w-56 h-auto max-h-24 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+      <div className="flex justify-center items-center mt-6 mb-2 animate-float">
+        <img
+          src={logoVini}
+          alt="ViniAI Logo"
+          className="w-40 md:w-36 h-auto max-h-15"
         />
       </div>
 

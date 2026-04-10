@@ -39,9 +39,9 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   return (
     <form onSubmit={handleSubmit}>
       <div
-        className="rounded-2xl overflow-hidden transition-all duration-200"
+        className="rounded-3xl overflow-hidden transition-all duration-200"
         style={{
-          background: "#0d111bff",
+          background: "#080b14ff",
           border: focused
             ? "1px solid hsl(4 82% 47% / 0.5)"
             : "1px solid hsl(220 15% 17%)",
@@ -50,9 +50,9 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             : "0 4px 20px hsl(0 0% 0% / 0.2)",
         }}
       >
-        <div className="flex items-end gap-3 px-4 py-3">
+        <div className="flex items-end gap-4 px-5 py-3">
           {/* Textarea */}
-          <div className="flex-1">
+          <div className="flex-1  ">
             <textarea
               ref={textareaRef}
               value={message}
@@ -63,11 +63,11 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               placeholder="Escreva sua mensagem..."
               disabled={disabled}
               rows={1}
-              className="w-full bg-transparent text-sm outline-none resize-none"
+              className="w-full bg-transparent text-base outline-none resize-none pt-1.5"
               style={{
                 color: "hsl(0 0% 92%)",
                 caretColor: "hsl(4 82% 55%)",
-                maxHeight: "160px",
+                maxHeight: "200px",
                 minHeight: "24px",
                 lineHeight: "1.6",
                 opacity: disabled ? 0.5 : 1,
