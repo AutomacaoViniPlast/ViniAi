@@ -1,4 +1,5 @@
 .env
+.claude/settings.local.json
 nssm.exe
 iniciar.bat
 __pycache__/
