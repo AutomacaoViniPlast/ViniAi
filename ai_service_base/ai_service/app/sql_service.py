@@ -1,3 +1,27 @@
+"""
+sql_service.py — Queries SQL executadas contra a view v_kardex_ld.
+
+Centraliza todas as consultas ao banco METABASE. Nenhuma lógica de negócio
+ou formatação de resposta deve existir aqui — apenas execução de SQL e
+retorno de dados brutos.
+
+View principal: v_kardex_ld
+Colunas relevantes:
+  usuario  → operador (ex: ezequiel.nunes) — sempre usar TRIM()
+  emissao  → data no formato DD/MM/YYYY (text) — converter com TO_DATE + TRIM
+  produto  → código do produto — posição 5 = 'Y' indica LD (defeito)
+  total    → peso em KG (double precision)
+  turno    → turno de produção
+  origem   → tipo de movimentação: SD1 (Entrada), SD2 (Saída), SD3 (Interna)
+             Atenção: muitos registros têm origem NULL — não forçar filtro
+
+Regras de query
+───────────────
+  - Sempre usar TRIM(usuario) e TRIM(produto)
+  - Filtro por origem é OPCIONAL
+  - LD = SUBSTRING(TRIM(produto), 5, 1) = 'Y'
+  - Filtro de setor = lista de usuários via IN (...)
+"""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -7,14 +31,14 @@ from app.db import get_conn
 # ── Helpers de cláusula SQL ───────────────────────────────────────────────────
 
 def _origem_clause(origem: str | None) -> tuple[str, list]:
-    """Filtro opcional por tipo de movimentação. Registros NULL não são excluídos."""
+    """Filtro opcional por tipo de movimentação. Registros com origem NULL não são excluídos."""
     if origem:
         return "AND TRIM(origem) = %s", [origem]
     return "", []
 
 
 def _incluir_clause(incluir: list[str] | None) -> tuple[str, list]:
-    """Filtra apenas os operadores informados (ex: somente revisão)."""
+    """Inclui apenas os operadores informados (ex: somente revisão)."""
     if incluir:
         ph = ", ".join(["%s"] * len(incluir))
         return f"AND TRIM(usuario) IN ({ph})", list(incluir)
@@ -29,7 +53,10 @@ def _excluir_clause(excluir: list[str] | None) -> tuple[str, list]:
     return "", []
 
 
+# ── Service ───────────────────────────────────────────────────────────────────
+
 class SQLService:
+    """Executa consultas SQL e retorna dados brutos para o orchestrator."""
 
     # ── Produção total por operador ───────────────────────────────────────────
     def get_producao_por_operador(
@@ -44,7 +71,7 @@ class SQLService:
             SELECT COALESCE(SUM(total), 0)
             FROM v_kardex_ld
             WHERE TRIM(usuario) ILIKE %s
-              AND TO_DATE(emissao, 'DD/MM/YYYY')
+              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               {orig_sql}
         """
@@ -67,7 +94,7 @@ class SQLService:
             SELECT COALESCE(SUM(total), 0)
             FROM v_kardex_ld
             WHERE TRIM(usuario) ILIKE %s
-              AND TO_DATE(emissao, 'DD/MM/YYYY')
+              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
               {orig_sql}
@@ -88,13 +115,13 @@ class SQLService:
         filtro_usuarios: list[str] | None = None,
         excluir_usuarios: list[str] | None = None,
     ) -> list[dict]:
-        orig_sql,  orig_p  = _origem_clause(origem)
-        incl_sql,  incl_p  = _incluir_clause(filtro_usuarios)
-        excl_sql,  excl_p  = _excluir_clause(excluir_usuarios)
+        orig_sql, orig_p = _origem_clause(origem)
+        incl_sql, incl_p = _incluir_clause(filtro_usuarios)
+        excl_sql, excl_p = _excluir_clause(excluir_usuarios)
         query = f"""
             SELECT TRIM(usuario) AS operador, SUM(total) AS total_kg
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
               {incl_sql}
@@ -113,7 +140,7 @@ class SQLService:
                     for i, r in enumerate(cur.fetchall())
                 ]
 
-    # ── Ranking produtos por LD ───────────────────────────────────────────────
+    # ── Ranking de produtos por LD ────────────────────────────────────────────
     def get_ranking_produtos_ld(
         self,
         data_inicio: str,
@@ -132,7 +159,7 @@ class SQLService:
                 SUM(total)     AS total_kg,
                 COUNT(*)       AS ocorrencias
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
               {incl_sql}
@@ -169,7 +196,7 @@ class SQLService:
             SELECT COALESCE(SUM(total), 0)
             FROM v_kardex_ld
             WHERE TRIM(produto) ILIKE %s
-              AND TO_DATE(emissao, 'DD/MM/YYYY')
+              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               {orig_sql}
         """
@@ -179,7 +206,7 @@ class SQLService:
                 row = cur.fetchone()
                 return row[0] if row else Decimal("0")
 
-    # ── Ranking geral de produção (com exclusão de expedição) ─────────────────
+    # ── Ranking geral de produção ─────────────────────────────────────────────
     def get_ranking_producao_geral(
         self,
         data_inicio: str,
@@ -195,7 +222,7 @@ class SQLService:
         query = f"""
             SELECT TRIM(usuario) AS operador, SUM(total) AS total_kg
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               {incl_sql}
               {excl_sql}
@@ -228,7 +255,7 @@ class SQLService:
         query = f"""
             SELECT TRIM(turno) AS turno, SUM(total) AS total_kg, COUNT(*) AS registros
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               {incl_sql}
               {excl_sql}
@@ -258,7 +285,7 @@ class SQLService:
         query = f"""
             SELECT COALESCE(SUM(total), 0)
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               {incl_sql}
               {orig_sql}
@@ -282,7 +309,7 @@ class SQLService:
         query = f"""
             SELECT COALESCE(SUM(total), 0)
             FROM v_kardex_ld
-            WHERE TO_DATE(emissao, 'DD/MM/YYYY')
+            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
                   BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
               AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
               {incl_sql}
@@ -303,8 +330,8 @@ class SQLService:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         query = f"""
             SELECT
-                EXTRACT(YEAR  FROM TO_DATE(emissao, 'DD/MM/YYYY'))::int AS ano,
-                EXTRACT(MONTH FROM TO_DATE(emissao, 'DD/MM/YYYY'))::int AS mes,
+                EXTRACT(YEAR  FROM TO_DATE(TRIM(emissao), 'DD/MM/YYYY'))::int AS ano,
+                EXTRACT(MONTH FROM TO_DATE(TRIM(emissao), 'DD/MM/YYYY'))::int AS mes,
                 COUNT(*) AS registros
             FROM v_kardex_ld
             WHERE emissao IS NOT NULL
@@ -316,7 +343,6 @@ class SQLService:
             with conn.cursor() as cur:
                 cur.execute(query, incl_p)
                 rows = cur.fetchall()
-                # Agrupa por ano
                 anos: dict[int, list[int]] = {}
                 for r in rows:
                     ano, mes = int(r[0]), int(r[1])
@@ -325,6 +351,7 @@ class SQLService:
 
     # ── Operadores de um setor presentes no banco ─────────────────────────────
     def get_review_operators(self, operadores: list[str]) -> list[str]:
+        """Verifica quais operadores da lista têm registros na view."""
         if not operadores:
             return []
         ph = ", ".join(["%s"] * len(operadores))

@@ -1,22 +1,49 @@
+"""
+orchestrator.py — Orquestrador principal do ViniAI.
+
+Coordena o fluxo completo de processamento de uma mensagem:
+
+  1. Lê o histórico de conversa (context_manager)
+  2. Interpreta a intenção da mensagem (interpreter)
+  3. Verifica se o usuário tem permissão para aquela consulta (permissions)
+     → Se não tiver: retorna mensagem formal de LGPD
+  4. Roteia para o handler correto:
+     → smalltalk / clarify  : ChatGPT (llm_handler) responde naturalmente
+     → sql                  : SQLService executa a query e formata o resultado
+
+Regra de importações (anti-circular):
+  agents → sem deps internas
+  config → sem deps internas
+  sql_service → importa só db
+  interpreter → importa config, schemas
+  permissions → sem deps internas
+  orchestrator → importa tudo acima + context_manager + llm_handler
+  main → importa orchestrator
+"""
 from __future__ import annotations
 
 from app.agents import get_agent
-from app.config import OPERADORES_ATIVOS, ORIGENS, SETORES, get_excluidos_producao, get_label_setor, get_operadores_setor, get_setor_de
+from app.config import (
+    OPERADORES_ATIVOS, ORIGENS,
+    get_label_setor, get_operadores_setor, get_setor_de,
+)
 from app.context_manager import PostgresContextManager
 from app.interpreter import InterpretationResult, RuleBasedInterpreter
 from app.llm_handler import LLMHandler
+from app.permissions import MENSAGEM_LGPD, verificar_permissao
 from app.schemas import ChatProcessRequest, ChatProcessResponse
 from app.sql_service import SQLService
 
-# Expedição não entra em rankings de produção (só libera bobinas para clientes)
-_EXCLUIDOS_PRODUCAO = get_excluidos_producao()
 
+# ── Helpers de formatação ─────────────────────────────────────────────────────
 
 def _fmt_kg(valor: float) -> str:
+    """Formata um valor float para exibição em KG no padrão brasileiro."""
     return f"{valor:,.2f} KG".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def _periodo_label(ir: InterpretationResult) -> str:
+    """Gera o trecho textual do período para exibição na resposta."""
     if ir.period_text:
         return f" em {ir.period_text}"
     if ir.data_inicio and ir.data_fim:
@@ -25,81 +52,76 @@ def _periodo_label(ir: InterpretationResult) -> str:
 
 
 def _origem_label(origem: str | None) -> str:
+    """Gera o trecho textual do tipo de movimentação (ex: ' [Entrada]')."""
     if not origem:
         return ""
     nome = ORIGENS.get(origem, origem)
     return f" [{nome}]"
 
 
+# ── Orquestrador ──────────────────────────────────────────────────────────────
+
 class ChatOrchestrator:
+    """
+    Processa mensagens do usuário e retorna respostas formatadas.
+
+    Parâmetros:
+      agent_id : ID do agente ativo (padrão: "producao" → Ayla).
+                 Deve corresponder a uma chave em agents.py.
+    """
+
     def __init__(self, agent_id: str = "producao") -> None:
-        agent            = get_agent(agent_id)
-        self.agent_name  = agent["name"]
-        self.context     = PostgresContextManager()
-        self.interpreter = RuleBasedInterpreter()
-        self.sql         = SQLService()
-        self.llm         = LLMHandler(
+        agent             = get_agent(agent_id)
+        self.agent_name   = agent["name"]
+        self.capabilities = agent.get("capabilities", "")
+        self.context      = PostgresContextManager()
+        self.interpreter  = RuleBasedInterpreter()
+        self.sql          = SQLService()
+        self.llm          = LLMHandler(
             agent_name=agent["name"],
             system_prompt=agent["system_prompt"],
         )
 
+    # ── Ponto de entrada ──────────────────────────────────────────────────────
+
     def process(self, payload: ChatProcessRequest) -> ChatProcessResponse:
+        """Processa uma mensagem e retorna a resposta do agente."""
+
+        # 1. Lê o histórico para passar ao LLM como contexto
         self.context.append_user_message(payload.session_id, payload.message)
         recent = self.context.get_recent(payload.session_id, limit=6)
-        ir     = self.interpreter.interpret(payload.message)
 
-        # ── Capacidades ───────────────────────────────────────────────────────
+        # 2. Interpreta a intenção da mensagem
+        ir = self.interpreter.interpret(payload.message)
+
+        # 3. Verifica permissão LGPD antes de qualquer rota que acesse dados
+        if not verificar_permissao(payload.user_setor, ir.intent):
+            self.context.append_assistant_message(payload.session_id, MENSAGEM_LGPD)
+            return self._ok(MENSAGEM_LGPD, ir)
+
+        # ── 4a. Capacidades do agente ("o que você faz?") ─────────────────────
+        # Resposta estruturada com hints de uso — vinda do agents.py
         if ir.intent == "tipos_informacao":
-            answer = (
-                f"### O que a {self.agent_name} consegue responder\n\n"
-                "**LD (Material com defeito — revisão)**\n"
-                "- \"Quem gerou mais LD em janeiro de 2026?\"\n"
-                "- \"Top 5 com mais LD em 2025\"\n"
-                "- \"Quanto o ezequiel.nunes identificou de LD em março?\"\n"
-                "- \"Qual produto gerou mais LD no mês passado?\"\n\n"
-                "**Produção geral**\n"
-                "- \"Ranking de produção em 2025\"\n"
-                "- \"Quanto o kaua.chagas produziu em fevereiro de 2026?\"\n"
-                "- \"Produção por turno em março de 2026\"\n"
-                "- \"Total geral em 2025\"\n\n"
-                "**Setores**\n"
-                "- \"Operadores da revisão\"\n"
-                "- \"Operadores da expedição\"\n"
-                "- \"Top 3 da revisão com mais LD em 2026\"\n\n"
-                "**Períodos**\n"
-                "- Qualquer mês/ano: \"em jan de 2026\", \"em março\", \"em 2025\"\n"
-                "- Atalhos: \"este mês\", \"mês passado\", \"este ano\", \"ano passado\"\n\n"
-                "**Tipos de movimentação**\n"
-                "- \"Top 5 LD em SD3\" (Movimentação Interna)\n"
-                "- `SD1` = Entrada · `SD2` = Saída · `SD3` = Movimentação Interna\n\n"
-                "---\n"
-                "Cobertura de dados: **Jul/2019** até o mês atual.\n"
-                "Digite \"quais meses você tem dados?\" para ver os períodos disponíveis."
+            answer = self.capabilities or (
+                f"Sou a **{self.agent_name}** e posso responder consultas do meu domínio. "
+                "Tente perguntar sobre produção, LD, rankings ou turnos."
             )
             self.context.append_assistant_message(payload.session_id, answer)
             return self._ok(answer, ir)
 
-        # ── Smalltalk / Conversa natural → Claude LLM ────────────────────────
-        if ir.route == "smalltalk":
+        # ── 4b. Conversa natural → ChatGPT ───────────────────────────────────
+        # Saudações, perguntas gerais, clarificações e mensagens não identificadas
+        if ir.route in ("smalltalk", "clarify"):
             answer = self.llm.respond(
                 message=payload.message,
                 history=recent,
                 intent=ir.intent,
             )
             self.context.append_assistant_message(payload.session_id, answer)
-            return self._ok(answer, ir)
+            requires_clarification = ir.route == "clarify"
+            return self._ok(answer, ir, requires_clarification=requires_clarification)
 
-        # ── Clarificação → Claude LLM (resposta natural ao invés de template) ─
-        if ir.route == "clarify":
-            answer = self.llm.respond(
-                message=payload.message,
-                history=recent,
-                intent=ir.intent,
-            )
-            self.context.append_assistant_message(payload.session_id, answer)
-            return self._ok(answer, ir, requires_clarification=True)
-
-        # ── SQL ───────────────────────────────────────────────────────────────
+        # ── 4c. Consulta ao banco de dados → SQL ──────────────────────────────
         answer = self._handle_sql(ir)
         self.context.append_assistant_message(payload.session_id, answer)
         return ChatProcessResponse(
@@ -109,18 +131,20 @@ class ChatOrchestrator:
             confidence=ir.confidence,
             used_sql=True,
             debug={
-                "intent": ir.intent,
-                "metric": ir.metric,
+                "agent":       self.agent_name,
+                "intent":      ir.intent,
+                "metric":      ir.metric,
                 "entity_type": ir.entity_type,
-                "entity_value": ir.entity_value,
+                "entity_value":ir.entity_value,
                 "period_text": ir.period_text,
                 "data_inicio": ir.data_inicio,
-                "data_fim": ir.data_fim,
-                "top_n": ir.top_n,
-                "setor": ir.setor,
-                "origem": ir.origem,
-                "history_size": len(recent),
-                "reasoning": ir.reasoning,
+                "data_fim":    ir.data_fim,
+                "top_n":       ir.top_n,
+                "setor":       ir.setor,
+                "origem":      ir.origem,
+                "history_size":len(recent),
+                "reasoning":   ir.reasoning,
+                "user_setor":  payload.user_setor,
             },
         )
 
@@ -133,24 +157,23 @@ class ChatOrchestrator:
             return f"Ocorreu um erro ao consultar o banco de dados: {exc}"
 
     def _dispatch(self, ir: InterpretationResult) -> str:
+        """Despacha o intent para a query SQL correspondente e formata a resposta."""
+
         periodo  = _periodo_label(ir)
         orig_lbl = _origem_label(ir.origem)
         ini      = ir.data_inicio or "01/01/2025"
         fim      = ir.data_fim    or "31/12/2026"
         top_n    = ir.top_n       or 5
-        origem   = ir.origem      # pode ser None
-        setor    = ir.setor       # pode ser None
+        origem   = ir.origem
+        setor    = ir.setor
 
-        # Setor explicitamente solicitado → filtra só aquele setor
-        # Sem setor → usa OPERADORES_ATIVOS como escopo padrão
+        # Setor explícito → filtra aquele setor; sem setor → usa OPERADORES_ATIVOS
         if setor:
             filtro_usuarios = get_operadores_setor(setor)
             setor_label     = get_label_setor(setor)
         else:
             filtro_usuarios = list(OPERADORES_ATIVOS)
             setor_label     = None
-
-        excluir_lista: list[str] | None = None  # não precisa mais excluir, já filtramos
 
         # ── Períodos disponíveis ──────────────────────────────────────────────
         if ir.intent == "periodos_disponiveis":
@@ -159,13 +182,10 @@ class ChatOrchestrator:
             if not periodos:
                 return "Não encontrei dados no banco para os operadores ativos."
 
-            linhas = []
-            avisos = []
+            linhas, avisos = [], []
             for p in periodos:
-                ano   = p["ano"]
-                meses = p["meses"]
-                todos = list(range(1, 13))
-                if meses == todos:
+                ano, meses = p["ano"], p["meses"]
+                if meses == list(range(1, 13)):
                     linhas.append(f"- **{ano}**: ano completo (Jan–Dez)")
                 else:
                     nomes = ", ".join(_MESES_NOME[m - 1] for m in meses)
@@ -173,13 +193,11 @@ class ChatOrchestrator:
                     if len(meses) < 6:
                         avisos.append(f"{ano} (dados esparsos — {len(meses)} meses)")
 
-            corpo = "\n".join(linhas)
-            nota  = ""
+            nota = ""
             if avisos:
-                nota = "\n\n> ⚠️ Dados incompletos em: " + ", ".join(avisos)
+                nota = "\n\n> Dados incompletos em: " + ", ".join(avisos)
             nota += "\n\n> Para consultas confiáveis, recomendo usar **2022 em diante**."
-
-            return f"### Períodos com dados disponíveis\n\n{corpo}{nota}"
+            return f"### Períodos com dados disponíveis\n\n" + "\n".join(linhas) + nota
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
@@ -195,12 +213,9 @@ class ChatOrchestrator:
             return f"### Operadores da {label}\n\n{linhas}{nota}"
 
         # ── Ranking de revisão por LD ─────────────────────────────────────────
-        # "quem gerou mais LD" é uma pergunta de revisão, não de produção
         if ir.intent == "ranking_usuarios_ld":
             rows = self.sql.get_ranking_usuarios_ld(
-                ini, fim, top_n, origem,
-                filtro_usuarios=filtro_usuarios,
-                excluir_usuarios=excluir_lista if not setor else None,
+                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
                 contexto = f" da {setor_label}" if setor_label else ""
@@ -214,12 +229,10 @@ class ChatOrchestrator:
             )
             return header + linhas
 
-        # ── Ranking produtos por LD ───────────────────────────────────────────
+        # ── Ranking de produtos por LD ────────────────────────────────────────
         if ir.intent == "ranking_produtos_ld":
             rows = self.sql.get_ranking_produtos_ld(
-                ini, fim, top_n, origem,
-                filtro_usuarios=filtro_usuarios,
-                excluir_usuarios=excluir_lista if not setor else None,
+                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
                 return f"Nenhum produto com LD encontrado{periodo}{orig_lbl}."
@@ -234,16 +247,13 @@ class ChatOrchestrator:
         # ── LD por operador específico ─────────────────────────────────────────
         if ir.intent == "geracao_ld_por_operador":
             if not ir.entity_value:
-                return (
-                    "Não identifiquei o operador. "
-                    "Informe o nome (ex: ezequiel.nunes ou só 'Ezequiel')."
-                )
+                return "Não identifiquei o operador. Informe o nome (ex: ezequiel.nunes ou só 'Ezequiel')."
             setor_op   = get_setor_de(ir.entity_value)
             setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
             total = self.sql.get_ld_por_operador(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
                 return (
-                    f"Nenhum LD identificado por {ir.entity_value}{setor_info}{periodo}{orig_lbl}.\n"
+                    f"Nenhum LD identificado por **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
                     "Verifique o nome ou o período informado."
                 )
             return (
@@ -253,42 +263,26 @@ class ChatOrchestrator:
                 f"**Total:** {_fmt_kg(float(total))}"
             )
 
-        # ── Movimentação da expedição por operador ────────────────────────────
+        # ── Produção / movimentação por operador específico ───────────────────
         if ir.intent == "producao_por_operador":
             if not ir.entity_value:
-                return (
-                    "Não identifiquei o operador. "
-                    "Informe o nome (ex: john.moraes ou só 'John')."
-                )
+                return "Não identifiquei o operador. Informe o nome (ex: john.moraes ou só 'John')."
             setor_op   = get_setor_de(ir.entity_value)
             setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
-
-            # Se for expedição, nomear corretamente
-            if setor_op == "expedicao":
-                total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
-                if float(total) == 0:
-                    return (
-                        f"Nenhuma movimentação encontrada para {ir.entity_value}{setor_info}{periodo}{orig_lbl}.\n"
-                        "Verifique o nome ou o período informado."
-                    )
-                return (
-                    f"### Bobinas liberadas — Expedição\n\n"
-                    f"**Operador:** {ir.entity_value}  \n"
-                    f"**Período:** {periodo.strip() or 'geral'}  \n"
-                    f"**Total movimentado:** {_fmt_kg(float(total))}"
-                )
-
             total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
                 return (
                     f"Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
                     "Verifique o nome ou o período informado."
                 )
+            # Expedição recebe label diferente (movimentação, não produção)
+            titulo = "Bobinas liberadas — Expedição" if setor_op == "expedicao" else "Produção"
+            metrica = "Total movimentado" if setor_op == "expedicao" else "Total"
             return (
-                f"### Produção\n\n"
+                f"### {titulo}\n\n"
                 f"**Operador:** {ir.entity_value}{setor_info}  \n"
                 f"**Período:** {periodo.strip() or 'geral'}  \n"
-                f"**Total:** {_fmt_kg(float(total))}"
+                f"**{metrica}:** {_fmt_kg(float(total))}"
             )
 
         # ── Produção por produto específico ───────────────────────────────────
@@ -297,7 +291,7 @@ class ChatOrchestrator:
                 return "Não identifiquei o código do produto. Informe o código (ex: TD2AYBR1BOBR100)."
             total = self.sql.get_producao_por_produto(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
-                return f"Nenhuma produção encontrada para {ir.entity_value}{periodo}{orig_lbl}."
+                return f"Nenhuma produção encontrada para **{ir.entity_value}**{periodo}{orig_lbl}."
             return (
                 f"### Produção por produto\n\n"
                 f"**Produto:** `{ir.entity_value}`  \n"
@@ -305,12 +299,10 @@ class ChatOrchestrator:
                 f"**Total:** {_fmt_kg(float(total))}"
             )
 
-        # ── Ranking geral de produção (exclui expedição por padrão) ──────────
+        # ── Ranking geral de produção ─────────────────────────────────────────
         if ir.intent == "ranking_producao_geral":
             rows = self.sql.get_ranking_producao_geral(
-                ini, fim, top_n, origem,
-                filtro_usuarios=filtro_usuarios,
-                excluir_usuarios=excluir_lista if not setor else None,
+                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
                 contexto = f" da {setor_label}" if setor_label else ""
@@ -324,12 +316,10 @@ class ChatOrchestrator:
             )
             return header + linhas
 
-        # ── Produção por turno (exclui expedição por padrão) ─────────────────
+        # ── Produção por turno ────────────────────────────────────────────────
         if ir.intent == "producao_por_turno":
             rows = self.sql.get_producao_por_turno(
-                ini, fim, origem,
-                filtro_usuarios=filtro_usuarios,
-                excluir_usuarios=excluir_lista if not setor else None,
+                ini, fim, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
                 return f"Nenhum dado de turno encontrado{periodo}{orig_lbl}."
@@ -342,7 +332,7 @@ class ChatOrchestrator:
             )
             return header + linhas
 
-        # ── Total da fábrica ──────────────────────────────────────────────────
+        # ── Total geral da fábrica ────────────────────────────────────────────
         if ir.intent == "total_fabrica":
             total    = self.sql.get_total_fabrica(ini, fim, origem, filtro_usuarios)
             total_ld = self.sql.get_total_ld_fabrica(ini, fim, origem, filtro_usuarios)
@@ -358,7 +348,7 @@ class ChatOrchestrator:
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
 
-    # ── Helper ────────────────────────────────────────────────────────────────
+    # ── Helper de resposta ────────────────────────────────────────────────────
 
     def _ok(
         self,
@@ -372,5 +362,9 @@ class ChatOrchestrator:
             route=ir.route,
             confidence=ir.confidence,
             requires_clarification=requires_clarification,
-            debug={"intent": ir.intent, "reasoning": ir.reasoning},
+            debug={
+                "agent":     self.agent_name,
+                "intent":    ir.intent,
+                "reasoning": ir.reasoning,
+            },
         )

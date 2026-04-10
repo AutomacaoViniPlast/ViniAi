@@ -1,3 +1,15 @@
+"""
+main.py — Ponto de entrada da API FastAPI.
+
+Define os endpoints HTTP, configurações de CORS e instancia o orquestrador.
+
+Endpoints disponíveis:
+  GET  /health              → verifica se a API está no ar
+  POST /v1/chat/process     → processa uma mensagem e retorna a resposta do agente
+
+CORS configurado para aceitar requisições dos domínios do frontend (React).
+Para adicionar novos domínios, edite a lista `allow_origins` abaixo.
+"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.orchestrator import ChatOrchestrator

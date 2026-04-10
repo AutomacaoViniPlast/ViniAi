@@ -1,3 +1,22 @@
+"""
+interpreter.py — Interpretador de intenções baseado em regras (sem LLM).
+
+Analisa o texto do usuário e classifica a mensagem em uma intenção e rota,
+sem depender de chamadas externas — determinístico, rápido e sem custo de API.
+
+Como funciona:
+  1. Testa padrões de regex em ordem de prioridade.
+  2. Extrai entidades: período, operador, produto, setor, origem, top_n.
+  3. Retorna InterpretationResult com intent, route e confiança.
+
+Rotas possíveis:
+  sql       → consulta ao banco de dados (SQLService)
+  smalltalk → conversa natural (LLMHandler / ChatGPT)
+  clarify   → não entendeu — ChatGPT responde com orientação natural
+
+Para adicionar novos padrões: inclua novos atributos de regex na classe
+RuleBasedInterpreter e adicione a verificação em ordem no método interpret().
+"""
 from __future__ import annotations
 
 import calendar
