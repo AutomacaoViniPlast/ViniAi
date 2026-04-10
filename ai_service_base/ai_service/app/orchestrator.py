@@ -72,6 +72,7 @@ class ChatOrchestrator:
 
     def __init__(self, agent_id: str = "producao") -> None:
         agent             = get_agent(agent_id)
+        self.agent_id     = agent_id
         self.agent_name   = agent["name"]
         self.capabilities = agent.get("capabilities", "")
         self.context      = PostgresContextManager()
@@ -94,8 +95,8 @@ class ChatOrchestrator:
         # 2. Interpreta a intenção da mensagem
         ir = self.interpreter.interpret(payload.message)
 
-        # 3. Verifica permissão LGPD antes de qualquer rota que acesse dados
-        if not verificar_permissao(payload.user_setor, ir.intent):
+        # 3. Verifica permissão LGPD: o perfil do usuário tem acesso a este agente?
+        if not verificar_permissao(payload.user_setor, self.agent_id, ir.intent):
             self.context.append_assistant_message(payload.session_id, MENSAGEM_LGPD)
             return self._ok(MENSAGEM_LGPD, ir)
 
