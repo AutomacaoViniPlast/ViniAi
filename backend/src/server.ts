@@ -32,6 +32,7 @@ app.use(
       "http://localhost:3001",
       "http://192.168.1.84:3001",
       "http://192.168.1.84:3003",
+      "http://viniai.viniplast.local:3003",
     ],
     credentials: true,
   })
