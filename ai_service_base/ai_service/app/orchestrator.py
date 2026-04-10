@@ -92,11 +92,17 @@ class ChatOrchestrator:
         self.context.append_user_message(payload.session_id, payload.message)
         recent = self.context.get_recent(payload.session_id, limit=6)
 
-        # 2. Interpreta a intenção da mensagem
+        # 2. Resolve campos do usuário — topo do payload tem prioridade;
+        #    fallback para metadata (compatibilidade com N8N que envia via metadata)
+        user_name  = payload.user_name  or payload.metadata.get("userName") or payload.metadata.get("user_name")
+        user_setor = payload.user_setor or payload.metadata.get("setor")    or payload.metadata.get("user_setor")
+        user_cargo = payload.user_cargo or payload.metadata.get("cargo")    or payload.metadata.get("user_cargo")
+
+        # 3. Interpreta a intenção da mensagem
         ir = self.interpreter.interpret(payload.message)
 
-        # 3. Verifica permissão LGPD: o perfil do usuário tem acesso a este agente?
-        if not verificar_permissao(payload.user_setor, self.agent_id, ir.intent):
+        # 4. Verifica permissão LGPD: o perfil do usuário tem acesso a este agente?
+        if not verificar_permissao(user_setor, self.agent_id, ir.intent):
             self.context.append_assistant_message(payload.session_id, MENSAGEM_LGPD)
             return self._ok(MENSAGEM_LGPD, ir)
 
@@ -114,10 +120,11 @@ class ChatOrchestrator:
         # Saudações, perguntas gerais, clarificações e mensagens não identificadas
         if ir.route in ("smalltalk", "clarify"):
             user_context = {
-                "name":  payload.user_name,
-                "setor": payload.user_setor,
-                "cargo": payload.user_cargo,
+                "name":  user_name,
+                "setor": user_setor,
+                "cargo": user_cargo,
             }
+            print(f"[{self.agent_name}] user_context recebido: {user_context}")
             answer = self.llm.respond(
                 message=payload.message,
                 history=recent,
@@ -126,7 +133,9 @@ class ChatOrchestrator:
             )
             self.context.append_assistant_message(payload.session_id, answer)
             requires_clarification = ir.route == "clarify"
-            return self._ok(answer, ir, requires_clarification=requires_clarification)
+            resp = self._ok(answer, ir, requires_clarification=requires_clarification)
+            resp.debug["user_context_received"] = user_context
+            return resp
 
         # ── 4c. Consulta ao banco de dados → SQL ──────────────────────────────
         answer = self._handle_sql(ir)
@@ -151,7 +160,8 @@ class ChatOrchestrator:
                 "origem":      ir.origem,
                 "history_size":len(recent),
                 "reasoning":   ir.reasoning,
-                "user_setor":  payload.user_setor,
+                "user_setor":  user_setor,
+                "user_name":   user_name,
             },
         )
 
