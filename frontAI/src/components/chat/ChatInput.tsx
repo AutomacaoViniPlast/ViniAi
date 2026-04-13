@@ -42,7 +42,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
         className="rounded-3xl overflow-hidden transition-all duration-200"
         style={{
           background: "#080b14ff",
-          border: "1px solid #15171dff",
+          border: "1px solid #1b1e25ff",
         }}
       >
         <div className="flex items-end gap-4 px-5 py-3">
@@ -78,12 +78,11 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
           <button
             type="submit"
             disabled={!canSend}
-            className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200"
+            className="shrink-0 w-9 h-9 self-center rounded-xl flex items-center justify-center transition-all duration-200"
             style={{
               background: canSend ? "#ad1e13ff" : "hsl(220 20% 17%)",
               color: canSend ? "#fff" : "hsl(215 15% 45%)",
               cursor: canSend ? "pointer" : "not-allowed",
-              boxShadow: canSend ? "0 2px 10px hsl(4 82% 47% / 0.4)" : "none",
               transform: "scale(1)",
             }}
             onMouseEnter={e => {

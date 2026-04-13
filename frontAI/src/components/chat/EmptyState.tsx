@@ -166,21 +166,21 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
     sectorSuggestions.GERAL;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 pt-2 pb-16 md:pb-12 animate-fade-in overflow-y-auto">
+    <div className="flex-1 flex flex-col items-center justify-end lg:justify-center px-4 sm:px-5 md:px-6 pt-6 md:pt-8 lg:pt-2 pb-3 sm:pb-4 md:pb-5 lg:pb-12 animate-fade-in overflow-y-auto">
 
       {/* Logo da imagem */}
-      <div className="flex justify-center items-center mt-6 mb-2 animate-float">
+      <div className="flex justify-center items-center mt-2 sm:mt-3 md:mt-4 lg:mt-6 mb-1 sm:mb-2 animate-float">
         <img
           src={logoVini}
           alt="ViniAI Logo"
-          className="w-40 md:w-36 h-auto max-h-15 "
+          className="w-28 sm:w-32 md:w-36 h-auto max-h-14 sm:max-h-16 md:max-h-20"
         />
       </div>
 
       {/* Título */}
-      <div className="text-center mb-2">
+      <div className="text-center mb-1 sm:mb-2">
         <h1
-          className="text-3xl md:text-4xl font-bold mb-3"
+          className="text-2xl sm:text-[1.85rem] md:text-[2.05rem] lg:text-4xl font-bold mb-2 md:mb-3"
           style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(0 0% 95%)", letterSpacing: "-0.02em" }}
         >
           Como posso{" "}
@@ -188,13 +188,13 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
             ajudar hoje?
           </span>
         </h1>
-        <p className="text-base max-w-md mx-auto" style={{ color: "hsl(215 15% 58%)" }}>
+        <p className="text-sm sm:text-[0.95rem] md:text-base max-w-md mx-auto" style={{ color: "hsl(215 15% 58%)" }}>
           Faça uma pergunta ou escolha uma das sugestões abaixo para começar.
         </p>
       </div>
 
       {/* Cards de sugestão */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-4xl mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 md:gap-4 lg:gap-5 w-full max-w-4xl mt-2 sm:mt-3 md:mt-4 lg:mt-6">
         {suggestions.map((suggestion, index) => (
           <SuggestionCard
             key={index}

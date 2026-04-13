@@ -47,6 +47,7 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isLogoHovered, setIsLogoHovered] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(window.innerWidth < 768);
   const [carregando, setCarregando] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,14 +112,14 @@ const Index = () => {
           prev.map((c) =>
             c.id === activeId
               ? {
-                  ...c,
-                  messagesLoaded: true,
-                  messages: msgs.map((m) => ({
-                    id: m.id,
-                    content: m.conteudo,
-                    role: m.role,
-                  })),
-                }
+                ...c,
+                messagesLoaded: true,
+                messages: msgs.map((m) => ({
+                  id: m.id,
+                  content: m.conteudo,
+                  role: m.role,
+                })),
+              }
               : c
           )
         );
@@ -129,6 +130,12 @@ const Index = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeId, conversations, isTyping]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileViewport(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const activeConversation = conversations.find((c) => c.id === activeId);
 
@@ -198,7 +205,7 @@ const Index = () => {
     // Atualiza título na primeira mensagem
     const novoTitulo = content.slice(0, 50);
     if (isFirstMessage) {
-      updateTitle(sessionId, novoTitulo).catch(() => {});
+      updateTitle(sessionId, novoTitulo).catch(() => { });
     }
 
     // Adiciona mensagem do usuário no estado imediatamente
@@ -207,10 +214,10 @@ const Index = () => {
       prev.map((c) =>
         c.id === sessionId
           ? {
-              ...c,
-              title: isFirstMessage ? novoTitulo : c.title,
-              messages: [...c.messages, { id: tempUserId, content, role: "user" }],
-            }
+            ...c,
+            title: isFirstMessage ? novoTitulo : c.title,
+            messages: [...c.messages, { id: tempUserId, content, role: "user" }],
+          }
           : c
       )
     );
@@ -218,7 +225,7 @@ const Index = () => {
     setIsTyping(true);
 
     // Grava mensagem do usuário no banco (em paralelo com a chamada ao n8n)
-    saveMessage(sessionId, "user", content).catch(() => {});
+    saveMessage(sessionId, "user", content).catch(() => { });
 
     try {
       const data = await sendChatMessage(content, setor, sessionId);
@@ -231,18 +238,18 @@ const Index = () => {
         (typeof data === "string" ? data : "Sem resposta.");
 
       // Grava resposta da IA no banco
-      saveMessage(sessionId, "assistant", responseText).catch(() => {});
+      saveMessage(sessionId, "assistant", responseText).catch(() => { });
 
       setConversations((prev) =>
         prev.map((c) =>
           c.id === sessionId
             ? {
-                ...c,
-                messages: [
-                  ...c.messages,
-                  { id: `ai_${Date.now()}`, content: responseText, role: "assistant" },
-                ],
-              }
+              ...c,
+              messages: [
+                ...c.messages,
+                { id: `ai_${Date.now()}`, content: responseText, role: "assistant" },
+              ],
+            }
             : c
         )
       );
@@ -250,18 +257,18 @@ const Index = () => {
       console.error(error);
 
       const errMsg = "Desculpe, tive um problema de conexão.";
-      saveMessage(sessionId, "assistant", errMsg).catch(() => {});
+      saveMessage(sessionId, "assistant", errMsg).catch(() => { });
 
       setConversations((prev) =>
         prev.map((c) =>
           c.id === sessionId
             ? {
-                ...c,
-                messages: [
-                  ...c.messages,
-                  { id: `err_${Date.now()}`, content: errMsg, role: "assistant" },
-                ],
-              }
+              ...c,
+              messages: [
+                ...c.messages,
+                { id: `err_${Date.now()}`, content: errMsg, role: "assistant" },
+              ],
+            }
             : c
         )
       );
@@ -299,7 +306,7 @@ const Index = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#09090fff", color: "hsl(0 0% 95%)" }}>
+    <div className="flex h-[100dvh] overflow-hidden" style={{ background: "#09090fff", color: "hsl(0 0% 95%)" }}>
 
       {/* ── Overlay mobile ── */}
       {isSidebarOpen && (
@@ -313,7 +320,8 @@ const Index = () => {
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
         style={{
-          width: isSidebarCollapsed ? "60px" : "290px",
+          width: isMobileViewport ? "82vw" : (isSidebarCollapsed ? "60px" : "290px"),
+          maxWidth: isMobileViewport ? "300px" : "unset",
           background: "#07070eff",
           borderRight: "1px solid #23272fff",
           transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
@@ -325,23 +333,23 @@ const Index = () => {
           bottom: 0,
           left: 0,
           zIndex: 40,
-          transform: isSidebarOpen || window.innerWidth >= 768 ? "translateX(0)" : "translateX(-100%)",
+          transform: isSidebarOpen || !isMobileViewport ? "translateX(0)" : "translateX(-100%)",
         }}
         className={`${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
         {/* Sidebar header */}
         <div
-          className="flex items-center justify-between p-3 shrink-0"
-          style={{minHeight: "60px" }}
+          className="flex items-center justify-between px-3 pt-4 pb-2 shrink-0"
+          style={{ minHeight: "60px" }}
         >
           {!isSidebarCollapsed && (
             <>
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: "#c52318ff" }}
                 >
-                  <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
+                  <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain mx-auto my-auto" />
                 </div>
                 <div className="overflow-hidden">
                   <p className="font-semibold text-sm leading-tight truncate" style={{ color: "hsl(0 0% 95%)" }}>ViniAI</p>
@@ -564,31 +572,32 @@ const Index = () => {
       {/* ══════════════ MAIN ══════════════ */}
       <main
         className="flex-1 flex flex-col min-w-0 min-h-0"
-        style={{ marginLeft: window.innerWidth >= 768 ? (isSidebarCollapsed ? "60px" : "260px") : "0" }}
+        style={{ marginLeft: isMobileViewport ? "0" : (isSidebarCollapsed ? "60px" : "260px") }}
       >
         {/* Topbar mobile */}
         <div
-          className="md:hidden flex items-center gap-3 px-4 py-3 shrink-0"
+          className="md:hidden flex items-center justify-between gap-3 px-4 py-3 shrink-0"
           style={{ borderBottom: "1px solid hsl(220 15% 16%)" }}
         >
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200"
-            style={{ color: "hsl(215 15% 68%)" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "hsl(220 20% 14%)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-          >
-            <img src={abrir} alt="Menu" className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 shrink-0"
+              style={{ color: "hsl(215 15% 68%)" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "hsl(220 20% 14%)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <img src={abrir} alt="Menu" className="w-5 h-5" />
+            </button>
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
               style={{ background: "#da2316ff" }}
             >
-              <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
+              <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain mx-auto my-auto" />
             </div>
-            <span className="font-semibold text-sm">ViniAI</span>
+            <span className="font-semibold text-sm truncate">ViniAI</span>
           </div>
+          <div className="w-9 h-9 shrink-0" aria-hidden="true" />
         </div>
 
         {/* Área de mensagens */}
@@ -596,8 +605,8 @@ const Index = () => {
           {!activeConversation || activeConversation.messages.length === 0 ? (
             <EmptyState onSuggestionClick={handleSend} setor={userProfile?.setor} />
           ) : (
-            <div className="flex-1 overflow-y-auto py-6 px-4 md:px-6">
-              <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex-1 overflow-y-auto py-4 px-3 sm:px-4 md:px-6">
+              <div className="max-w-4xl mx-auto space-y-5 md:space-y-6">
                 {activeConversation.messages.map((msg) => (
                   <ChatMessage
                     key={msg.id}
@@ -615,9 +624,7 @@ const Index = () => {
           )}
         </div>
 
-        <div
-          className="shrink-1 px-4 md:px-6 pt-0 pb-1 md:pb-2"
-        >
+        <div className="shrink-0 px-3 sm:px-4 md:px-6 pt-0 pb-2 md:pb-2">
           <div className="max-w-4xl mx-auto">
             <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
           </div>
