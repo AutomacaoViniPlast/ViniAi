@@ -1,6 +1,6 @@
 # ViniAI — Sistema de Agentes
 
-**Versão:** 1.2  
+**Versão:** 1.3  
 **Última atualização:** Abril/2026
 
 ---
@@ -72,11 +72,18 @@ A Ayla é a assistente de **toda a área de Produção**. Ela atende os seguinte
 
 ### Operadores Cadastrados
 
-| Sub-setor | Operadores |
-|-----------|-----------|
-| Qualidade/Revisão | raul.araujo, igor.chiva, ezequiel.nunes |
-| Expedição | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
-| Extrusora/Produção | kaua.chagas (outros em cadastramento) |
+> **Fonte da verdade:** `app/config.py` — qualquer alteração deve ser feita apenas lá.
+
+| Sub-setor | Setor (config.py) | Operadores |
+|-----------|-------------------|-----------|
+| Qualidade/Revisão | `revisao` | raul.araujo, igor.chiva, ezequiel.nunes |
+| Expedição | `expedicao` | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
+| Extrusora/Produção | `producao` | *(em cadastramento — lista vazia no config.py)* |
+
+**`OPERADORES_ATIVOS`** (escopo padrão de consultas sem setor explícito):
+`ezequiel.nunes`, `raul.araujo`, `kaua.chagas`, `igor.chiva`
+
+> **Nota:** `kaua.chagas` está em `OPERADORES_ATIVOS` mas ainda não foi adicionado ao setor `producao` em `SETORES`. Para incluí-lo completamente, adicionar `"kaua.chagas"` na lista `operadores` do setor `producao` em `config.py`.
 
 ### Conversa Natural
 Para mensagens que não são consultas de dados, a Ayla usa o **ChatGPT (gpt-4o-mini)**:
@@ -136,7 +143,10 @@ Atualizar este arquivo e `03_controle_acesso_lgpd.md`.
 ## Fluxo de Decisão do Agente
 
 ```
-Mensagem recebida (com user_setor)
+Mensagem recebida (com user_setor, user_name, session_id)
+           │
+           ▼
+  Lê histórico: 16 msgs (context_manager → banco N8N)
            │
            ▼
    Verifica permissão LGPD
@@ -147,14 +157,36 @@ Mensagem recebida (com user_setor)
     │               │
     ▼               ▼
 Mensagem      RuleBasedInterpreter
-LGPD          (classifica sem LLM)
+LGPD          (classifica 19 regras, sem LLM)
+              extrai: período, operador, setor, top_n
                     │
-      ┌─────────────┼──────────────┐
-      ▼             ▼              ▼
-  "o que       Consulta        Conversa
-  você faz?"   de dados       natural /
-      │            │          não identificado
-      ▼            ▼              ▼
-capabilities   SQLService      ChatGPT
-(agents.py)   (METABASE)      (OpenAI)
+                    ▼
+         intent = tipos_informacao?
+          │          │
+         Sim        Não
+          │          │
+          ▼          ▼
+    capabilities   RAG Conversacional
+    (agents.py)        │
+                  ┌────┴──────────────────┐
+                  │                       │
+            Caso 1: clarify/smalltalk  Caso 2: sql sem
+            + conf<0.75 + período      período explícito
+                  │                + conf<0.87
+            herda intent SQL do         │
+            histórico (carry-over)  herda período da
+                  │                última msg c/ data
+                  └────────┬──────────────┘
+                           │
+                           ▼
+                  Auto-inject de operador
+                  (entity=None + user logado)
+                           │
+              ┌────────────┴────────────┐
+              ▼                         ▼
+         sql route                smalltalk/clarify
+              │                         │
+              ▼                         ▼
+        SQLService               ChatGPT (OpenAI)
+        (METABASE)          + data atual no system prompt
 ```

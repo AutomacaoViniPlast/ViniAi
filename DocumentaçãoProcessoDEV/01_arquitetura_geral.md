@@ -1,6 +1,6 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 1.0  
+**Versão:** 2.0  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -65,19 +65,23 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
 
 ```
 1. Usuário digita mensagem no frontend
-2. Frontend envia POST /v1/chat/process para o FastAPI (porta 8000)
-   → payload inclui: message, session_id, user_id, user_setor
-3. FastAPI (Orchestrator):
-   a. Lê histórico da conversa (banco N8N)
-   b. Interpreta a intenção (RuleBasedInterpreter — sem LLM)
+2. Backend Node.js (porta 4000) salva a mensagem do usuário no banco N8N
+3. Frontend envia POST /v1/chat/process diretamente ao FastAPI (porta 8000)
+   → payload inclui: message, session_id, user_id, user_name, user_setor, user_cargo
+4. FastAPI (Orchestrator):
+   a. Lê últimas 16 mensagens da conversa no banco N8N (context_manager)
+   b. Interpreta a intenção (RuleBasedInterpreter — 19 regras, sem custo de LLM)
    c. Verifica permissão LGPD (permissions.py)
       → Se negado: retorna mensagem formal de LGPD
-   d. Roteia:
-      → Conversa natural (smalltalk/clarify) → ChatGPT (OpenAI)
-      → Consulta de dados → SQL direto no banco METABASE
-4. Resposta formatada retorna ao frontend
-5. Frontend exibe a resposta e salva mensagem no backend Node.js
-6. Backend Node.js salva no banco N8N (histórico)
+   d. RAG Conversacional:
+      → Mensagem ambígua + período novo → herda intent SQL do histórico
+      → SQL sem período explícito (conf < 0.87) → herda período da última msg c/ data
+   e. Auto-inject: intent de operador + entity_value=None → injeta login do usuário logado
+   f. Roteia:
+      → Conversa natural (smalltalk/clarify) → ChatGPT com data atual injetada no prompt
+      → Consulta de dados (sql) → SQLService direto no banco METABASE
+5. Resposta formatada retorna ao frontend
+6. Backend Node.js salva a resposta do assistente no banco N8N (histórico)
 ```
 
 ---
@@ -88,19 +92,35 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
 ai_service_base/ai_service/
 ├── app/
 │   ├── __init__.py         → índice do pacote com mapa de módulos
-│   ├── main.py             → endpoints FastAPI e configuração de CORS
-│   ├── agents.py           → registro de todos os agentes (nome, domínio, prompts)
+│   ├── main.py             → endpoints FastAPI (GET /health, POST /v1/chat/process) e CORS
+│   ├── agents.py           → registro de todos os agentes (nome, domínio, system_prompt, capabilities)
 │   ├── config.py           → setores, operadores e origens (FONTE DA VERDADE)
-│   ├── context_manager.py  → leitura do histórico de conversa (banco N8N)
-│   ├── db.py               → pools de conexão PostgreSQL (METABASE e N8N)
-│   ├── interpreter.py      → classificação de intenção por regras (sem LLM)
-│   ├── llm_handler.py      → integração com ChatGPT (OpenAI API)
-│   ├── orchestrator.py     → orquestrador principal (coordena todo o fluxo)
-│   ├── permissions.py      → controle de acesso por perfil + mensagem LGPD
-│   └── schemas.py          → modelos Pydantic (estrutura de entrada e saída)
+│   ├── context_manager.py  → leitura do histórico de conversa no banco N8N (somente leitura)
+│   ├── db.py               → pools de conexão psycopg_pool (METABASE pool=10, N8N pool=5)
+│   ├── interpreter.py      → classificação de intenção por 19 regras regex + parsing de períodos
+│   ├── llm_handler.py      → integração com ChatGPT (OpenAI API) — injeta data atual no prompt
+│   ├── orchestrator.py     → orquestrador principal: RAG, period-inherit, auto-inject, roteamento
+│   ├── permissions.py      → controle de acesso por departamento + mensagem LGPD formal
+│   ├── schemas.py          → modelos Pydantic (ChatProcessRequest, ChatProcessResponse, etc.)
+│   └── sql_service.py      → queries SQL contra v_kardex_ld (produção, LD, rankings, turnos)
 ├── .env                    → variáveis de ambiente (NÃO versionar)
 ├── requirements.txt        → dependências Python
 └── test_llm.py             → testes do LLMHandler e do interpretador
+```
+
+### Regra de importações (anti-circular)
+
+```
+config      → sem dependências internas
+db          → sem dependências internas
+sql_service → importa db
+interpreter → importa config, schemas
+permissions → sem dependências internas
+agents      → sem dependências internas
+context_manager → importa db, schemas
+llm_handler → importa schemas
+orchestrator → importa tudo acima + context_manager + llm_handler
+main        → importa orchestrator, schemas
 ```
 
 ---
@@ -137,11 +157,12 @@ OPENAI_MODEL=gpt-4o-mini
 # Reiniciar o AI Service após atualização de código
 nssm restart ViniAI-FastAPI
 
-# Verificar status
-nssm status ViniAI-FastAPI
-
-# Ver todos os serviços
+# Verificar status de cada serviço
 nssm status ViniAI-FastAPI
 nssm status ViniAI-Backend
 nssm status ViniAI-Frontend
 ```
+
+> **Localização do NSSM:** `C:\metabase\nssm.exe`  
+> **Logs do serviço:** `C:\Users\pedro.martins\Documents\ViniAi\logs\`  
+> **Conta de serviço:** configurada como `pedro.martins` na aba Log On do NSSM

@@ -1,6 +1,6 @@
 # ViniAI — Controle de Acesso e LGPD
 
-**Versão:** 1.2  
+**Versão:** 1.3  
 **Última atualização:** Abril/2026  
 **Base legal:** Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD)
 

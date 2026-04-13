@@ -43,7 +43,7 @@ Mensagem do usuário
       ▼
 [orchestrator.py] process(payload)
       │
-      ├─ 1. Lê histórico (últimas 12 mensagens do banco N8N)
+      ├─ 1. Lê histórico (últimas 16 mensagens do banco N8N)
       ├─ 2. Resolve user_name / user_setor / user_cargo do payload
       ├─ 3. Chama interpreter.interpret(message)
       ├─ 4. Verifica permissão LGPD
@@ -481,9 +481,9 @@ Backend Node.js
     ▼
 FastAPI (ai_service)
     │
-    ├─ context_manager.py ──► lê últimas 12 msgs do banco N8N (somente leitura)
+    ├─ context_manager.py ──► lê últimas 16 msgs do banco N8N (somente leitura)
     │   SELECT role, conteudo FROM mensagens WHERE conversa_id = %s
-    │   ORDER BY criado_em DESC LIMIT 12
+    │   ORDER BY criado_em DESC LIMIT 16
     │
     ├─ RAG carry-over (em memória, não persistido)
     │   Funciona sobre o histórico já lido — sem armazenamento extra
