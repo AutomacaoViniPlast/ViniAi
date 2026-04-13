@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
+import conversationRoutes from "./routes/conversations";
 import { pool } from "./db";
 
 dotenv.config();
@@ -64,6 +65,7 @@ app.get("/health", async (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
+app.use("/conversations", conversationRoutes);
 
 const PORT = Number(process.env.PORT || 4000);
 
