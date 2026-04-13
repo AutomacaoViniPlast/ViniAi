@@ -315,6 +315,7 @@ const Index = () => {
         style={{
           width: isSidebarCollapsed ? "60px" : "290px",
           background: "#07070eff",
+          borderRight: "1px solid #23272fff",
           transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           flexShrink: 0,
           display: "flex",
@@ -331,7 +332,7 @@ const Index = () => {
         {/* Sidebar header */}
         <div
           className="flex items-center justify-between p-3 shrink-0"
-          style={{ borderBottom: "1px solid #23272fff", minHeight: "60px" }}
+          style={{minHeight: "60px" }}
         >
           {!isSidebarCollapsed && (
             <>
