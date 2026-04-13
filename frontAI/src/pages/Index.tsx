@@ -314,7 +314,7 @@ const Index = () => {
       <aside
         style={{
           width: isSidebarCollapsed ? "60px" : "290px",
-          background: "#08080eff",
+          background: "#07070eff",
           transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           flexShrink: 0,
           display: "flex",
@@ -357,7 +357,7 @@ const Index = () => {
                 className="hidden md:flex items-center justify-center w-7 h-7 rounded-full transition-all duration-200 shrink-0"
                 style={{ color: "hsl(215 15% 58%)" }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = "hsl(220 20% 16%)";
+                  e.currentTarget.style.background = "hsla(219, 23%, 12%, 1.00)";
                   e.currentTarget.style.color = "hsl(0 0% 95%)";
                 }}
                 onMouseLeave={e => {
