@@ -173,7 +173,7 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
         <img
           src={logoVini}
           alt="ViniAI Logo"
-          className="w-40 md:w-36 h-auto max-h-15"
+          className="w-40 md:w-36 h-auto max-h-15 "
         />
       </div>
 
@@ -184,14 +184,7 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
           style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(0 0% 95%)", letterSpacing: "-0.02em" }}
         >
           Como posso{" "}
-          <span
-            style={{
-              background: "linear-gradient(135deg, hsla(4, 100%, 50%, 1.00), hsla(4, 84%, 63%, 1.00))",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
+          <span className="bg-gradient-to-br from-[hsl(4,82%,50%)] to-[#700d0dff] bg-clip-text text-transparent">
             ajudar hoje?
           </span>
         </h1>
