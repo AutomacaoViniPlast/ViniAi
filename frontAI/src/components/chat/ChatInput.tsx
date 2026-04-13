@@ -42,6 +42,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
         className="rounded-3xl overflow-hidden transition-all duration-200"
         style={{
           background: "#080b14ff",
+          border: "1px solid #15171dff",
         }}
       >
         <div className="flex items-end gap-4 px-5 py-3">
