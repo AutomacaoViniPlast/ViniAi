@@ -1,6 +1,6 @@
 # ViniAI — Conversação Natural com ChatGPT
 
-**Versão:** 1.0  
+**Versão:** 1.1  
 **Última atualização:** Abril/2026
 
 ---
@@ -38,11 +38,28 @@ e qualquer mensagem que o interpretador de regras não conseguiu classificar.
 
 ## Contexto de Conversa
 
-O ChatGPT recebe as **últimas 6 mensagens** da conversa (histórico) para manter
+O ChatGPT recebe as **últimas 12 mensagens** da conversa (histórico) para manter
 continuidade — o agente "lembra" do que foi dito anteriormente na sessão.
 
 O histórico é lido do banco N8N (tabela `mensagens`), onde o backend Node.js
 salva cada mensagem do usuário e do assistente.
+
+> **v1.1:** Limite aumentado de 6 para 12 mensagens para melhor continuidade em conversas longas.
+
+---
+
+## Âncora Temporal (v1.1 — novo)
+
+A **data atual é injetada automaticamente** no topo do system prompt em toda chamada ao ChatGPT:
+
+```
+**Data de hoje:** 13/04/2026 (domingo)
+Use essa data como referência absoluta para "hoje", "este mês", "este ano", etc.
+NUNCA invente ou assuma datas sem usar este valor.
+```
+
+Isso elimina a alucinação temporal — o LLM sabia responder perguntas mas não sabia
+que data era hoje, levando a respostas com anos errados ou datas inventadas.
 
 ---
 
@@ -56,6 +73,7 @@ A Ayla, por exemplo, é instruída a:
 - Não inventar dados de produção (eles vêm do banco)
 - Orientar o usuário a reformular perguntas de dados quando necessário
 - Ser breve e objetiva (máximo 3 parágrafos)
+- Usar a data injetada como referência para períodos relativos (v1.1)
 
 ---
 

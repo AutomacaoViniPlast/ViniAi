@@ -133,7 +133,7 @@ class ChatOrchestrator:
 
         # 1. Lê o histórico para passar ao LLM como contexto
         self.context.append_user_message(payload.session_id, payload.message)
-        recent = self.context.get_recent(payload.session_id, limit=8)
+        recent = self.context.get_recent(payload.session_id, limit=16)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
@@ -159,16 +159,28 @@ class ChatOrchestrator:
             return self._ok(answer, ir)
 
         # ── 4b. RAG Conversacional — context carry-over ───────────────────────
-        # Quando a mensagem atual é ambígua (baixa confiança) mas contém um
-        # período reconhecido, reutilizamos o intent SQL da última mensagem
-        # completa do usuário no histórico — aplicando o novo período.
-        if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75:
-            ini_new, fim_new, lbl_new = _periodo_from_text(payload.message)
-            if ini_new or fim_new:
-                followup_ir = self._try_context_followup(recent, ini_new, fim_new, lbl_new)
-                if followup_ir:
-                    ir = followup_ir
-                    print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
+        # Extrai período explícito da mensagem atual (None se não mencionado)
+        msg_ini, msg_fim, msg_lbl = _periodo_from_text(payload.message)
+        periodo_explicito = bool(msg_ini or msg_fim)
+
+        # Caso 1: mensagem ambígua com período novo → herda intent do histórico
+        # Ex: "Quero saber de janeiro!" após consulta de LD
+        if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and periodo_explicito:
+            followup_ir = self._try_context_followup(recent, msg_ini, msg_fim, msg_lbl)
+            if followup_ir:
+                ir = followup_ir
+                print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
+
+        # Caso 2: consulta SQL sem período explícito → herda período do histórico
+        # Ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?" herda janeiro
+        elif ir.route == "sql" and not periodo_explicito and ir.confidence < 0.87:
+            inherited = self._inherit_period_from_history(recent)
+            if inherited:
+                ir.data_inicio, ir.data_fim, ir.period_text = inherited
+                print(
+                    f"[{self.agent_name}] period-inherit: "
+                    f"'{inherited[2]}' herdado do histórico (conf={ir.confidence:.2f})."
+                )
 
         # ── 4c. Conversação natural → LLM ────────────────────────────────────
         if ir.route in ("smalltalk", "clarify"):
@@ -219,10 +231,11 @@ class ChatOrchestrator:
                 "top_n":        ir.top_n,
                 "setor":        ir.setor,
                 "origem":       ir.origem,
-                "history_size": len(recent),
-                "reasoning":    ir.reasoning,
-                "user_setor":   user_setor,
-                "user_name":    user_name,
+                "history_size":      len(recent),
+                "reasoning":         ir.reasoning,
+                "user_setor":        user_setor,
+                "user_name":         user_name,
+                "periodo_explicito": periodo_explicito,
             },
         )
 
@@ -287,6 +300,33 @@ class ChatOrchestrator:
                 prev_ir.reasoning = f"[context-carry] {prev_ir.reasoning}"
                 return prev_ir
 
+        return None
+
+    # ── Herança de Período ────────────────────────────────────────────────────
+
+    def _inherit_period_from_history(
+        self,
+        recent: list[ConversationTurn],
+        max_lookback: int = 6,
+    ) -> tuple[str, str, str] | None:
+        """
+        Herda o período da última mensagem do usuário que continha um período explícito.
+
+        Usado quando a mensagem atual é uma consulta SQL clara mas sem período
+        especificado — ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?".
+        Nesse caso, herda 'janeiro' em vez de usar o período padrão (mês atual).
+
+        Parâmetros:
+          recent       : histórico recente (ConversationTurn)
+          max_lookback : limita quantas mensagens atrás pesquisar (padrão: 6)
+
+        Retorna (data_inicio, data_fim, period_text) ou None se não encontrar.
+        """
+        user_msgs = [t.content for t in reversed(recent) if t.role == "user"]
+        for msg in user_msgs[:max_lookback]:
+            ini, fim, lbl = _periodo_from_text(msg)
+            if ini and fim:
+                return ini, fim, lbl
         return None
 
     # ── Handler SQL ───────────────────────────────────────────────────────────

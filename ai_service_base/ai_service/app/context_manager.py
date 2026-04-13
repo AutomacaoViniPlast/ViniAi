@@ -22,7 +22,7 @@ from app.schemas import ConversationTurn
 class PostgresContextManager:
     """Lê o histórico de conversa do banco N8N para compor o contexto da IA."""
 
-    def get_recent(self, session_id: str, limit: int = 6) -> list[ConversationTurn]:
+    def get_recent(self, session_id: str, limit: int = 10) -> list[ConversationTurn]:
         """
         Retorna as últimas `limit` mensagens da conversa em ordem cronológica.
 

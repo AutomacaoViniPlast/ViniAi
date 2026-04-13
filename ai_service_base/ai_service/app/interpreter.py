@@ -91,6 +91,127 @@ def _mes_nome(mes: int) -> str:
     return list(MESES.keys())[list(MESES.values()).index(mes)].capitalize()
 
 
+def _parse_endpoint(text: str, as_start: bool) -> str | None:
+    """
+    Converte um texto de endpoint em DD/MM/YYYY.
+
+    as_start=True  → primeiro dia do período (ex: "agosto de 2025" → "01/08/2025")
+    as_start=False → último dia do período   (ex: "agosto de 2025" → "31/08/2025")
+
+    Reconhece: hoje, ontem, este mês, mês passado, este ano, ano passado,
+               "agosto de 2025", "agosto 2025", "agosto", "2025".
+    """
+    today = date.today()
+    s = text.strip().lower()
+
+    if _RE_HOJE.search(s):
+        return today.strftime("%d/%m/%Y")
+
+    if _RE_ONTEM.search(s):
+        return (today - timedelta(days=1)).strftime("%d/%m/%Y")
+
+    if _RE_MES_ATUAL.search(s):
+        if as_start:
+            return today.replace(day=1).strftime("%d/%m/%Y")
+        ultimo = calendar.monthrange(today.year, today.month)[1]
+        return today.replace(day=ultimo).strftime("%d/%m/%Y")
+
+    if _RE_MES_PASS.search(s):
+        primeiro = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        if as_start:
+            return primeiro.strftime("%d/%m/%Y")
+        ultimo = calendar.monthrange(primeiro.year, primeiro.month)[1]
+        return primeiro.replace(day=ultimo).strftime("%d/%m/%Y")
+
+    if _RE_ANO_ATUAL.search(s):
+        if as_start:
+            return f"01/01/{today.year}"
+        return f"31/12/{today.year}"
+
+    if _RE_ANO_PASS.search(s):
+        ano = today.year - 1
+        if as_start:
+            return f"01/01/{ano}"
+        return f"31/12/{ano}"
+
+    # "agosto de 2025" / "agosto 2025" / "agosto"
+    m = _RE_MONTH_YEAR.search(s)
+    if m:
+        mes_str = m.group(1).lower()
+        ano_str = m.group(2)
+        mes = MESES.get(mes_str)
+        if mes:
+            ano = int(ano_str) if ano_str else today.year
+            if as_start:
+                return f"01/{mes:02d}/{ano}"
+            ultimo = calendar.monthrange(ano, mes)[1]
+            return f"{ultimo:02d}/{mes:02d}/{ano}"
+
+    # "2025"
+    m2 = _RE_YEAR_ONLY.search(s)
+    if m2:
+        ano = int(m2.group(1))
+        if as_start:
+            return f"01/01/{ano}"
+        return f"31/12/{ano}"
+
+    return None
+
+
+def _try_parse_range(text: str) -> tuple[str | None, str | None, str | None] | None:
+    """
+    Tenta extrair um intervalo de datas (data_inicio, data_fim, label) de texto livre.
+
+    Padrões reconhecidos (em ordem de prioridade):
+      "de agosto de 2025 até hoje"
+      "desde março de 2025 até abril de 2026"
+      "de janeiro até este mês"
+      "entre agosto de 2025 e hoje"
+      "de agosto a dezembro de 2025"   ← "a" como separador (quando Y é mês/hoje/ano)
+
+    Retorna None se nenhum padrão de intervalo for encontrado.
+    """
+    lowered = text.lower()
+
+    # ── Padrão 1: "de/desde X até Y" — "até" é separador inequívoco ─────────
+    for sep in (" até ", " ate "):
+        if sep in lowered:
+            partes = lowered.split(sep, 1)
+            ini_txt = re.sub(r"^(?:de|desde)\s+", "", partes[0].strip())
+            fim_txt = partes[1].strip()
+            ini = _parse_endpoint(ini_txt, as_start=True)
+            fim = _parse_endpoint(fim_txt, as_start=False)
+            if ini and fim:
+                return ini, fim, f"{ini_txt} até {fim_txt}"
+
+    # ── Padrão 2: "entre X e Y" ───────────────────────────────────────────────
+    m = re.search(r"\bentre\s+(.+?)\s+e\s+(.+)", lowered)
+    if m:
+        ini_txt = m.group(1).strip()
+        fim_txt = m.group(2).strip()
+        ini = _parse_endpoint(ini_txt, as_start=True)
+        fim = _parse_endpoint(fim_txt, as_start=False)
+        if ini and fim:
+            return ini, fim, f"{ini_txt} a {fim_txt}"
+
+    # ── Padrão 3: "de/desde X a Y" — "a" como separador ────────────────────
+    # Só ativa quando Y começa com mês nomeado, "hoje", "ontem" ou ano (evita FP)
+    _meses_pat = "|".join(sorted(MESES, key=len, reverse=True))
+    m = re.search(
+        rf"(?:de|desde)\s+(.+?)\s+a\s+({_meses_pat}|hoje|ontem|este\s+m[eê]s|este\s+ano|\d{{4}})((?:\s+.+)?)",
+        lowered,
+    )
+    if m:
+        ini_txt = m.group(1).strip()
+        fim_txt = (m.group(2) + m.group(3)).strip()
+        ini = _parse_endpoint(ini_txt, as_start=True)
+        fim = _parse_endpoint(fim_txt, as_start=False)
+        if ini and fim:
+            return ini, fim, f"{ini_txt} a {fim_txt}"
+
+    return None
+
+
 def _default_periodo() -> tuple[str, str, str]:
     """
     Retorna o mês atual como período padrão quando nenhum for especificado.
@@ -112,12 +233,24 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
     Extrai (data_inicio, data_fim, period_label) a partir de texto livre.
     Retorna strings no formato DD/MM/YYYY, ou (None, None, None) se não encontrar.
 
-    Suporta: hoje, ontem, esta semana, semana passada, últimos N dias,
-             mês passado, este/esse/nesse/desse mês, ano passado, este ano,
-             "janeiro de 2026", "março 2025", "em fevereiro", "em 2025".
+    Suporta períodos simples:
+      hoje, ontem, esta semana, semana passada, últimos N dias,
+      mês passado, este/esse/nesse/desse mês, ano passado, este ano,
+      "janeiro de 2026", "março 2025", "em fevereiro", "em 2025".
+
+    Suporta intervalos entre períodos:
+      "de agosto de 2025 até hoje"
+      "desde março de 2025 até abril de 2026"
+      "entre agosto e dezembro de 2025"
+      "de agosto a dezembro de 2025"
     """
     today   = date.today()
     lowered = text.lower()
+
+    # ── Intervalos entre períodos (prioridade máxima) ─────────────────────────
+    range_result = _try_parse_range(text)
+    if range_result:
+        return range_result
 
     # "ontem"
     if _RE_ONTEM.search(lowered):

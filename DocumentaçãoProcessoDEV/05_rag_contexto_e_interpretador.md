@@ -1,6 +1,6 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 2.0  
+**Versão:** 3.1  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -8,13 +8,22 @@
 
 ## 1. O Problema que Este Módulo Resolve
 
-Antes desta implementação, a Ayla apresentava três falhas recorrentes:
+### v2.0 — Falhas resolvidas anteriormente
 
 | Sintoma | Causa raiz |
 |---------|-----------|
 | "Qual foi o LD produzido **nesse mês**?" → perguntava o operador | `"nesse mês"` não era reconhecido como período |
 | Usuário autenticado precisava dizer o próprio nome | Sem auto-inject do login do usuário |
 | "Quero saber **desse mês**!" → Ayla reiniciava a conversa | Sem RAG: mensagem ambígua ia para LLM sem contexto |
+
+### v3.0 — Falhas resolvidas nesta versão
+
+| Sintoma | Causa raiz | Correção |
+|---------|-----------|----------|
+| LLM respondia com datas inventadas / ano errado | `llm_handler.py` não injetava `date.today()` no system prompt | Data atual injetada dinamicamente em cada chamada LLM |
+| "E o do Igor?" após consulta de janeiro usava mês atual | Herança de período não ocorria em follow-ups SQL claros | Novo mecanismo `period-inherit` no orchestrator |
+| Contexto perdido em conversas longas | Histórico limitado a 8 mensagens | Aumentado para 12 mensagens |
+| Agente sem âncora temporal no system prompt | `agents.py` sem instrução sobre uso de datas | Adicionada seção "Regras de data e tempo" |
 
 ---
 
@@ -34,12 +43,12 @@ Mensagem do usuário
       ▼
 [orchestrator.py] process(payload)
       │
-      ├─ 1. Lê histórico (últimas 8 mensagens do banco N8N)
+      ├─ 1. Lê histórico (últimas 12 mensagens do banco N8N)
       ├─ 2. Resolve user_name / user_setor / user_cargo do payload
       ├─ 3. Chama interpreter.interpret(message)
       ├─ 4. Verifica permissão LGPD
       │
-      ├─ 5. RAG CONVERSACIONAL ◄── NOVO
+      ├─ 5. RAG CONVERSACIONAL (Caso 1) ◄── v2.0
       │      Se route=clarify/smalltalk + confiança < 75% + período detectado:
       │      └─ _try_context_followup(recent, novo_período)
       │           ├─ Varre histórico: extrai operador de mensagens curtas
@@ -47,12 +56,20 @@ Mensagem do usuário
       │           ├─ Substitui período → novo período
       │           └─ Retorna intent reutilizado → vai para SQL (não LLM)
       │
-      ├─ 6. AUTO-INJECT DE OPERADOR ◄── NOVO
+      ├─ 5b. HERANÇA DE PERÍODO (Caso 2) ◄── v3.0 NOVO
+      │      Se route=sql + sem período explícito na msg + confiança < 87%:
+      │      └─ _inherit_period_from_history(recent)
+      │           ├─ Varre msgs do usuário (mais recente → mais antiga)
+      │           ├─ Encontra a primeira que continha período explícito
+      │           └─ Aplica esse período na IR atual → evita usar mês atual errado
+      │
+      ├─ 6. AUTO-INJECT DE OPERADOR ◄── v2.0
       │      Se intent = geracao_ld_por_operador ou producao_por_operador
       │      E entity_value = None:
       │      └─ _user_login_from_name(user_name) → injeta login do usuário
       │
       └─ 7. Roteia: SQL ou LLM
+            LLM recebe data atual no topo do system prompt ◄── v3.0 NOVO
 ```
 
 ---
@@ -124,6 +141,51 @@ Turno 3 — user:      "Quero saber desse mês!"
 
 ---
 
+## 3b. Herança de Período — Period Inherit (v3.0)
+
+### O problema que resolve
+
+Quando o usuário faz um follow-up de entidade sem repetir o período:
+
+```
+Turno 1 — user:      "Qual o LD do Ezequiel em janeiro?"
+Turno 1 — assistant: [tabela com dados de janeiro]
+
+Turno 2 — user:      "E o do Igor?"
+           ↓ interpreter: intent=geracao_ld_por_operador, entity=igor.chiva
+                          período: NÃO mencionado → _default_periodo() = Abril/2026 ← ERRADO
+           ↓ ANTES v3.0: consultava Abril/2026 em vez de janeiro
+           ↓ DEPOIS v3.0: herda janeiro do histórico → consulta correta ✓
+```
+
+### Quando ativa
+
+- `ir.route == "sql"` (o interpreter já identificou o intent com clareza)
+- Nenhum período explícito na mensagem atual (`_periodo_from_text(msg)` retorna `None`)
+- `ir.confidence < 0.87` (para não sobrescrever queries completas e autossuficientes)
+
+### Algoritmo
+
+```python
+def _inherit_period_from_history(recent, max_lookback=6):
+    user_msgs = [t.content for t in reversed(recent) if t.role == "user"]
+    for msg in user_msgs[:max_lookback]:  # até 6 msgs atrás
+        ini, fim, lbl = _periodo_from_text(msg)
+        if ini and fim:
+            return ini, fim, lbl  # ← usa o período mais recente encontrado
+    return None  # ← não encontrou: usa o default (mês atual)
+```
+
+### Diferença entre Caso 1 (RAG carry-over) e Caso 2 (Period Inherit)
+
+| | Caso 1 — RAG carry-over | Caso 2 — Period Inherit |
+|---|---|---|
+| **Trigger** | route=clarify/smalltalk + conf<0.75 + período na msg | route=sql + sem período na msg + conf<0.87 |
+| **O que herda** | Intent + período (o intent vem do histórico) | Só o período (o intent já foi identificado) |
+| **Exemplo** | "Quero saber de janeiro!" (intent não claro) | "E o do Igor?" (intent claro, período não dito) |
+
+---
+
 ## 4. Auto-inject de Operador
 
 ### Problema resolvido
@@ -162,6 +224,8 @@ def _user_login_from_name(user_name):
 
 ## 5. Períodos Suportados (interpreter.py)
 
+### Períodos simples
+
 | Expressão no texto | Período resolvido |
 |-------------------|------------------|
 | `hoje` | Data de hoje |
@@ -179,6 +243,36 @@ def _user_login_from_name(user_name):
 | *(nenhum)* | **Mês atual** (antes: `01/01/2025 a 31/12/2026`) |
 
 > **Importante**: o período padrão mudou de um intervalo fixo de 2 anos para o **mês atual dinâmico**. Isso evita que uma pergunta sem período retorne anos de dados irrelevantes.
+
+### Intervalos entre períodos (v3.1 — novo)
+
+Expressões que definem um **range de meses** são resolvidas automaticamente pelo `_try_parse_range()`, com prioridade máxima na função `_periodo_from_text()`.
+
+| Expressão | Período resolvido | Padrão |
+|-----------|------------------|--------|
+| `de agosto de 2025 até hoje` | 01/08/2025 → hoje | `de X até Y` |
+| `desde março de 2025 até abril de 2026` | 01/03/2025 → 30/04/2026 | `desde X até Y` |
+| `de janeiro até este mês` | 01/01/[ano] → último dia do mês atual | `de X até Y` |
+| `de agosto a dezembro de 2025` | 01/08/2025 → 31/12/2025 | `de X a Y` |
+| `entre agosto de 2025 e hoje` | 01/08/2025 → hoje | `entre X e Y` |
+| `entre janeiro e março` | 01/01/[ano] → 31/03/[ano] | `entre X e Y` |
+
+**Como funciona internamente:**
+
+```python
+# _try_parse_range separa o texto em dois endpoints
+# ex: "de agosto de 2025 até hoje"
+#     ini_txt = "agosto de 2025"   → _parse_endpoint(ini_txt, as_start=True)  → "01/08/2025"
+#     fim_txt = "hoje"             → _parse_endpoint(fim_txt, as_start=False) → "13/04/2026"
+
+# _parse_endpoint reconhece: hoje, ontem, este mês, mês passado, este ano,
+#   ano passado, "agosto de 2025", "agosto 2025", "agosto", "2025"
+```
+
+**Separadores reconhecidos (em ordem de prioridade):**
+1. `até` / `ate` — unambiguous, highest priority
+2. `entre...e` — "entre agosto e hoje"
+3. `a` — somente quando Y começa com mês nomeado, "hoje", "ontem" ou ano (evita falsos positivos)
 
 ---
 
@@ -387,9 +481,9 @@ Backend Node.js
     ▼
 FastAPI (ai_service)
     │
-    ├─ context_manager.py ──► lê últimas 8 msgs do banco N8N (somente leitura)
+    ├─ context_manager.py ──► lê últimas 12 msgs do banco N8N (somente leitura)
     │   SELECT role, conteudo FROM mensagens WHERE conversa_id = %s
-    │   ORDER BY criado_em DESC LIMIT 8
+    │   ORDER BY criado_em DESC LIMIT 12
     │
     ├─ RAG carry-over (em memória, não persistido)
     │   Funciona sobre o histórico já lido — sem armazenamento extra
@@ -411,6 +505,23 @@ FastAPI (ai_service)
 | `_extract_operator` aceita logins desconhecidos sem validação | Pode fazer query sem resultados | Baixa |
 | Sem suporte a "comparação entre períodos" | "Janeiro vs Fevereiro" não funciona | Alta |
 | Período padrão = mês atual (pode surpreender quem quer período amplo) | Query retorna só o mês corrente | Baixa |
+| Period-inherit pode herdar período antigo se usuário mudou de assunto | Poucos casos — confiança < 0.87 mitiga | Baixa |
+
+### Corrigido na v3.0
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| LLM alucina datas / responde com ano errado | Data real injetada no system prompt via `llm_handler.py` |
+| Follow-up de entidade ("E o do Igor?") usava mês atual | `_inherit_period_from_history()` em `orchestrator.py` |
+| Histórico curto (8 msgs) causava perda de contexto | Aumentado para 16 mensagens |
+
+### Corrigido na v3.1
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| "de agosto de 2025 até hoje" retornava só "hoje" | `_try_parse_range()` + `_parse_endpoint()` em `interpreter.py` |
+| "entre agosto e dezembro" não era reconhecido | Padrão `entre X e Y` adicionado ao `_try_parse_range()` |
+| "de agosto a dezembro de 2025" não era reconhecido | Padrão `de X a Y` com validação de endpoint adicionado |
 
 ### Próximos passos sugeridos
 

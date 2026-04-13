@@ -16,8 +16,15 @@ Configuração via .env:
 from __future__ import annotations
 
 import os
+from datetime import date
 
 from app.schemas import ConversationTurn
+
+# Mapeamento de weekday para português
+_DIAS_SEMANA = [
+    "segunda-feira", "terça-feira", "quarta-feira",
+    "quinta-feira", "sexta-feira", "sábado", "domingo",
+]
 
 
 class LLMHandler:
@@ -81,8 +88,15 @@ class LLMHandler:
         if not self._enabled:
             return self._fallback(intent)
 
-        # Monta o system prompt: base do agente + bloco do usuário atual (se disponível)
-        system = self._system_prompt
+        # Monta o system prompt: âncora temporal + base do agente + bloco do usuário
+        today = date.today()
+        dia_semana = _DIAS_SEMANA[today.weekday()]
+        date_header = (
+            f"**Data de hoje:** {today.strftime('%d/%m/%Y')} ({dia_semana})\n"
+            f"Use essa data como referência absoluta para \"hoje\", \"este mês\", "
+            f"\"este ano\", etc. NUNCA invente ou assuma datas sem usar este valor.\n"
+        )
+        system = date_header + "\n" + self._system_prompt
         if user_context:
             system = system + "\n\n" + self._build_user_block(user_context)
 
