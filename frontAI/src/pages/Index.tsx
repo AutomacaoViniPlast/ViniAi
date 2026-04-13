@@ -15,6 +15,7 @@ import {
 import { getUser } from "../lib/storage";
 import { toast } from "@/components/ui/sonner";
 
+import logo from "../image/logoviniai.png";
 import abrir from "../image/abrir.png";
 import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
@@ -298,7 +299,7 @@ const Index = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#0d0d14ff", color: "hsl(0 0% 95%)" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "#09090fff", color: "hsl(0 0% 95%)" }}>
 
       {/* ── Overlay mobile ── */}
       {isSidebarOpen && (
@@ -312,8 +313,8 @@ const Index = () => {
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
         style={{
-          width: isSidebarCollapsed ? "60px" : "260px",
-          background: "#0b0b11ff",
+          width: isSidebarCollapsed ? "60px" : "290px",
+          background: "#08080eff",
           transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           flexShrink: 0,
           display: "flex",
@@ -330,7 +331,7 @@ const Index = () => {
         {/* Sidebar header */}
         <div
           className="flex items-center justify-between p-3 shrink-0"
-          style={{ borderBottom: "1px solid hsl(220 15% 16%)", minHeight: "60px" }}
+          style={{ borderBottom: "1px solid #23272fff", minHeight: "60px" }}
         >
           {!isSidebarCollapsed && (
             <>
@@ -339,7 +340,7 @@ const Index = () => {
                   className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: "#c52318ff" }}
                 >
-                  <span className="text-white font-bold text-xs">VI</span>
+                  <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
                 </div>
                 <div className="overflow-hidden">
                   <p className="font-semibold text-sm leading-tight truncate" style={{ color: "hsl(0 0% 95%)" }}>ViniAI</p>
@@ -391,7 +392,7 @@ const Index = () => {
             >
               {isLogoHovered
                 ? <PanelLeftOpen size={16} />
-                : <span className="font-bold text-xs">VI</span>
+                : <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
               }
             </button>
           )}
@@ -422,7 +423,7 @@ const Index = () => {
           <div className="px-2 pb-2 shrink-0">
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl"
-              style={{ background: "hsl(220 20% 13%)", border: "1px solid hsl(220 15% 16%)" }}
+              style={{ background: "hsla(216, 33%, 6%, 1.00)", border: "1px solid hsl(220 15% 16%)" }}
             >
               <Search size={14} style={{ color: "hsl(215 15% 58%)", flexShrink: 0 }} />
               <input
@@ -521,7 +522,9 @@ const Index = () => {
           {!isSidebarCollapsed && (
             <div
               className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl mb-1"
-              style={{ background: "#0d111bff" }}
+              style={{
+                background: "#0b0f18ff",
+              }}
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
@@ -579,9 +582,9 @@ const Index = () => {
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: "hsl(4 82% 47%)" }}
+              style={{ background: "#da2316ff" }}
             >
-              <span className="text-white font-bold text-xs">VI</span>
+              <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
             </div>
             <span className="font-semibold text-sm">ViniAI</span>
           </div>
@@ -593,7 +596,7 @@ const Index = () => {
             <EmptyState onSuggestionClick={handleSend} setor={userProfile?.setor} />
           ) : (
             <div className="flex-1 overflow-y-auto py-6 px-4 md:px-6">
-              <div className="max-w-3xl mx-auto space-y-6">
+              <div className="max-w-4xl mx-auto space-y-6">
                 {activeConversation.messages.map((msg) => (
                   <ChatMessage
                     key={msg.id}
@@ -611,9 +614,10 @@ const Index = () => {
           )}
         </div>
 
-        {/* Input area */}
-        <div className="shrink-0 px-4 md:px-6 py-4">
-          <div className="max-w-3xl mx-auto">
+        <div
+          className="shrink-1 px-4 md:px-6 pt-0 pb-1 md:pb-2"
+        >
+          <div className="max-w-4xl mx-auto">
             <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
           </div>
         </div>
