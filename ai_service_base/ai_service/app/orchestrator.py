@@ -58,6 +58,11 @@ def _fmt_kg(valor: float) -> str:
     return f"{valor:,.2f} KG".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _posicao_label(pos: int) -> str:
+    """Retorna emoji de medalha para top 3 e numeração para os demais."""
+    return {1: "🥇", 2: "🥈", 3: "🥉"}.get(pos, f"{pos}°")
+
+
 def _periodo_label(ir: InterpretationResult) -> str:
     """Gera o trecho textual do período para exibição na resposta."""
     if ir.period_text:
@@ -376,9 +381,9 @@ class ChatOrchestrator:
 
             nota = ""
             if avisos:
-                nota = "\n\n> Dados incompletos em: " + ", ".join(avisos)
+                nota = "\n\n> ⚠️ Dados incompletos em: " + ", ".join(avisos)
             nota += "\n\n> Para consultas confiáveis, recomendo usar **2022 em diante**."
-            return "### Períodos com dados disponíveis\n\n" + "\n".join(linhas) + nota
+            return "📅 **Períodos com dados disponíveis**\n\n" + "\n".join(linhas) + nota
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
@@ -390,8 +395,8 @@ class ChatOrchestrator:
             encontrados = self.sql.get_review_operators(ops)
             linhas  = "\n".join(f"- {op}" for op in ops)
             sem_reg = [o for o in ops if o not in encontrados]
-            nota = f"\n\n> Sem registros no banco: {', '.join(sem_reg)}" if sem_reg else ""
-            return f"### Operadores da {label}\n\n{linhas}{nota}"
+            nota = f"\n\n> ⚠️ Sem registros no banco: {', '.join(sem_reg)}" if sem_reg else ""
+            return f"👥 **Operadores da {label}**\n\n{linhas}{nota}"
 
         # ── Ranking de revisão por LD ─────────────────────────────────────────
         if ir.intent == "ranking_usuarios_ld":
@@ -400,12 +405,12 @@ class ChatOrchestrator:
             )
             if not rows:
                 contexto = f" da {setor_label}" if setor_label else ""
-                return f"Nenhum dado de LD encontrado{contexto}{periodo}{orig_lbl}."
+                return f"🔍 Nenhum dado de LD encontrado{contexto}{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
-            header = f"### Top {top_n} — Revisão de LD{contexto}{periodo}{orig_lbl}\n\n"
-            header += "| # | Operador | Total |\n|---|----------|-------|\n"
+            header = f"🏆 **Top {top_n} — Revisão de LD{contexto}**{periodo}{orig_lbl}\n\n"
+            header += "| # | Operador | Total LD |\n|---|----------|----------|\n"
             linhas = "\n".join(
-                f"| {r['posicao']}º | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
+                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
                 for r in rows
             )
             return header + linhas
@@ -416,11 +421,11 @@ class ChatOrchestrator:
                 ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
-                return f"Nenhum produto com LD encontrado{periodo}{orig_lbl}."
-            header = f"### Top {top_n} — Produtos com mais LD{periodo}{orig_lbl}\n\n"
-            header += "| # | Produto | Total | Registros |\n|---|---------|-------|-----------|\n"
+                return f"🔍 Nenhum produto com LD encontrado{periodo}{orig_lbl}."
+            header = f"🏆 **Top {top_n} — Produtos com mais LD**{periodo}{orig_lbl}\n\n"
+            header += "| # | Produto | Total | Ocorrências |\n|---|---------|-------|-------------|\n"
             linhas = "\n".join(
-                f"| {r['posicao']}º | `{r['produto']}` | **{_fmt_kg(r['total_kg'])}** | {r['ocorrencias']} |"
+                f"| {_posicao_label(r['posicao'])} | `{r['produto']}` | **{_fmt_kg(r['total_kg'])}** | {r['ocorrencias']} |"
                 for r in rows
             )
             return header + linhas
@@ -429,7 +434,7 @@ class ChatOrchestrator:
         if ir.intent == "geracao_ld_por_operador":
             if not ir.entity_value:
                 return (
-                    "Não consegui identificar o operador. "
+                    "❓ Não consegui identificar o operador.\n\n"
                     "Informe o nome (ex: *ezequiel.nunes* ou só *'Ezequiel'*) "
                     "ou pergunte como *'meu LD'* se for sobre você mesmo."
                 )
@@ -438,21 +443,20 @@ class ChatOrchestrator:
             total = self.sql.get_ld_por_operador(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
                 return (
-                    f"Nenhum LD identificado por **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
+                    f"🔍 Nenhum LD identificado por **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n\n"
                     "Verifique o nome ou o período informado."
                 )
             return (
-                f"### LD identificado em revisão\n\n"
-                f"**Operador:** {ir.entity_value}{setor_info}  \n"
-                f"**Período:** {periodo.strip() or 'geral'}  \n"
-                f"**Total:** {_fmt_kg(float(total))}"
+                f"⚠️ **LD identificado — {ir.entity_value}**{setor_info}\n\n"
+                f"📅 Período: {periodo.strip() or 'geral'}\n"
+                f"⚖️ Total: **{_fmt_kg(float(total))}**"
             )
 
         # ── Produção / movimentação por operador específico ───────────────────
         if ir.intent == "producao_por_operador":
             if not ir.entity_value:
                 return (
-                    "Não consegui identificar o operador. "
+                    "❓ Não consegui identificar o operador.\n\n"
                     "Informe o nome (ex: *john.moraes* ou só *'John'*) "
                     "ou pergunte como *'minha produção'* se for sobre você mesmo."
                 )
@@ -461,30 +465,29 @@ class ChatOrchestrator:
             total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
                 return (
-                    f"Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n"
+                    f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n\n"
                     "Verifique o nome ou o período informado."
                 )
+            emoji   = "📦" if setor_op == "expedicao" else "⚙️"
             titulo  = "Bobinas liberadas — Expedição" if setor_op == "expedicao" else "Produção"
             metrica = "Total movimentado" if setor_op == "expedicao" else "Total"
             return (
-                f"### {titulo}\n\n"
-                f"**Operador:** {ir.entity_value}{setor_info}  \n"
-                f"**Período:** {periodo.strip() or 'geral'}  \n"
-                f"**{metrica}:** {_fmt_kg(float(total))}"
+                f"{emoji} **{titulo} — {ir.entity_value}**{setor_info}\n\n"
+                f"📅 Período: {periodo.strip() or 'geral'}\n"
+                f"⚖️ {metrica}: **{_fmt_kg(float(total))}**"
             )
 
         # ── Produção por produto específico ───────────────────────────────────
         if ir.intent == "producao_por_produto":
             if not ir.entity_value:
-                return "Não identifiquei o código do produto. Informe o código (ex: TD2AYBR1BOBR100)."
+                return "❓ Não identifiquei o código do produto. Informe o código (ex: TD2AYBR1BOBR100)."
             total = self.sql.get_producao_por_produto(ir.entity_value, ini, fim, origem)
             if float(total) == 0:
-                return f"Nenhuma produção encontrada para **{ir.entity_value}**{periodo}{orig_lbl}."
+                return f"🔍 Nenhuma produção encontrada para **{ir.entity_value}**{periodo}{orig_lbl}."
             return (
-                f"### Produção por produto\n\n"
-                f"**Produto:** `{ir.entity_value}`  \n"
-                f"**Período:** {periodo.strip() or 'geral'}  \n"
-                f"**Total:** {_fmt_kg(float(total))}"
+                f"⚙️ **Produção por produto**{periodo}{orig_lbl}\n\n"
+                f"🏷️ Produto: `{ir.entity_value}`\n"
+                f"⚖️ Total: **{_fmt_kg(float(total))}**"
             )
 
         # ── Ranking geral de produção ─────────────────────────────────────────
@@ -494,12 +497,12 @@ class ChatOrchestrator:
             )
             if not rows:
                 contexto = f" da {setor_label}" if setor_label else ""
-                return f"Nenhum dado encontrado{contexto}{periodo}{orig_lbl}."
+                return f"🔍 Nenhum dado encontrado{contexto}{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
-            header = f"### Top {top_n} — Produção{contexto}{periodo}{orig_lbl}\n\n"
+            header = f"🏆 **Top {top_n} — Produção{contexto}**{periodo}{orig_lbl}\n\n"
             header += "| # | Operador | Total |\n|---|----------|-------|\n"
             linhas = "\n".join(
-                f"| {r['posicao']}º | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
+                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
                 for r in rows
             )
             return header + linhas
@@ -510,9 +513,9 @@ class ChatOrchestrator:
                 ini, fim, origem, filtro_usuarios=filtro_usuarios,
             )
             if not rows:
-                return f"Nenhum dado de turno encontrado{periodo}{orig_lbl}."
+                return f"🔍 Nenhum dado de turno encontrado{periodo}{orig_lbl}."
             contexto = f" da {setor_label}" if setor_label else ""
-            header = f"### Produção por turno{contexto}{periodo}{orig_lbl}\n\n"
+            header = f"🔄 **Produção por turno{contexto}**{periodo}{orig_lbl}\n\n"
             header += "| Turno | Total | Registros |\n|-------|-------|-----------|\n"
             linhas = "\n".join(
                 f"| {r['turno']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
@@ -525,13 +528,13 @@ class ChatOrchestrator:
             total    = self.sql.get_total_fabrica(ini, fim, origem, filtro_usuarios)
             total_ld = self.sql.get_total_ld_fabrica(ini, fim, origem, filtro_usuarios)
             if float(total) == 0:
-                return f"Nenhum dado de produção encontrado{periodo}{orig_lbl}."
+                return f"🔍 Nenhum dado de produção encontrado{periodo}{orig_lbl}."
             pct_ld = (float(total_ld) / float(total) * 100) if float(total) > 0 else 0
             return (
-                f"### Produção total da fábrica{periodo}{orig_lbl}\n\n"
+                f"🏭 **Produção total da fábrica**{periodo}{orig_lbl}\n\n"
                 f"| Métrica | Valor |\n|---------|-------|\n"
-                f"| Total geral | **{_fmt_kg(float(total))}** |\n"
-                f"| Total de LD | **{_fmt_kg(float(total_ld))}** ({pct_ld:.1f}%) |"
+                f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |\n"
+                f"| ⚠️ Total LD | **{_fmt_kg(float(total_ld))}** ({pct_ld:.1f}%) |"
             )
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
