@@ -181,14 +181,14 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
       <div className="text-center mb-1 sm:mb-2">
         <h1
           className="text-2xl sm:text-[1.85rem] md:text-[2.05rem] lg:text-4xl font-bold mb-2 md:mb-3"
-          style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(0 0% 95%)", letterSpacing: "-0.02em" }}
+          style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(var(--foreground))", letterSpacing: "-0.02em" }}
         >
           Como posso{" "}
           <span className="bg-gradient-to-br from-[hsl(4,82%,50%)] to-[#700d0dff] bg-clip-text text-transparent">
             ajudar hoje?
           </span>
         </h1>
-        <p className="text-sm sm:text-[0.95rem] md:text-base max-w-md mx-auto" style={{ color: "hsl(215 15% 58%)" }}>
+        <p className="text-sm sm:text-[0.95rem] md:text-base max-w-md mx-auto" style={{ color: "hsl(var(--muted-foreground))" }}>
           Faça uma pergunta ou escolha uma das sugestões abaixo para começar.
         </p>
       </div>

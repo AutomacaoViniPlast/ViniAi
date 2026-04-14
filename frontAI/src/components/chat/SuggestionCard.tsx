@@ -18,10 +18,10 @@ const SuggestionCard = ({ icon: Icon, title, description, onClick }: SuggestionC
       onMouseLeave={() => setHovered(false)}
       className="text-left w-full rounded-2xl p-4 transition-all duration-200 animate-scale-in"
       style={{
-        background: hovered ? "hsl(220 25% 14%)" : "#0b0f1aff",
+        background: hovered ? "hsl(var(--secondary))" : "hsl(var(--card))",
         border: hovered
           ? "1px solid hsl(4 82% 47% / 0.4)"
-          : "1px solid hsl(220 15% 16%)",
+          : "1px solid hsl(var(--border))",
         boxShadow: hovered ? "0 4px 20px hsl(4 82% 47% / 0.1)" : "none",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
       }}
@@ -31,13 +31,13 @@ const SuggestionCard = ({ icon: Icon, title, description, onClick }: SuggestionC
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200"
           style={{
-            background: hovered ? "hsl(4 82% 47% / 0.18)" : "hsl(214 60% 20% / 0.5)",
-            border: hovered ? "1px solid hsl(4 82% 47% / 0.35)" : "1px solid hsl(214 60% 25% / 0.3)",
+            background: hovered ? "hsl(4 82% 47% / 0.18)" : "hsl(var(--muted))",
+            border: hovered ? "1px solid hsl(4 82% 47% / 0.35)" : "1px solid hsl(var(--border))",
           }}
         >
           <Icon
             size={16}
-            style={{ color: hovered ? "hsl(4 82% 62%)" : "hsla(246, 10%, 64%, 1.00)" }}
+            style={{ color: hovered ? "hsl(4 82% 62%)" : "hsl(var(--muted-foreground))" }}
             strokeWidth={2}
           />
         </div>
@@ -46,13 +46,13 @@ const SuggestionCard = ({ icon: Icon, title, description, onClick }: SuggestionC
         <div className="flex-1 min-w-0">
           <h3
             className="text-sm font-semibold mb-1 transition-colors duration-200"
-            style={{ color: hovered ? "hsl(0 0% 98%)" : "hsl(0 0% 88%)" }}
+            style={{ color: hovered ? "hsl(var(--foreground))" : "hsl(var(--foreground) / 0.85)" }}
           >
             {title}
           </h3>
           <p
             className="text-xs leading-relaxed line-clamp-2 transition-colors duration-200"
-            style={{ color: "hsla(215, 19%, 67%, 1.00)" }}
+            style={{ color: "hsl(var(--muted-foreground))" }}
           >
             {description}
           </p>

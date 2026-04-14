@@ -46,8 +46,8 @@ const Auth = () => {
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-background text-white">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 pt-16 w-full max-w-lg h-auto space-y-5">
+    <div className="flex items-center justify-center h-screen bg-background text-foreground">
+      <div className="bg-card border border-border rounded-xl p-5 pt-16 w-full max-w-lg h-auto space-y-5">
         <h1 className="text-xl font-bold text-center">
           {mode === "login" && "Entrar"}
           {mode === "register" && "Criar conta"}
@@ -59,7 +59,7 @@ const Auth = () => {
             placeholder="Seu nome"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-3 text-sm outline-none focus:border-primary"
+            className="w-full bg-input border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
           />
         )}
 
@@ -68,7 +68,7 @@ const Auth = () => {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-3 text-sm outline-none focus:border-primary"
+          className="w-full bg-input border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
         />
 
         <div className="relative">
@@ -77,39 +77,39 @@ const Auth = () => {
             placeholder="Senha"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-3 pr-10 text-sm outline-none focus:border-primary"
+            className="w-full bg-input border border-border rounded-xl px-3 py-3 pr-10 text-sm outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             tabIndex={-1}
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
 
-        {message && <p className="text-sm text-center text-yellow-400">{message}</p>}
+        {message && <p className="text-sm text-center text-yellow-500">{message}</p>}
 
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full bg-primary py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+          className="w-full bg-primary text-primary-foreground py-2 rounded-xl text-sm font-medium disabled:opacity-50"
         >
           {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
         </button>
 
-        <div className="text-sm text-center text-zinc-400 space-y-3">
+        <div className="text-sm text-center text-muted-foreground space-y-3">
           {mode === "login" ? (
             <p>
               Não tem conta?
-              <button onClick={() => setMode("register")} className="text-white underline pl-1">
+              <button onClick={() => setMode("register")} className="text-foreground underline pl-1">
                 Criar conta
               </button>
             </p>
           ) : (
             <p>
-              <button onClick={() => setMode("login")} className="text-white underline">
+              <button onClick={() => setMode("login")} className="text-foreground underline">
                 Voltar ao login
               </button>
             </p>
