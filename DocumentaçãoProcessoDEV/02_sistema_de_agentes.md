@@ -188,5 +188,6 @@ LGPD          (classifica 19 regras, sem LLM)
               │                         │
               ▼                         ▼
         SQLService               ChatGPT (OpenAI)
-        (METABASE)          + data atual no system prompt
+      (SQL Server          + data atual no system prompt
+       STG_KARDEX)
 ```

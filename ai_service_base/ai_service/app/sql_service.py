@@ -1,62 +1,77 @@
 """
-sql_service.py — Queries SQL executadas contra a view v_kardex_ld.
+sql_service.py — Queries SQL executadas contra o SQL Server (METABASE).
 
-Centraliza todas as consultas ao banco METABASE. Nenhuma lógica de negócio
+Centraliza todas as consultas aos dados industriais. Nenhuma lógica de negócio
 ou formatação de resposta deve existir aqui — apenas execução de SQL e
 retorno de dados brutos.
 
-View principal: v_kardex_ld
+Tabela principal: dbo.STG_KARDEX
 Colunas relevantes:
-  usuario  → operador (ex: ezequiel.nunes) — sempre usar TRIM()
-  emissao  → data no formato DD/MM/YYYY (text) — converter com TO_DATE + TRIM
-  produto  → código do produto — posição 5 = 'Y' indica LD (defeito)
-  total    → peso em KG (double precision)
-  turno    → turno de produção
-  origem   → tipo de movimentação: SD1 (Entrada), SD2 (Saída), SD3 (Interna)
-             Atenção: muitos registros têm origem NULL — não forçar filtro
+  USUARIO   → operador (varchar 25, com espaços) — sempre usar LTRIM(RTRIM())
+  EMISSAO   → data nativa (date) — comparar diretamente com BETWEEN ? AND ?
+  PRODUTO   → código do produto (varchar 15)
+  QUALIDADE → indicador de qualidade: 'Y'=LD (defeito), 'I'=Inteiro
+  TOTAL     → peso em KG (float)
+  TURNO     → turno de produção (varchar 5)
+  ORIGEM    → tipo de movimentação: SD1 (Entrada), SD2 (Saída), SD3 (Interna)
+              Atenção: muitos registros têm origem NULL — não forçar filtro
 
-Regras de query
-───────────────
-  - Sempre usar TRIM(usuario) e TRIM(produto)
+Regras de query (SQL Server)
+─────────────────────────────
+  - Sempre usar LTRIM(RTRIM(USUARIO)) para remover espaços
+  - Parâmetros com ? (pyodbc), NÃO %s
+  - Case-insensitive: LOWER(col) LIKE LOWER(?)
+  - Paginação: TOP N (não LIMIT)
   - Filtro por origem é OPCIONAL
-  - LD = SUBSTRING(TRIM(produto), 5, 1) = 'Y'
-  - Filtro de setor = lista de usuários via IN (...)
+  - LD = QUALIDADE = 'Y'
+  - EMISSAO já é tipo date — sem conversão de texto
+
+Datas recebidas como string 'DD/MM/YYYY' são convertidas para datetime.date
+internamente antes de passarem ao pyodbc.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
-from app.db import get_conn
+from app.db import get_mssql_conn
+
+
+# ── Conversão de datas ────────────────────────────────────────────────────────
+
+def _parse_date(date_str: str):
+    """Converte string DD/MM/YYYY em datetime.date para o pyodbc."""
+    return datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
 
 
 # ── Helpers de cláusula SQL ───────────────────────────────────────────────────
 
 def _origem_clause(origem: str | None) -> tuple[str, list]:
-    """Filtro opcional por tipo de movimentação. Registros com origem NULL não são excluídos."""
+    """Filtro opcional por tipo de movimentação."""
     if origem:
-        return "AND TRIM(origem) = %s", [origem]
+        return "AND LTRIM(RTRIM(ORIGEM)) = ?", [origem]
     return "", []
 
 
 def _incluir_clause(incluir: list[str] | None) -> tuple[str, list]:
-    """Inclui apenas os operadores informados (ex: somente revisão)."""
+    """Inclui apenas os operadores informados."""
     if incluir:
-        ph = ", ".join(["%s"] * len(incluir))
-        return f"AND TRIM(usuario) IN ({ph})", list(incluir)
+        ph = ", ".join(["?"] * len(incluir))
+        return f"AND LTRIM(RTRIM(USUARIO)) IN ({ph})", list(incluir)
     return "", []
 
 
 def _excluir_clause(excluir: list[str] | None) -> tuple[str, list]:
-    """Exclui operadores do resultado (ex: expedição em rankings de produção)."""
+    """Exclui operadores do resultado."""
     if excluir:
-        ph = ", ".join(["%s"] * len(excluir))
-        return f"AND TRIM(usuario) NOT IN ({ph})", list(excluir)
+        ph = ", ".join(["?"] * len(excluir))
+        return f"AND LTRIM(RTRIM(USUARIO)) NOT IN ({ph})", list(excluir)
     return "", []
 
 
 # ── Service ───────────────────────────────────────────────────────────────────
 
 class SQLService:
-    """Executa consultas SQL e retorna dados brutos para o orchestrator."""
+    """Executa consultas SQL Server e retorna dados brutos para o orchestrator."""
 
     # ── Produção total por operador ───────────────────────────────────────────
     def get_producao_por_operador(
@@ -68,18 +83,18 @@ class SQLService:
     ) -> Decimal:
         orig_sql, orig_p = _origem_clause(origem)
         query = f"""
-            SELECT COALESCE(SUM(total), 0)
-            FROM v_kardex_ld
-            WHERE TRIM(usuario) ILIKE %s
-              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
+            SELECT COALESCE(SUM(TOTAL), 0)
+            FROM dbo.STG_KARDEX
+            WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
+              AND EMISSAO BETWEEN ? AND ?
               {orig_sql}
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, [f"%{operador.strip()}%", data_inicio, data_fim] + orig_p)
-                row = cur.fetchone()
-                return row[0] if row else Decimal("0")
+        params = [f"%{operador.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
 
     # ── Geração de LD por operador ────────────────────────────────────────────
     def get_ld_por_operador(
@@ -91,19 +106,19 @@ class SQLService:
     ) -> Decimal:
         orig_sql, orig_p = _origem_clause(origem)
         query = f"""
-            SELECT COALESCE(SUM(total), 0)
-            FROM v_kardex_ld
-            WHERE TRIM(usuario) ILIKE %s
-              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
-              AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
+            SELECT COALESCE(SUM(TOTAL), 0)
+            FROM dbo.STG_KARDEX
+            WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
+              AND EMISSAO BETWEEN ? AND ?
+              AND QUALIDADE = 'Y'
               {orig_sql}
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, [f"%{operador.strip()}%", data_inicio, data_fim] + orig_p)
-                row = cur.fetchone()
-                return row[0] if row else Decimal("0")
+        params = [f"%{operador.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
 
     # ── Ranking de revisão por LD ─────────────────────────────────────────────
     def get_ranking_usuarios_ld(
@@ -119,26 +134,24 @@ class SQLService:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         excl_sql, excl_p = _excluir_clause(excluir_usuarios)
         query = f"""
-            SELECT TRIM(usuario) AS operador, SUM(total) AS total_kg
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
-              AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
+            SELECT TOP {limite} LTRIM(RTRIM(USUARIO)) AS operador, SUM(TOTAL) AS total_kg
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND QUALIDADE = 'Y'
               {incl_sql}
               {excl_sql}
               {orig_sql}
-            GROUP BY TRIM(usuario)
+            GROUP BY LTRIM(RTRIM(USUARIO))
             ORDER BY total_kg DESC
-            LIMIT %s
         """
-        params = [data_inicio, data_fim] + incl_p + excl_p + orig_p + [limite]
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                return [
-                    {"posicao": i + 1, "operador": r[0], "total_kg": float(r[1])}
-                    for i, r in enumerate(cur.fetchall())
-                ]
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + excl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {"posicao": i + 1, "operador": r[0], "total_kg": float(r[1])}
+                for i, r in enumerate(cur.fetchall())
+            ]
 
     # ── Ranking de produtos por LD ────────────────────────────────────────────
     def get_ranking_produtos_ld(
@@ -154,34 +167,32 @@ class SQLService:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         excl_sql, excl_p = _excluir_clause(excluir_usuarios)
         query = f"""
-            SELECT
-                TRIM(produto)  AS produto,
-                SUM(total)     AS total_kg,
-                COUNT(*)       AS ocorrencias
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
-              AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
+            SELECT TOP {limite}
+                LTRIM(RTRIM(PRODUTO)) AS produto,
+                SUM(TOTAL)            AS total_kg,
+                COUNT(*)              AS ocorrencias
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND QUALIDADE = 'Y'
               {incl_sql}
               {excl_sql}
               {orig_sql}
-            GROUP BY TRIM(produto)
+            GROUP BY LTRIM(RTRIM(PRODUTO))
             ORDER BY total_kg DESC
-            LIMIT %s
         """
-        params = [data_inicio, data_fim] + incl_p + excl_p + orig_p + [limite]
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                return [
-                    {
-                        "posicao": i + 1,
-                        "produto": r[0],
-                        "total_kg": float(r[1]),
-                        "ocorrencias": int(r[2]),
-                    }
-                    for i, r in enumerate(cur.fetchall())
-                ]
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + excl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {
+                    "posicao": i + 1,
+                    "produto": r[0],
+                    "total_kg": float(r[1]),
+                    "ocorrencias": int(r[2]),
+                }
+                for i, r in enumerate(cur.fetchall())
+            ]
 
     # ── Produção por produto específico ──────────────────────────────────────
     def get_producao_por_produto(
@@ -193,18 +204,18 @@ class SQLService:
     ) -> Decimal:
         orig_sql, orig_p = _origem_clause(origem)
         query = f"""
-            SELECT COALESCE(SUM(total), 0)
-            FROM v_kardex_ld
-            WHERE TRIM(produto) ILIKE %s
-              AND TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
+            SELECT COALESCE(SUM(TOTAL), 0)
+            FROM dbo.STG_KARDEX
+            WHERE LOWER(LTRIM(RTRIM(PRODUTO))) LIKE LOWER(?)
+              AND EMISSAO BETWEEN ? AND ?
               {orig_sql}
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, [f"%{produto.strip()}%", data_inicio, data_fim] + orig_p)
-                row = cur.fetchone()
-                return row[0] if row else Decimal("0")
+        params = [f"%{produto.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
 
     # ── Ranking geral de produção ─────────────────────────────────────────────
     def get_ranking_producao_geral(
@@ -220,25 +231,23 @@ class SQLService:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         excl_sql, excl_p = _excluir_clause(excluir_usuarios)
         query = f"""
-            SELECT TRIM(usuario) AS operador, SUM(total) AS total_kg
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
+            SELECT TOP {limite} LTRIM(RTRIM(USUARIO)) AS operador, SUM(TOTAL) AS total_kg
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
               {incl_sql}
               {excl_sql}
               {orig_sql}
-            GROUP BY TRIM(usuario)
+            GROUP BY LTRIM(RTRIM(USUARIO))
             ORDER BY total_kg DESC
-            LIMIT %s
         """
-        params = [data_inicio, data_fim] + incl_p + excl_p + orig_p + [limite]
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                return [
-                    {"posicao": i + 1, "operador": r[0], "total_kg": float(r[1])}
-                    for i, r in enumerate(cur.fetchall())
-                ]
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + excl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {"posicao": i + 1, "operador": r[0], "total_kg": float(r[1])}
+                for i, r in enumerate(cur.fetchall())
+            ]
 
     # ── Produção por turno ────────────────────────────────────────────────────
     def get_producao_por_turno(
@@ -253,24 +262,23 @@ class SQLService:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         excl_sql, excl_p = _excluir_clause(excluir_usuarios)
         query = f"""
-            SELECT TRIM(turno) AS turno, SUM(total) AS total_kg, COUNT(*) AS registros
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
+            SELECT LTRIM(RTRIM(TURNO)) AS turno, SUM(TOTAL) AS total_kg, COUNT(*) AS registros
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
               {incl_sql}
               {excl_sql}
               {orig_sql}
-            GROUP BY TRIM(turno)
+            GROUP BY LTRIM(RTRIM(TURNO))
             ORDER BY total_kg DESC
         """
-        params = [data_inicio, data_fim] + incl_p + excl_p + orig_p
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, params)
-                return [
-                    {"turno": r[0], "total_kg": float(r[1]), "registros": int(r[2])}
-                    for r in cur.fetchall()
-                ]
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + excl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {"turno": r[0], "total_kg": float(r[1]), "registros": int(r[2])}
+                for r in cur.fetchall()
+            ]
 
     # ── Total geral da fábrica ────────────────────────────────────────────────
     def get_total_fabrica(
@@ -283,18 +291,18 @@ class SQLService:
         orig_sql, orig_p = _origem_clause(origem)
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         query = f"""
-            SELECT COALESCE(SUM(total), 0)
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
+            SELECT COALESCE(SUM(TOTAL), 0)
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
               {incl_sql}
               {orig_sql}
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, [data_inicio, data_fim] + incl_p + orig_p)
-                row = cur.fetchone()
-                return row[0] if row else Decimal("0")
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
 
     # ── Total de LD da fábrica ────────────────────────────────────────────────
     def get_total_ld_fabrica(
@@ -307,19 +315,19 @@ class SQLService:
         orig_sql, orig_p = _origem_clause(origem)
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         query = f"""
-            SELECT COALESCE(SUM(total), 0)
-            FROM v_kardex_ld
-            WHERE TO_DATE(TRIM(emissao), 'DD/MM/YYYY')
-                  BETWEEN TO_DATE(%s, 'DD/MM/YYYY') AND TO_DATE(%s, 'DD/MM/YYYY')
-              AND SUBSTRING(TRIM(produto), 5, 1) = 'Y'
+            SELECT COALESCE(SUM(TOTAL), 0)
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND QUALIDADE = 'Y'
               {incl_sql}
               {orig_sql}
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, [data_inicio, data_fim] + incl_p + orig_p)
-                row = cur.fetchone()
-                return row[0] if row else Decimal("0")
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + incl_p + orig_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            row = cur.fetchone()
+            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
     def get_periodos_disponiveis(
@@ -329,39 +337,36 @@ class SQLService:
         """Retorna anos e meses com registros, agrupados por ano."""
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         query = f"""
-            SELECT
-                EXTRACT(YEAR  FROM TO_DATE(TRIM(emissao), 'DD/MM/YYYY'))::int AS ano,
-                EXTRACT(MONTH FROM TO_DATE(TRIM(emissao), 'DD/MM/YYYY'))::int AS mes,
-                COUNT(*) AS registros
-            FROM v_kardex_ld
-            WHERE emissao IS NOT NULL
+            SELECT YEAR(EMISSAO) AS ano, MONTH(EMISSAO) AS mes, COUNT(*) AS registros
+            FROM dbo.STG_KARDEX
+            WHERE EMISSAO IS NOT NULL
               {incl_sql}
-            GROUP BY ano, mes
+            GROUP BY YEAR(EMISSAO), MONTH(EMISSAO)
             ORDER BY ano, mes
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, incl_p)
-                rows = cur.fetchall()
-                anos: dict[int, list[int]] = {}
-                for r in rows:
-                    ano, mes = int(r[0]), int(r[1])
-                    anos.setdefault(ano, []).append(mes)
-                return [{"ano": ano, "meses": meses} for ano, meses in sorted(anos.items())]
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, incl_p)
+            rows = cur.fetchall()
+            anos: dict[int, list[int]] = {}
+            for r in rows:
+                ano, mes = int(r[0]), int(r[1])
+                anos.setdefault(ano, []).append(mes)
+            return [{"ano": ano, "meses": meses} for ano, meses in sorted(anos.items())]
 
     # ── Operadores de um setor presentes no banco ─────────────────────────────
     def get_review_operators(self, operadores: list[str]) -> list[str]:
-        """Verifica quais operadores da lista têm registros na view."""
+        """Verifica quais operadores da lista têm registros na tabela."""
         if not operadores:
             return []
-        ph = ", ".join(["%s"] * len(operadores))
+        ph = ", ".join(["?"] * len(operadores))
         query = f"""
-            SELECT DISTINCT TRIM(usuario)
-            FROM v_kardex_ld
-            WHERE TRIM(usuario) IN ({ph})
+            SELECT DISTINCT LTRIM(RTRIM(USUARIO))
+            FROM dbo.STG_KARDEX
+            WHERE LTRIM(RTRIM(USUARIO)) IN ({ph})
             ORDER BY 1
         """
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(query, operadores)
-                return [r[0] for r in cur.fetchall() if r[0]]
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, operadores)
+            return [r[0] for r in cur.fetchall() if r[0]]
