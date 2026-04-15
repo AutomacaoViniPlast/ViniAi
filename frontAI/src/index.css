@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    /* === PALETA PROFISSIONAL: Neutros escuros (ChatGPT style) + Vermelho ViniAI === */
+    /* Variáveis globais e paleta de cores do sistema */
     --background: 0 0% 7%;
 
     /* Texto principal - branco */
@@ -59,31 +59,31 @@
     --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.5), 0 1px 2px hsl(0 0% 0% / 0.4);
   }
 
-  /* === TEMA CLARO: Neutros cinza-claro, profissionais e confortáveis === */
+  /* Cores específicas para o tema claro */
   [data-theme="light"] {
-    --background: 0 0% 82%;
-    --foreground: 0 0% 5%;
-    --sidebar: 0 0% 78%;
+    --background: 0 0% 80%;
+    --foreground: 0 0% 1%;
+    --sidebar: 0 0% 74%;
     --primary: 2 72% 44%;
     --primary-foreground: 0 0% 100%;
     --primary-hover: 2 72% 38%;
-    --secondary: 0 0% 74%;
-    --secondary-foreground: 0 0% 5%;
-    --muted: 0 0% 76%;
-    --muted-foreground: 0 0% 30%;
+    --secondary: 0 0% 70%;
+    --secondary-foreground: 0 0% 1%;
+    --muted: 0 0% 72%;
+    --muted-foreground: 0 0% 10%;
     --border: 0 0% 64%;
-    --input: 0 0% 75%;
+    --input: 0 0% 72%;
     --ring: 2 72% 44%;
-    --card: 0 0% 77%;
-    --card-foreground: 0 0% 5%;
-    --popover: 0 0% 77%;
-    --popover-foreground: 0 0% 5%;
-    --accent: 0 0% 70%;
-    --accent-foreground: 0 0% 5%;
+    --card: 0 0% 75%;
+    --card-foreground: 0 0% 1%;
+    --popover: 0 0% 75%;
+    --popover-foreground: 0 0% 1%;
+    --accent: 0 0% 68%;
+    --accent-foreground: 0 0% 1%;
     --destructive: 0 68% 46%;
     --destructive-foreground: 0 0% 100%;
     --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
-    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.08) 0%, hsl(0 0% 75% / 0.08) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.1) 0%, hsl(0 0% 65% / 0.1) 100%);
     --glass-bg: hsl(0 0% 80% / 0.75);
     --glass-border: hsl(0 0% 0% / 0.1);
     --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.1);
@@ -124,7 +124,7 @@
 
 @layer utilities {
 
-  /* === Glass Morphism === */
+  /* Estilos para efeito de vidro */
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(16px);
@@ -133,7 +133,7 @@
     transition: background 0.3s ease, border-color 0.3s ease;
   }
 
-  /* === Gradient Text === */
+  /* Utilitário para texto com gradiente */
   .gradient-text {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -141,7 +141,7 @@
     background-clip: text;
   }
 
-  /* === Gradient Border === */
+  /* Utilitário para bordas com gradiente */
   .gradient-border {
     position: relative;
   }
@@ -159,12 +159,12 @@
     pointer-events: none;
   }
 
-  /* === Glow === */
+  /* Utilitário para efeitos de brilho */
   .glow {
     box-shadow: var(--shadow-glow);
   }
 
-  /* === Animações === */
+  /* Definições de animações */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -185,7 +185,7 @@
     animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* === Sidebar item hover === */
+  /* Estilos de interação da barra lateral */
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 cursor-pointer;
     color: hsl(var(--muted-foreground));
@@ -201,7 +201,7 @@
     color: hsl(var(--foreground));
   }
 
-  /* === Input focus ring === */
+  /* Estilos de foco para inputs */
   .input-ring {
     @apply outline-none transition-all duration-200;
     border: 1px solid hsl(var(--border));
@@ -212,7 +212,7 @@
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
   }
 
-  /* === Botão primário === */
+  /* Estilos do botão principal */
   .btn-primary {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
@@ -229,7 +229,7 @@
     transform: translateY(0);
   }
 
-  /* === Ícone badge === */
+  /* Estilos para ícones e badges */
   .icon-badge {
     @apply w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200;
   }

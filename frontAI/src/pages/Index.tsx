@@ -16,8 +16,9 @@ import { getUser } from "../lib/storage";
 import { toast } from "@/components/ui/sonner";
 
 import logo from "../image/logoviniai.png";
+import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon } from "lucide-react";
+import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu } from "lucide-react";
 
 interface Message {
   id: string;
@@ -53,7 +54,7 @@ const Index = () => {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("vini-theme") !== "light");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ── Carrega perfil + conversas do banco ──────────────────────────────────────
+  // Carrega perfil e conversas do banco de dados
   useEffect(() => {
     const user = getUser();
     setUserProfile({
@@ -100,7 +101,7 @@ const Index = () => {
     init();
   }, []);
 
-  // ── Carrega mensagens ao trocar de conversa ───────────────────────────────────
+  // Carrega as mensagens ao selecionar uma conversa
   useEffect(() => {
     if (!activeId) return;
 
@@ -138,7 +139,7 @@ const Index = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // ── Tema claro/escuro ─────────────────────────────────────────────────────────
+  // Gerencia a alternância entre temas claro e escuro
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
     localStorage.setItem("vini-theme", isDark ? "dark" : "light");
@@ -148,25 +149,26 @@ const Index = () => {
 
   // Cores inline reativamente ao tema
   const C = {
-    bg:            isDark ? "#111010ff"   : "#d1d1d1",
-    sidebar:       isDark ? "#0d0d0d"     : "#c7c7c7",
-    sidebarBorder: isDark ? "#1e1e1e"     : "#9e9e9e",
-    card:          isDark ? "#161616"     : "#bdbdbd",
-    searchBg:      isDark ? "#0d0d0d"     : "#bcbcbc",
-    searchBorder:  isDark ? "#1e1e1e"     : "#a5a5a5",
-    convActive:    isDark ? "#1a1a1a"     : "#b0b0b0",
-    convHover:     isDark ? "#1a1a1a"     : "#b0b0b0",
-    text:          isDark ? "hsl(0 0% 95%)" : "#1a1a1a",
-    textMuted:     isDark ? "hsl(0 0% 58%)" : "#444444",
-    textSubtle:    isDark ? "hsl(0 0% 45%)" : "#555555",
-    convText:      isDark ? "hsl(0 0% 68%)" : "#333333",
-    hoverBg:       isDark ? "#1e1e1e"     : "#a0a0a0",
-    pinHover:      isDark ? "#222222"     : "#a0a0a0",
-    loadingBg:     isDark ? "#111111"     : "#c7c7c7",
-    topbarBorder:  isDark ? "#1e1e1e"     : "#a0a0a0",
-    mobileMenuBg:  isDark ? "#1a1a1a"     : "#b0b0b0",
-    redText:       isDark ? "hsl(2 68% 58%)" : "hsl(2 72% 35%)",
-    initials:      "#572222ff",
+    bg: isDark ? "#111010ff" : "#cccccc",
+    sidebar: isDark ? "#0d0d0d" : "#bdbdbd",
+    sidebarBorder: isDark ? "#1e1e1e" : "#9e9e9e",
+    card: isDark ? "#161616" : "#bcbcbc",
+    searchBg: isDark ? "#0d0d0d" : "#b8b8b8",
+    searchBorder: isDark ? "#1e1e1e" : "#949494",
+    convActive: isDark ? "#1a1a1a" : "#a8a8a8",
+    convHover: isDark ? "#1a1a1a" : "#a8a8a8",
+    text: isDark ? "hsl(0 0% 95%)" : "#010101",
+    textMuted: isDark ? "hsl(0 0% 58%)" : "#111111",
+    textSubtle: isDark ? "hsl(0 0% 45%)" : "#222222",
+    convText: isDark ? "hsl(0 0% 68%)" : "#050505",
+    hoverBg: isDark ? "#1e1e1e" : "#a0a0a0",
+    pinHover: isDark ? "#222222" : "#a0a0a0",
+    loadingBg: isDark ? "#111111" : "#bdbdbd",
+    topbarBorder: isDark ? "#1e1e1e" : "#a0a0a0",
+    mobileMenuBg: isDark ? "#1a1a1a" : "#8a8a8a",
+    redText: isDark ? "hsl(2 68% 58%)" : "hsl(0 72% 30%)",
+    redHover: isDark ? "hsla(3, 35%, 22%, 1.00)" : "hsla(0, 72%, 40%, 0.15)",
+    initials: "#572222ff",
   };
 
   const activeConversation = conversations.find((c) => c.id === activeId);
@@ -177,7 +179,7 @@ const Index = () => {
     window.location.href = "/auth";
   };
 
-  // ── Nova conversa ─────────────────────────────────────────────────────────────
+  // Inicia uma nova conversa no sistema
   const createNewConversation = async () => {
     try {
       const nova = await createConversation();
@@ -200,7 +202,7 @@ const Index = () => {
     }
   };
 
-  // ── Deletar conversa ──────────────────────────────────────────────────────────
+  // Remove uma conversa do histórico
   const deleteConversation = async (id: string) => {
     try {
       await apiDeleteConversation(id);
@@ -214,7 +216,7 @@ const Index = () => {
     }
   };
 
-  // ── Alternar pin ──────────────────────────────────────────────────────────────
+  // Fixa ou desafixa uma conversa na lista
   const togglePin = async (id: string) => {
     try {
       const updated = await apiTogglePin(id);
@@ -226,7 +228,7 @@ const Index = () => {
     }
   };
 
-  // ── Enviar mensagem ───────────────────────────────────────────────────────────
+  // Envia a mensagem do usuário e processa a resposta da IA
   const handleSend = async (content: string) => {
     if (!activeConversation) return;
 
@@ -323,15 +325,10 @@ const Index = () => {
 
   if (carregando) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ background: C.loadingBg }}>
-        <div className="flex flex-col items-center gap-4">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center animate-pulse"
-            style={{ background: "hsl(2 72% 44%)" }}
-          >
-            <span className="text-white font-bold text-sm">AI</span>
-          </div>
-          <p style={{ color: C.textMuted, fontSize: "0.85rem" }}>Carregando...</p>
+      <div className="flex h-screen items-center justify-center transition-colors duration-300" style={{ background: C.loadingBg }}>
+        <div className="flex flex-col items-center gap-6">
+          <img src={logo2} alt="ViniAI Logo" className="w-16 h-16 object-contain animate-pulse" />
+          <p className="font-medium animate-pulse" style={{ color: C.text, fontSize: "1rem", letterSpacing: "0.05em" }}>Carregando...</p>
         </div>
       </div>
     );
@@ -340,7 +337,7 @@ const Index = () => {
   return (
     <div className="flex h-[100dvh] overflow-hidden" style={{ background: C.bg, color: C.text }}>
 
-      {/* ── Overlay mobile ── */}
+      {/* Camada de fundo para fechar o menu no mobile */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-30 md:hidden"
@@ -371,7 +368,7 @@ const Index = () => {
       >
         {/* Sidebar header */}
         <div
-          className="flex items-center justify-between px-3 pt-4 pb-2 shrink-0"
+          className={`flex items-center justify-between ${isSidebarCollapsed ? "px-0" : "px-3"} pt-4 pb-2 shrink-0`}
           style={{ minHeight: "60px" }}
         >
           {!isSidebarCollapsed && (
@@ -411,10 +408,14 @@ const Index = () => {
               </button>
               <button
                 onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden flex items-center justify-center w-7 h-7 rounded-full"
-                style={{ color: C.textMuted }}
+                className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mt-2"
+                style={{ 
+                  color: C.text,
+                  background: "transparent",
+                  border: "1px solid hsl(var(--border) / 0.15)"
+                }}
               >
-                ✕
+                <Menu size={22} strokeWidth={2.5} />
               </button>
             </>
           )}
@@ -424,7 +425,7 @@ const Index = () => {
               onClick={() => setIsSidebarCollapsed(false)}
               onMouseEnter={() => setIsLogoHovered(true)}
               onMouseLeave={() => setIsLogoHovered(false)}
-              className="hidden md:flex mx-auto items-center justify-center w-8 h-8 rounded-xl transition-all duration-200"
+              className="hidden md:flex mx-auto items-center justify-center w-[38px] h-[38px] rounded-xl transition-all duration-200"
               style={{
                 background: isLogoHovered ? "#2a2a2a" : "hsl(2 72% 44%)",
                 color: "#fff",
@@ -433,17 +434,17 @@ const Index = () => {
             >
               {isLogoHovered
                 ? <PanelLeftOpen size={16} />
-                : <img src={logo} alt="ViniAI Logo" className="w-[80%] h-[80%] object-contain" />
+                : <img src={logo} alt="ViniAI Logo" className="w-[70%] h-[70%] object-contain" />
               }
             </button>
           )}
         </div>
 
         {/* Nova conversa */}
-        <div className="p-2 pt-3 shrink-0">
+        <div className="px-2 pt-6 pb-0 shrink-0">
           <button
             onClick={createNewConversation}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200"
+            className={`flex items-center justify-center rounded-xl transition-all duration-200 ${isSidebarCollapsed ? "w-[38px] h-[38px] mx-auto" : "w-full gap-2 py-2.5 px-3 text-sm font-medium"}`}
             style={{ background: "hsl(2 72% 44%)", color: "#fff" }}
             onMouseEnter={e => {
               (e.currentTarget as HTMLButtonElement).style.background = "hsl(2 72% 38%)";
@@ -454,14 +455,14 @@ const Index = () => {
               (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
             }}
           >
-            <Plus size={15} strokeWidth={2.5} />
+            <Plus size={isSidebarCollapsed ? 18 : 15} strokeWidth={2.5} />
             {!isSidebarCollapsed && <span>Nova Conversa</span>}
           </button>
         </div>
 
         {/* Search */}
         {!isSidebarCollapsed && (
-          <div className="px-2 pb-2 shrink-0">
+          <div className="px-2 pt-2 pb-2 shrink-0">
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl"
               style={{ background: C.searchBg, border: `1px solid ${C.searchBorder}` }}
@@ -472,15 +473,15 @@ const Index = () => {
                 placeholder="Buscar conversa..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent text-sm outline-none"
-                style={{ color: C.text, caretColor: "hsl(2 72% 44%)" }}
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-inherit"
+                style={{ color: C.text, caretColor: "hsl(2 72% 44%)", opacity: 0.9 }}
               />
             </div>
           </div>
         )}
 
         {/* Lista de conversas */}
-        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-0.5">
+        <div className="flex-1 overflow-y-auto px-2 py-0.1 space-y-1">
           {!isSidebarCollapsed && filteredConversations.length > 0 && (
             <p className="text-xs font-medium px-2 py-1.5" style={{ color: C.textSubtle }}>
               Conversas
@@ -490,10 +491,14 @@ const Index = () => {
           {filteredConversations.map((conv) => (
             <div
               key={conv.id}
-              className="group relative flex items-center gap-1 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-150 cursor-pointer"
+              className={`group relative flex items-center transition-all duration-150 cursor-pointer ${isSidebarCollapsed ? "justify-center" : "gap-1 px-2.5 py-2.5 rounded-xl text-sm"}`}
               style={{
                 background: activeId === conv.id ? C.convActive : "transparent",
                 color: activeId === conv.id ? C.text : C.convText,
+                width: isSidebarCollapsed ? "38px" : "auto",
+                height: isSidebarCollapsed ? "38px" : "auto",
+                margin: isSidebarCollapsed ? "4px auto" : "0",
+                borderRadius: isSidebarCollapsed ? "12px" : "",
               }}
               onMouseEnter={e => {
                 if (activeId !== conv.id)
@@ -606,7 +611,7 @@ const Index = () => {
             className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
             style={{ color: C.redText }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = "hsl(2 60% 15%)";
+              (e.currentTarget as HTMLButtonElement).style.background = C.redHover;
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLButtonElement).style.background = "transparent";
@@ -623,33 +628,23 @@ const Index = () => {
         className="flex-1 flex flex-col min-w-0 min-h-0"
         style={{ marginLeft: isMobileViewport ? "0" : (isSidebarCollapsed ? "60px" : "260px") }}
       >
-        {/* Topbar mobile */}
-        <div
-          className="md:hidden flex items-center justify-between gap-3 px-4 py-3 shrink-0"
-          style={{ borderBottom: `1px solid ${C.sidebarBorder}` }}
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              className="flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 shrink-0"
-              style={{ color: C.textMuted }}
-              onMouseEnter={e => (e.currentTarget.style.background = C.mobileMenuBg)}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              <img src={abrir} alt="Menu" className="w-5 h-5" />
-            </button>
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "hsl(2 72% 44%)" }}
-            >
-              <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain mx-auto my-auto" />
-            </div>
-            <span className="font-semibold text-sm truncate">ViniAI</span>
-          </div>
-          <div className="w-9 h-9 shrink-0" aria-hidden="true" />
+        {/* Menu flutuante para dispositivos móveis */}
+        <div className={`md:hidden absolute top-0 left-0 p-2 z-50 pointer-events-none w-full flex items-center ${isSidebarOpen ? "hidden" : ""}`}>
+          {/* Botão Menu (Esquerda) */}
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
+            style={{ 
+              color: C.text,
+              background: "transparent",
+              border: "1px solid hsl(var(--border) / 0.15)"
+            }}
+          >
+            <Menu size={22} strokeWidth={2.5} />
+          </button>
         </div>
 
-        {/* Área de mensagens */}
+        {/* Exibe o histórico de mensagens ou a tela inicial */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {!activeConversation || activeConversation.messages.length === 0 ? (
             <EmptyState onSuggestionClick={handleSend} setor={userProfile?.setor} />
@@ -673,7 +668,7 @@ const Index = () => {
           )}
         </div>
 
-        <div className="shrink-0 px-3 sm:px-4 md:px-6 pt-0 pb-2 md:pb-2">
+        <div className="shrink-0 px-3 sm:px-4 md:px-6 pt-6 sm:pt-8 md:pt-10 pb-2 md:pb-2">
           <div className="max-w-4xl mx-auto">
             <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
           </div>

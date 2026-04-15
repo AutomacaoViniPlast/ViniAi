@@ -166,18 +166,18 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
     sectorSuggestions.GERAL;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-end lg:justify-center px-4 sm:px-5 md:px-6 pt-6 md:pt-8 lg:pt-2 pb-3 sm:pb-4 md:pb-5 lg:pb-12 animate-fade-in overflow-y-auto">
+    <div className="flex-1 flex flex-col items-center justify-end lg:justify-center px-4 sm:px-5 md:px-6 pt-6 md:pt-8 lg:pt-16 pb-1 sm:pb-8 md:pb-10 lg:pb-16 animate-fade-in overflow-y-auto">
 
-      {/* Logo da imagem */}
+      {/* Logotipo central */}
       <div className="flex justify-center items-center mt-2 sm:mt-3 md:mt-4 lg:mt-6 mb-1 sm:mb-2 animate-float">
         <img
           src={logoVini}
           alt="ViniAI Logo"
-          className="w-28 sm:w-32 md:w-36 h-auto max-h-14 sm:max-h-16 md:max-h-20"
+          className="w-24 sm:w-20 md:w-24 lg:w-28 h-auto max-h-[7.5rem] md:max-h-20 lg:max-h-24"
         />
       </div>
 
-      {/* Título */}
+      {/* Título de boas-vindas */}
       <div className="text-center mb-1 sm:mb-2">
         <h1
           className="text-2xl sm:text-[1.85rem] md:text-[2.05rem] lg:text-4xl font-bold mb-2 md:mb-3"
@@ -193,7 +193,7 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
         </p>
       </div>
 
-      {/* Cards de sugestão */}
+      {/* Cartões com sugestões de perguntas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5 md:gap-4 lg:gap-5 w-full max-w-4xl mt-2 sm:mt-3 md:mt-4 lg:mt-6">
         {suggestions.map((suggestion, index) => (
           <SuggestionCard
