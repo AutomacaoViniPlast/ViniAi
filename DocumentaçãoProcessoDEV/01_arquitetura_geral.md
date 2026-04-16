@@ -1,6 +1,6 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 3.0  
+**Versão:** 3.1  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -39,9 +39,10 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
 │   porta 5432   │             │   porta 50172         │
 │                │             │                       │
 │ Histórico de   │             │ Dados industriais     │
-│ conversas e    │             │ STG_KARDEX            │
-│ mensagens      │             │ STG_PROD_SH6_VPLONAS  │
+│ conversas e    │             │ STG_KARDEX (principal)│
+│ mensagens      │             │ STG_PROD_SH6          │
 └────────────────┘             │ STG_PROD_SD3          │
+                               │ STG_APONT_REV_GERAL   │
                                └──────────────────────┘
 ```
 
@@ -61,12 +62,15 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
 
 ## Separação de Bancos de Dados
 
-| Banco | Tecnologia | IP:Porta | Uso |
-|-------|-----------|----------|-----|
-| METABASE | SQL Server | 192.168.1.83:50172 | Dados industriais (produção, kardex, PCP) |
-| N8N | PostgreSQL | 192.168.1.85:5432 | Histórico de conversas, usuários, sessões |
+| Banco | Tecnologia | IP:Porta | Responsabilidade exclusiva |
+|-------|-----------|----------|---------------------------|
+| METABASE | SQL Server | 192.168.1.83:50172 | **Dados industriais** — produção, kardex, revisão, expedição |
+| N8N | PostgreSQL | 192.168.1.85:5432 | **Autenticação de usuário, conversas e mensagens** |
 
-**Regra:** Toda consulta a dados de produção vai ao SQL Server. O PostgreSQL permanece exclusivamente para o histórico de conversa da IA (tabela `mensagens` no banco N8N).
+**Regra fixa de separação:**
+- **SQL Server** → SOMENTE consultas de dados industriais (STG_KARDEX e demais tabelas do METABASE)
+- **PostgreSQL** → SOMENTE autenticação de usuário, histórico de conversas e tabela de mensagens
+- Nenhum dado industrial vai ao PostgreSQL. Nenhum dado de autenticação/conversa vai ao SQL Server.
 
 ---
 
@@ -136,19 +140,32 @@ main            → importa orchestrator, schemas
 
 ## Tabelas SQL Server (METABASE)
 
-### dbo.STG_KARDEX — tabela principal de movimentações
+> **Tabela principal para todas as consultas atuais:** `dbo.STG_KARDEX`  
+> As demais tabelas serão integradas conforme novos agentes e funcionalidades forem desenvolvidos.
+
+### dbo.STG_KARDEX — tabela principal (mais completa)
+
+Abrange todo o ciclo industrial de produção:
+- **Matéria-prima:** entrada de CARBONATO, RESINA, DRAPEX, DOP
+- **Produção:** 1ª, 2ª e 3ª passada do filme plástico na extrusora
+- **Revisão:** inspeção das bobinas — identificação de defeitos por metro
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | USUARIO | varchar(25) | Login do operador (com espaços — usar LTRIM/RTRIM) |
 | EMISSAO | date | Data da movimentação (tipo nativo — sem conversão) |
-| PRODUTO | varchar(15) | Código do produto |
-| QUALIDADE | varchar(1) | **'Y'=LD (defeito), 'I'=Inteiro** |
-| TOTAL | float | Peso em KG |
+| PRODUTO | varchar(15) | Código do produto (posição 5 = Y ou I) |
+| QUALIDADE | varchar(1) | **'Y'=LD (defeito), 'I'=Inteiro** — pré-calculado da posição 5 do produto |
+| TOTAL | float | Quantidade em KG |
 | TURNO | varchar(5) | Turno de produção (ex: 06-14, 14-22, 22-06) |
 | ORIGEM | varchar(3) | SD1=Entrada, SD2=Saída, SD3=Movimentação Interna |
 
-### dbo.STG_PROD_SH6_VPLONAS — apontamentos de produção
+> **Regra LD:** usar `QUALIDADE = 'Y'` nas queries (não usar SUBSTRING do produto — já está pré-calculado).  
+> **Filtro por ORIGEM é opcional** — muitos registros têm ORIGEM NULL.
+
+### dbo.STG_PROD_SH6 (STG_PROD_SH6_VPLONAS) — apontamentos de produção
+
+Focada em produção, aborda movimentações internas com nível de detalhe operacional maior que o KARDEX. Inclui horas trabalhadas, KG/hora e motivo do defeito LD.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -159,12 +176,14 @@ main            → importa orchestrator, schemas
 | QTDPROD | float | Quantidade produzida |
 | PESO_TECIDO | float | Peso do tecido em KG |
 | HORAS | float | Horas trabalhadas |
-| KGH | float | KG por hora |
+| KGH | float | KG por hora (eficiência) |
 | TIPO_PROD | varchar(1) | Y=LD, I=Inteiro |
 | PRODUTO | varchar(15) | Código do produto |
 | MOTIVO_Y | varchar(40) | Motivo do defeito LD |
 
-### dbo.STG_PROD_SD3 — movimentações SD3
+### dbo.STG_PROD_SD3 — movimentações internas
+
+Tabela de movimentação interna da empresa (produção de bobinas). Contém tipos de movimento e motivos de perda de material.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -176,6 +195,12 @@ main            → importa orchestrator, schemas
 | QTDE1UM / QTDE2UM | float | Quantidades |
 | LOCAL_OP | varchar(2) | Local de operação |
 | MOT_PERDA / DESC_MOTIVO | varchar | Motivo de perda |
+
+### dbo.STG_APONT_REV_GERAL — apontamentos de revisão geral
+
+**Pendente de mapeamento completo.** Tabela identificada no banco METABASE, provavelmente relacionada a apontamentos do setor de Revisão. Colunas e regras de negócio a serem documentadas após análise direta da tabela.
+
+> Atualizar esta seção assim que as colunas forem identificadas.
 
 ---
 
