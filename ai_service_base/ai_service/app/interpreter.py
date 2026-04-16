@@ -459,14 +459,19 @@ class RuleBasedInterpreter:
         r"^(oi|ol[aá]|bom\s+dia|boa\s+tarde|boa\s+noite|"
         r"tudo\s+bem|tudo\s+bom|tudo\s+certo|e\s+a[ií]|"
         r"como\s+vai|como\s+voc[eê]\s+est[aá]|"
-        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|"
-        r"oi\s+tudo|preciso\s+de\s+ajuda|pode\s+me\s+ajudar|"
-        r"boa\b|ol[aá]\s+boa|e\s+a[ií]\s+boa|"
-        r"at[eé]\s+mais|tchau|flw|falou)\b",
+        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|boa[!.]*$|"
+        r"oi\s+tudo|e\s+a[ií]\s+gente|e\s+a[ií]\s+pessoal|"
+        r"bom\s+dia\s+ayla|boa\s+tarde\s+ayla|boa\s+noite\s+ayla|"
+        r"ol[aá]\s+ayla|oi\s+ayla|"
+        r"preciso\s+de\s+ajuda|pode\s+me\s+ajudar|"
+        r"ol[aá]\s+boa|e\s+a[ií]\s+boa|"
+        r"at[eé]\s+mais|tchau|flw|falou|at[eé]\s+logo|"
+        r"um\s+abra[cç]o|abraços|boa\s+sorte|"
+        r"bom\s+trabalho|bom\s+fds|bom\s+fim\s+de\s+semana)\b",
         re.IGNORECASE,
     )
 
-    # Conversa natural mais longa
+    # Conversa natural — perguntas e comentários que devem ir ao LLM
     _SMALLTALK_LONGA = re.compile(
         r"(como\s+voc[eê]\s+est[aá]|como\s+vai\s+voc[eê]|"
         r"o\s+que\s+[eé]\s+ld|me\s+conta\s+sobre|"
@@ -474,7 +479,25 @@ class RuleBasedInterpreter:
         r"quero\s+entender|n[aã]o\s+entendi|"
         r"boa\s+noite\s+vin|oi\s+vin|ol[aá]\s+vin|"
         r"o\s+que\s+[eé]\s+revis[aã]o|como\s+funciona|"
-        r"me\s+d[aá]\s+uma\s+dica|me\s+ajuda\s+a\s+entender)",
+        r"me\s+d[aá]\s+uma\s+dica|me\s+ajuda\s+a\s+entender|"
+        # conceitos e dúvidas sobre a fábrica
+        r"o\s+que\s+[eé]\s+expedi[cç][aã]o|o\s+que\s+[eé]\s+turno|"
+        r"o\s+que\s+[eé]\s+inteiro|o\s+que\s+[eé]\s+bobina|"
+        r"como\s+[eé]\s+calculado|como\s+funciona\s+o|"
+        r"qual\s+a\s+diferen[cç]a\s+entre|diferença\s+entre|"
+        r"o\s+que\s+significa|o\s+que\s+quer\s+dizer|"
+        r"pode\s+explicar|me\s+explique|me\s+fale\s+sobre|"
+        r"tenho\s+uma\s+d[uú]vida|tenho\s+d[uú]vida|"
+        r"n[aã]o\s+sei\s+o\s+que|n[aã]o\s+conhe[cç]o|"
+        # feedback e comentários
+        r"muito\s+bom|que\s+legal|que\s+[oó]timo|perfeito|"
+        r"entendi|ficou\s+claro|[oó]timo\s+obrigad|"
+        r"que\s+interessante|que\s+bacana|n[aã]o\s+sabia|"
+        # pedidos de ajuda genéricos
+        r"pode\s+me\s+dizer|pode\s+me\s+mostrar|pode\s+me\s+explicar|"
+        r"me\s+d[aá]\s+uma\s+ideia|me\s+orienta|me\s+indica|"
+        r"como\s+eu\s+fa[cç]o\s+para|o\s+que\s+eu\s+devo\s+perguntar|"
+        r"como\s+eu\s+consulto|como\s+posso\s+ver|como\s+vejo)",
         re.IGNORECASE,
     )
 
@@ -485,14 +508,19 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
-    # Capacidades da IA
+    # Capacidades da IA — perguntas diretas sobre o que o agente sabe/faz
     _CAPACIDADES = re.compile(
-        r"tipos?\s+de\s+informa[cç][aã]o|o\s+que\s+voc[eê]?\s+sabe|o\s+que\s+conseg|"
-        r"quais?\s+informa[cç][oõ]es|o\s+que\s+pod[eê]|capacidade|funcionalidade|"
-        r"o\s+que\s+.{0,20}informa|como\s+usar|o\s+que\s+faz|"
-        r"o\s+que\s+voc[eê]\s+(?:consegue|pode|sabe|responde)|"
-        r"quais\s+consultas|o\s+que\s+posso\s+perguntar|"
-        r"me\s+ajude\s+com|pode\s+me\s+dizer|ajuda",
+        r"tipos?\s+de\s+informa[cç][aã]o|"
+        r"o\s+que\s+voc[eê]\s+(?:consegue|pode|sabe|responde|faz)\b|"
+        r"o\s+que\s+conseg[uo]\s+perguntar|"
+        r"quais?\s+informa[cç][oõ]es\s+(?:voc[eê]\s+)?(?:tem|tem\s+acesso|pode|conseg)|"
+        r"quais?\s+consultas\s+(?:posso|voc[eê]\s+faz)|"
+        r"o\s+que\s+posso\s+perguntar\s+(?:pra|para)\s+voc[eê]|"
+        r"capacidades?\s+(?:da|de)\s+(?:voc[eê]|ayla)|"
+        r"funcionalidades?\s+(?:da|de)\s+(?:voc[eê]|ayla)|"
+        r"como\s+(?:posso\s+usar|usar)\s+(?:voc[eê]|ayla)|"
+        r"o\s+que\s+a\s+ayla\s+(?:faz|sabe|pode)|"
+        r"me\s+mostra\s+(?:o\s+que\s+voc[eê]\s+(?:faz|sabe|pode))",
         re.IGNORECASE,
     )
 
