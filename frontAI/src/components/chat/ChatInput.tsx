@@ -41,8 +41,10 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       <div
         className="rounded-3xl overflow-hidden transition-all duration-200"
         style={{
-          background: "#080b14ff",
-          border: "1px solid #1b1e25ff",
+          background: "hsl(var(--input))",
+          border: focused
+            ? "1px solid hsl(var(--primary) / 0.5)"
+            : "1px solid hsl(var(--border))",
         }}
       >
         <div className="flex items-end gap-4 px-5 py-3">
@@ -60,7 +62,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               rows={1}
               className="w-full bg-transparent text-base outline-none resize-none pt-1.5"
               style={{
-                color: "hsl(0 0% 92%)",
+                color: "hsl(var(--foreground))",
                 caretColor: "hsl(4 82% 55%)",
                 maxHeight: "200px",
                 minHeight: "24px",
@@ -70,7 +72,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               }}
             />
             <style>{`
-              textarea::placeholder { color: hsl(215 15% 45%); }
+              textarea::placeholder { color: hsl(var(--muted-foreground) / 0.7); }
             `}</style>
           </div>
 
@@ -80,8 +82,8 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             disabled={!canSend}
             className="shrink-0 w-9 h-9 self-center rounded-xl flex items-center justify-center transition-all duration-200"
             style={{
-              background: canSend ? "#ad1e13ff" : "hsl(220 20% 17%)",
-              color: canSend ? "#fff" : "hsl(215 15% 45%)",
+              background: canSend ? "#ad1e13ff" : "hsl(var(--muted))",
+              color: canSend ? "#fff" : "hsl(var(--muted-foreground))",
               cursor: canSend ? "pointer" : "not-allowed",
               transform: "scale(1)",
             }}
@@ -93,7 +95,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(4 82% 47%)" : "hsl(220 20% 17%)";
+              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(4 82% 47%)" : "hsl(var(--muted))";
             }}
           >
             <ArrowUp size={16} strokeWidth={2.5} />
@@ -103,8 +105,8 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
 
       {/* Rodapé */}
       <div className="flex items-center justify-center gap-1.5 mt-2.5">
-        <Sparkles size={11} style={{ color: "hsl(215 15% 40%)" }} />
-        <span className="text-xs" style={{ color: "hsl(215 15% 40%)" }}>
+        <Sparkles size={11} style={{ color: "hsl(var(--muted-foreground) / 0.6)" }} />
+        <span className="text-xs" style={{ color: "hsl(var(--muted-foreground) / 0.6)" }}>
           ViniPlast © 2026
         </span>
       </div>

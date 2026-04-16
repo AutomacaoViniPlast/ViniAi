@@ -63,7 +63,7 @@ const ChatMessage = ({
             <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce delay-200" />
           </div>
         ) : (
-          <div className="prose prose-sm prose-invert max-w-none break-words">
+          <div className="prose-chat max-w-none break-words">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeSanitize]}

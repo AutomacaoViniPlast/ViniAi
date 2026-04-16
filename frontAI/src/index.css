@@ -6,62 +6,88 @@
 
 @layer base {
   :root {
-    /* === PALETA: Azul Escuro + Vermelho + Branco === */
-
-    /* Fundo principal - azul muito escuro */
-    --background: 220 30% 7%;
+    /* Variáveis globais e paleta de cores do sistema */
+    --background: 0 0% 7%;
 
     /* Texto principal - branco */
     --foreground: 0 0% 95%;
 
-    /* Sidebar - azul escuro ligeiramente mais claro */
-    --sidebar: 220 28% 10%;
+    --sidebar: 0 0% 5%;
 
-    /* Primário - vermelho ViniPlast */
-    --primary: 4 82% 47%;
+    /* Vermelho principal (mantido) */
+    --primary: 2 72% 44%;
     --primary-foreground: 0 0% 100%;
 
-    /* Hover do primário */
-    --primary-hover: 4 82% 40%;
+    --primary-hover: 2 72% 38%;
 
-    /* Secundário - azul médio */
-    --secondary: 214 60% 20%;
+    --secondary: 0 0% 13%;
     --secondary-foreground: 0 0% 95%;
 
     /* Tons neutros */
-    --muted: 220 20% 14%;
-    --muted-foreground: 215 15% 58%;
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 60%;
 
     /* Bordas */
-    --border: 220 15% 16%;
-    --input: 220 20% 13%;
-    --ring: 4 82% 47%;
+    --border: 0 0% 17%;
+    --input: 0 0% 10%;
+    --ring: 2 72% 44%;
 
     /* Cards */
-    --card: 220 25% 11%;
+    --card: 0 0% 10%;
     --card-foreground: 0 0% 95%;
-    --popover: 220 25% 11%;
+    --popover: 0 0% 10%;
     --popover-foreground: 0 0% 95%;
 
     /* Accent */
-    --accent: 220 20% 14%;
+    --accent: 0 0% 14%;
     --accent-foreground: 0 0% 95%;
 
     /* Destrutivo */
-    --destructive: 0 72% 51%;
+    --destructive: 0 68% 46%;
     --destructive-foreground: 0 0% 100%;
 
     /* Gradientes */
-    --gradient-primary: linear-gradient(135deg, hsl(4 82% 47%) 0%, hsl(4 82% 60%) 100%);
-    --gradient-glow: linear-gradient(135deg, hsl(4 82% 47% / 0.15) 0%, hsl(214 60% 20% / 0.15) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.18) 0%, hsl(0 0% 14% / 0.2) 100%);
 
     /* Vidro */
-    --glass-bg: hsl(220 25% 11% / 0.6);
+    --glass-bg: hsl(0 0% 10% / 0.70);
     --glass-border: hsl(0 0% 100% / 0.07);
 
     /* Sombra */
-    --shadow-glow: 0 0 40px hsl(4 82% 47% / 0.15);
-    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.4), 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.18);
+    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.5), 0 1px 2px hsl(0 0% 0% / 0.4);
+  }
+
+  /* Cores específicas para o tema claro */
+  [data-theme="light"] {
+    --background: 0 0% 80%;
+    --foreground: 0 0% 1%;
+    --sidebar: 0 0% 74%;
+    --primary: 2 72% 44%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 2 72% 38%;
+    --secondary: 0 0% 70%;
+    --secondary-foreground: 0 0% 1%;
+    --muted: 0 0% 72%;
+    --muted-foreground: 0 0% 10%;
+    --border: 0 0% 64%;
+    --input: 0 0% 72%;
+    --ring: 2 72% 44%;
+    --card: 0 0% 75%;
+    --card-foreground: 0 0% 1%;
+    --popover: 0 0% 75%;
+    --popover-foreground: 0 0% 1%;
+    --accent: 0 0% 68%;
+    --accent-foreground: 0 0% 1%;
+    --destructive: 0 68% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.1) 0%, hsl(0 0% 65% / 0.1) 100%);
+    --glass-bg: hsl(0 0% 80% / 0.75);
+    --glass-border: hsl(0 0% 0% / 0.1);
+    --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.1);
+    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.15), 0 1px 2px hsl(0 0% 0% / 0.1);
   }
 
   * {
@@ -71,6 +97,7 @@
 
   html {
     scroll-behavior: smooth;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   body {
@@ -80,6 +107,7 @@
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1,
@@ -96,15 +124,16 @@
 
 @layer utilities {
 
-  /* === Glass Morphism === */
+  /* Estilos para efeito de vidro */
   .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
+    transition: background 0.3s ease, border-color 0.3s ease;
   }
 
-  /* === Gradient Text === */
+  /* Utilitário para texto com gradiente */
   .gradient-text {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -112,7 +141,7 @@
     background-clip: text;
   }
 
-  /* === Gradient Border === */
+  /* Utilitário para bordas com gradiente */
   .gradient-border {
     position: relative;
   }
@@ -130,12 +159,12 @@
     pointer-events: none;
   }
 
-  /* === Glow === */
+  /* Utilitário para efeitos de brilho */
   .glow {
     box-shadow: var(--shadow-glow);
   }
 
-  /* === Animações === */
+  /* Definições de animações */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -156,7 +185,7 @@
     animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* === Sidebar item hover === */
+  /* Estilos de interação da barra lateral */
   .sidebar-item {
     @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 cursor-pointer;
     color: hsl(var(--muted-foreground));
@@ -172,7 +201,7 @@
     color: hsl(var(--foreground));
   }
 
-  /* === Input focus ring === */
+  /* Estilos de foco para inputs */
   .input-ring {
     @apply outline-none transition-all duration-200;
     border: 1px solid hsl(var(--border));
@@ -183,7 +212,7 @@
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
   }
 
-  /* === Botão primário === */
+  /* Estilos do botão principal */
   .btn-primary {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
@@ -200,7 +229,7 @@
     transform: translateY(0);
   }
 
-  /* === Ícone badge === */
+  /* Estilos para ícones e badges */
   .icon-badge {
     @apply w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200;
   }
@@ -370,12 +399,13 @@
 }
 
 .prose-chat pre {
-  background: hsl(220 30% 6%);
+  background: hsl(var(--muted));
   border: 1px solid hsl(var(--border));
   border-radius: 10px;
   padding: 1rem;
   overflow-x: auto;
   margin: 0.75em 0;
+  transition: background 0.3s ease;
 }
 
 .prose-chat pre code {
