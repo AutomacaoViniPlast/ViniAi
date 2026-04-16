@@ -1,6 +1,6 @@
 # ViniAI — Conversação Natural com ChatGPT
 
-**Versão:** 1.1  
+**Versão:** 1.2  
 **Última atualização:** Abril/2026
 
 ---
@@ -17,14 +17,21 @@ e qualquer mensagem que o interpretador de regras não conseguiu classificar.
 
 | Situação | Exemplo | Rota |
 |----------|---------|------|
-| Saudações e conversa casual | "Bom dia!", "tudo bem?", "obrigado" | `smalltalk` → ChatGPT |
-| Pergunta geral sobre a fábrica | "O que é LD?", "me explica revisão" | `smalltalk` → ChatGPT |
-| Mensagem não identificada | "banana amarela", texto sem contexto | `clarify` → ChatGPT |
+| Saudações e despedidas | "Bom dia!", "tchau", "até logo", "boa sorte" | `smalltalk` → ChatGPT |
+| Conversa casual curta | "tudo bem?", "valeu", "show", "beleza" | `smalltalk` → ChatGPT |
+| Explicações conceituais | "O que é LD?", "me explica revisão", "o que é turno?" | `smalltalk` → ChatGPT |
+| Dúvidas e feedback | "não entendi", "muito bom", "ficou claro" | `smalltalk` → ChatGPT |
+| Pedidos de orientação | "como eu consulto o LD?", "como posso ver a produção?" | `smalltalk` → ChatGPT |
+| Mensagem não identificada | texto sem contexto claro | `clarify` → ChatGPT |
 | Consulta de dados de produção | "quem produziu mais LD em janeiro?" | `sql` → Banco direto |
-| "O que você faz?" | "quais suas capacidades?" | `tipos_informacao` → texto fixo |
+| "O que a Ayla faz?" | "o que você consegue?", "quais suas capacidades?" | `tipos_informacao` → texto fixo |
 
 > **Importante:** Consultas de dados vão **direto ao banco SQL**, sem passar pelo ChatGPT.
 > Isso garante rapidez, precisão e sem custo de tokens para as perguntas mais frequentes.
+>
+> **Guard de dados no smalltalk:** se a mensagem contiver LD, produção ou expedição junto com
+> qualquer padrão conversacional, a regra `smalltalk_longa` é ignorada e a mensagem cai nas
+> regras SQL — ex: *"me fale sobre o LD de janeiro"* vai ao banco, não ao ChatGPT.
 
 ---
 
@@ -68,11 +75,16 @@ que data era hoje, levando a respostas com anos errados ou datas inventadas.
 Cada agente tem seu próprio `system_prompt` definido em `agents.py`, que instrui
 o ChatGPT sobre como se comportar, o que sabe e como deve responder.
 
-A Ayla, por exemplo, é instruída a:
+A Ayla é instruída a (v1.2):
 - Responder em português do Brasil de forma natural e calorosa
+- **Saudações proativas:** ao cumprimentar, sempre adicionar uma frase curta e variada
+  oferecendo ajuda — ex: *"Tô aqui! Quer ver algum número da produção?"* — sem listar tudo
+- Explicar conceitos da fábrica (LD, revisão, turno, expedição) de forma acessível
+- Responder com naturalidade a feedback e agradecimentos
+- Nunca começar resposta com "Claro!", "Certamente!" (soa robótico) — variar as aberturas
 - Não inventar dados de produção (eles vêm do banco)
-- Orientar o usuário a reformular perguntas de dados quando necessário
-- Ser breve e objetiva (máximo 3 parágrafos)
+- Orientar o usuário a perguntar sobre período/operador quando faltam detalhes para busca
+- Ser concisa (máximo 3 parágrafos, listas quando listar itens)
 - Usar a data injetada como referência para períodos relativos (v1.1)
 
 ---

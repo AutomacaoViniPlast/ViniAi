@@ -1,6 +1,6 @@
 # ViniAI — Sistema de Agentes
 
-**Versão:** 1.3  
+**Versão:** 1.4  
 **Última atualização:** Abril/2026
 
 ---
@@ -85,11 +85,17 @@ A Ayla é a assistente de **toda a área de Produção**. Ela atende os seguinte
 
 > **Nota:** `kaua.chagas` está em `OPERADORES_ATIVOS` mas ainda não foi adicionado ao setor `producao` em `SETORES`. Para incluí-lo completamente, adicionar `"kaua.chagas"` na lista `operadores` do setor `producao` em `config.py`.
 
-### Conversa Natural
+### Conversa Natural (v1.4)
 Para mensagens que não são consultas de dados, a Ayla usa o **ChatGPT (gpt-4o-mini)**:
-- Saudações e conversa casual
-- Dúvidas conceituais sobre a fábrica
+
+- Saudações e despedidas — responde o cumprimento + oferece ajuda de forma natural e variada
+- Explicações conceituais — "o que é LD?", "como funciona a revisão?", "o que é turno?"
+- Dúvidas gerais sobre a fábrica
+- Feedback e agradecimentos
 - Mensagens não identificadas como consulta
+
+**Guard de dados:** se a mensagem contém LD/produção/expedição, vai para SQL mesmo que
+pareça conversacional — ex: *"me fale sobre o LD de janeiro"* → SQL, não ChatGPT.
 
 Para dados (produção, LD, rankings), usa **SQL direto no banco** — sem custo de LLM.
 

@@ -459,7 +459,7 @@ class RuleBasedInterpreter:
         r"^(oi|ol[aá]|bom\s+dia|boa\s+tarde|boa\s+noite|"
         r"tudo\s+bem|tudo\s+bom|tudo\s+certo|e\s+a[ií]|"
         r"como\s+vai|como\s+voc[eê]\s+est[aá]|"
-        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|boa[!.]*$|"
+        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|boa\b|"
         r"oi\s+tudo|e\s+a[ií]\s+gente|e\s+a[ií]\s+pessoal|"
         r"bom\s+dia\s+ayla|boa\s+tarde\s+ayla|boa\s+noite\s+ayla|"
         r"ol[aá]\s+ayla|oi\s+ayla|"
@@ -562,7 +562,10 @@ class RuleBasedInterpreter:
             )
 
         # ── 4. Conversa natural longa ─────────────────────────────────────────
-        if self._SMALLTALK_LONGA.search(low):
+        # Guard: se a mensagem contém LD ou produção E tem período explícito,
+        # deixa cair para as regras SQL — ex: "me fale sobre o LD de janeiro"
+        _tem_dado = self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
+        if self._SMALLTALK_LONGA.search(low) and not _tem_dado:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
                 confidence=0.90, reasoning="Conversa natural identificada.",
