@@ -135,15 +135,12 @@ main           → importa orchestrator, schemas
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-17 12:10 por `scripts/sync_memory.py`
+> Gerado em 2026-04-17 12:12 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
+- Feat: sistema de memória persistente com Obsidian e auto-sync (2026-04-17)
 - Feat: conversação humanizada da Ayla — saudações proativas e guard de dados (2026-04-16)
 - Melhoria na interpretação (2026-04-16)
-- Merge branch 'baseTestMaycon' (2026-04-16)
-
-**Arquivos alterados nesta sessao:**
-- `CLAUDE.md`
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`
