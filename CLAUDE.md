@@ -1,5 +1,29 @@
 # ViniAI — Contexto do projeto
 
+## Memória do Projeto — Vault Obsidian
+
+**Caminho:** `project_memory/ViniAI-Memoria/`
+
+**Ao iniciar qualquer sessão:** leia `project_memory/ViniAI-Memoria/Hub/Home.md.md` para ter o mapa do vault e decidir quais notas são relevantes para a tarefa.
+
+**Após mudanças de código, atualize a nota correspondente no vault:**
+
+| Se mudou... | Atualizar nota |
+|-------------|---------------|
+| `app/interpreter.py` | `Intencao/Interpretacao-de-Intencao.md.md` |
+| `app/orchestrator.py` | `RAG/RAG-Conversacional.md.md` |
+| `app/agents.py` | `Arquitetura/Agentes.md.md` |
+| `app/config.py` | `Arquitetura/Agentes.md.md` + `Banco-De-Dados/SQLServer.md.md` |
+| `app/permissions.py` | `Integrações/Claude-Code.md.md` |
+| `app/sql_service.py` | `Banco-De-Dados/SQLServer.md.md` |
+| `app/db.py` | `Banco-De-Dados/SQLServer.md.md` + `Banco-De-Dados/PostgreSQL.md.md` |
+| Nova pendência resolvida | `RunBooks/Pendencias.md.md` |
+| Decisão arquitetural tomada | `Decisoes/Decisoes-Tecnicas.md.md` |
+
+**Regra geral:** sempre que fizer commit, verifique se alguma nota do vault precisa ser atualizada para refletir o estado atual do código.
+
+---
+
 ## O que é
 IA de consulta de produção fabril. Backend FastAPI (Python) + SQL Server (dados industriais) + PostgreSQL (histórico de conversas).
 
@@ -107,3 +131,21 @@ main           → importa orchestrator, schemas
 - Comparação entre períodos (intent comparacao_periodos)
 - Novos agentes: Iris (PCP), Maya (Controladoria), Nina (RH), Eva (Vendas)
 - Suporte a queries cruzadas entre tabelas (ex: KARDEX + SH6 para análise completa)
+
+<!-- SYNC_MEMORY:START -->
+
+## Contexto Auto-Atualizado — Última Sessão
+> Gerado em 2026-04-17 12:10 por `scripts/sync_memory.py`
+
+**Ultimos commits:**
+- Feat: conversação humanizada da Ayla — saudações proativas e guard de dados (2026-04-16)
+- Melhoria na interpretação (2026-04-16)
+- Merge branch 'baseTestMaycon' (2026-04-16)
+
+**Arquivos alterados nesta sessao:**
+- `CLAUDE.md`
+
+**Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
+- `kaua.chagas` ausente no setor `producao`
+
+<!-- SYNC_MEMORY:END -->
