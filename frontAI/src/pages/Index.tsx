@@ -149,12 +149,12 @@ const Index = () => {
 
   // Cores inline reativamente ao tema
   const C = {
-    bg: isDark ? "#111010ff" : "#cccccc",
-    sidebar: isDark ? "#0d0d0d" : "#bdbdbd",
-    sidebarBorder: isDark ? "#1e1e1e" : "#9e9e9e",
-    card: isDark ? "#161616" : "#bcbcbc",
-    searchBg: isDark ? "#0d0d0d" : "#b8b8b8",
-    searchBorder: isDark ? "#1e1e1e" : "#949494",
+    bg: isDark ? "#111010ff" : "#c4c4c4",
+    sidebar: isDark ? "#0d0d0d" : "#b5b5b5",
+    sidebarBorder: isDark ? "#1e1e1e" : "#969696",
+    card: isDark ? "#161616" : "#b8b8b8",
+    searchBg: isDark ? "#0d0d0d" : "#b0b0b0",
+    searchBorder: isDark ? "#1e1e1e" : "#8c8c8c",
     convActive: isDark ? "#1a1a1a" : "#a8a8a8",
     convHover: isDark ? "#1a1a1a" : "#a8a8a8",
     text: isDark ? "hsl(0 0% 95%)" : "#010101",
@@ -327,8 +327,7 @@ const Index = () => {
     return (
       <div className="flex h-screen items-center justify-center transition-colors duration-300" style={{ background: C.loadingBg }}>
         <div className="flex flex-col items-center gap-6">
-          <img src={logo2} alt="ViniAI Logo" className="w-16 h-16 object-contain animate-pulse" />
-          <p className="font-medium animate-pulse" style={{ color: C.text, fontSize: "1rem", letterSpacing: "0.05em" }}>Carregando...</p>
+          <img src={logo2} alt="ViniAI Logo" className="w-20 h-20 object-contain animate-pulse" style={{ animationDuration: "1.5s" }} />
         </div>
       </div>
     );
@@ -409,7 +408,7 @@ const Index = () => {
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mt-2"
-                style={{ 
+                style={{
                   color: C.text,
                   background: "transparent",
                   border: "1px solid hsl(var(--border) / 0.15)"
@@ -634,7 +633,7 @@ const Index = () => {
           <button
             onClick={() => setIsSidebarOpen(true)}
             className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
-            style={{ 
+            style={{
               color: C.text,
               background: "transparent",
               border: "1px solid hsl(var(--border) / 0.15)"
