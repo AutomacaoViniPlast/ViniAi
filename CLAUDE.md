@@ -88,10 +88,15 @@ Exemplo: TD2AYBR1BOBR100
                NUNCA entram em rankings de produção (excluídos automaticamente).
 
 ## Setores e operadores (arquivo: app/config.py — fonte da verdade)
-Produção:  (em cadastramento — lista vazia)
-Revisão:   raul.araujo, igor.chiva, ezequiel.nunes
+Produção (extrusora):  pendente — documentação sendo preparada
+Revisão:   raul.araujo, igor.chiva, ezequiel.nunes, kaua.chagas
 Expedição: john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar
 OPERADORES_ATIVOS (escopo padrão): ezequiel.nunes, raul.araujo, kaua.chagas, igor.chiva
+
+## Recursos de produção (extrusoras)
+- Extrusora 1 / MAC 1 → recurso `0003`
+- Extrusora 2 / MAC 2 → recurso `0007`
+> Queries de produção filtrarão por recurso. Regras completas pendentes de documentação do usuário.
 
 ## Estrutura de arquivos
 app/config.py       → setores, operadores e tipos de origem (fonte da verdade)
@@ -135,12 +140,24 @@ main           → importa orchestrator, schemas
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-17 12:12 por `scripts/sync_memory.py`
+> Gerado em 2026-04-20 11:28 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
+- Docs: atualiza CLAUDE.md com instruções do vault Obsidian e bloco de contexto auto-sync (2026-04-17)
 - Feat: sistema de memória persistente com Obsidian e auto-sync (2026-04-17)
 - Feat: conversação humanizada da Ayla — saudações proativas e guard de dados (2026-04-16)
-- Melhoria na interpretação (2026-04-16)
+
+**Arquivos alterados nesta sessao:**
+- `CLAUDE.md`
+- `ai_service_base/ai_service/app/config.py`
+- `ai_service_base/ai_service/app/interpreter.py`
+- `ai_service_base/ai_service/app/orchestrator.py`
+- `ai_service_base/ai_service/app/schemas.py`
+
+**Notas do vault que precisam ser atualizadas:**
+- [[Agentes]] e [[SQLServer]]
+- [[Interpretacao-de-Intencao]]
+- [[RAG-Conversacional]]
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

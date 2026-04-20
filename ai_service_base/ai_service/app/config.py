@@ -40,6 +40,7 @@ SETORES: dict[str, dict] = {
             "raul.araujo",
             "igor.chiva",
             "ezequiel.nunes",
+            "kaua.chagas",
         ],
     },
     "expedicao": {

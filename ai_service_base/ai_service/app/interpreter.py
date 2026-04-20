@@ -410,6 +410,28 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Metros por minuto
+    _METROS_MIN = re.compile(
+        r"metro[s]?\s+por\s+minuto|m[/\s]min|metros?\s*/?\s*min|"
+        r"velocidade\s+(?:da\s+)?(?:m[aá]quina|extrusora)|"
+        r"m[/.]min\b",
+        re.IGNORECASE,
+    )
+
+    # KGH — quilo por hora
+    _KGH = re.compile(
+        r"\bkgh\b|\bkg[/\s]h\b|kg\s+por\s+hora|quilo[s]?\s+por\s+hora|"
+        r"produtividade\s+(?:em\s+)?kg",
+        re.IGNORECASE,
+    )
+
+    # Extrusora / recurso específico
+    _EXTRUSORA = re.compile(
+        r"extrusora\s*([12])|mac\s*([12])|m[aá]quina\s*([12])|"
+        r"\b0003\b|\b0007\b",
+        re.IGNORECASE,
+    )
+
     # Totais gerais da fábrica
     _TOTAL = re.compile(
         r"\btotal\b|\bf[aá]brica\b|\bfabrica\b|\bgeral\b|"
@@ -583,6 +605,7 @@ class RuleBasedInterpreter:
         produto  = self._extract_produto_code(text)
         setor    = self._extract_setor(text)
         origem   = self._extract_origem(text)
+        recursos = self._extract_recurso(text)
 
         # ── 5. Listar operadores de um setor ──────────────────────────────────
         if self._OPERADOR.search(low) and (self._LISTA.search(low) or self._QUEM.search(low)):
@@ -657,6 +680,28 @@ class RuleBasedInterpreter:
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
             )
 
+        # ── 11a. Metros por minuto ────────────────────────────────────────────
+        if self._METROS_MIN.search(low):
+            return InterpretationResult(
+                intent="metros_por_minuto", route="sql",
+                metric="metros_por_minuto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de metros por minuto.",
+            )
+
+        # ── 11b. KGH — KG por hora ────────────────────────────────────────────
+        if self._KGH.search(low):
+            return InterpretationResult(
+                intent="kgh", route="sql",
+                metric="kgh",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de KG por hora.",
+            )
+
         # ── 11. Ranking de PRODUÇÃO com quem/qual/top ─────────────────────────
         # Deve vir ANTES de producao_por_operador para não capturar "quem mais produziu"
         if self._PRODUCAO.search(low) and (
@@ -667,7 +712,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 top_n=top_n or 5,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.86,
                 reasoning="Ranking geral de produção por operador.",
             )
@@ -679,7 +724,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 top_n=top_n or 5,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.82,
                 reasoning="Ranking geral de produção.",
             )
@@ -692,7 +737,7 @@ class RuleBasedInterpreter:
                 entity_value=produto,
                 produto_filtro=produto,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                origem=origem,
+                origem=origem, recursos=recursos,
                 confidence=0.87,
                 reasoning="Produção de produto específico.",
             )
@@ -703,7 +748,7 @@ class RuleBasedInterpreter:
                 intent="producao_por_turno", route="sql",
                 metric="producao_total", entity_type="turno",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.88,
                 reasoning="Produção agrupada por turno.",
             )
@@ -714,7 +759,7 @@ class RuleBasedInterpreter:
                 intent="total_fabrica", route="sql",
                 metric="producao_total",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.85,
                 reasoning="Total geral de produção da fábrica.",
             )
@@ -726,7 +771,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.86,
                 reasoning="Produção do próprio usuário autenticado (primeira pessoa).",
             )
@@ -738,7 +783,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor="expedicao", origem=origem,
+                setor="expedicao", origem=origem, recursos=recursos,
                 confidence=0.83,
                 reasoning="Consulta de expedição.",
             )
@@ -750,7 +795,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.80 if operador else 0.60,
                 reasoning="Produção total por operador.",
             )
@@ -815,3 +860,20 @@ class RuleBasedInterpreter:
     def _extract_produto_code(self, text: str) -> str | None:
         m = _RE_PRODUTO.search(text)
         return m.group(1).upper() if m else None
+
+    def _extract_recurso(self, text: str) -> list[str] | None:
+        """
+        Detecta referência a extrusora/recurso específico.
+        Retorna lista de códigos ou None (padrão = ambas extrusoras no service).
+        """
+        low = text.lower()
+        # Extrusora 1 / MAC1 / Máquina 1
+        if re.search(r"extrusora\s*1|mac\s*1|m[aá]quina\s*1|\b0003\b", low):
+            return ["0003"]
+        # Extrusora 2 / MAC2 / Máquina 2
+        if re.search(r"extrusora\s*2|mac\s*2|m[aá]quina\s*2|\b0007\b", low):
+            return ["0007"]
+        # Revisão explícita (recursos de revisão)
+        if re.search(r"revis[aã]o", low) and not re.search(r"produ[cç][aã]o|extrusora", low):
+            return ["0005", "0006"]
+        return None
