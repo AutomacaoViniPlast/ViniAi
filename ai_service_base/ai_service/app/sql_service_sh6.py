@@ -216,20 +216,22 @@ class SQLServiceSH6:
         recursos: list[str] | None = None,
         is_diaria: bool = False,
     ) -> list[dict]:
-        """Média de KGH agrupada por recurso."""
+        """
+        KGH calculado: SUM(PESO_FILME_PASSADA) / (SUM(MINUTOS) / 60).
+        Agrupado por recurso. Retorna kg_total, horas_totais e kgh_calculado.
+        """
         col_data = "DATA_INI" if is_diaria else "DATA_APONT"
         rec_sql, rec_p = _recursos_clause(recursos)
         fil_sql, fil_p = _filial_clause(filial)
         query = f"""
             SELECT
-                LTRIM(RTRIM(RECURSO)) AS recurso,
-                ROUND(AVG(KGH), 2)    AS media_kgh,
-                COUNT(*)              AS registros
+                LTRIM(RTRIM(RECURSO))        AS recurso,
+                COALESCE(SUM(PESO_FILME_PASSADA), 0) AS total_kg,
+                COALESCE(SUM(MINUTOS), 0)    AS total_minutos
             FROM dbo.STG_PROD_SH6_VPLONAS
             WHERE {col_data} BETWEEN ? AND ?
               {fil_sql}
               {rec_sql}
-              AND KGH IS NOT NULL AND KGH > 0
             GROUP BY LTRIM(RTRIM(RECURSO))
             ORDER BY recurso
         """
@@ -237,15 +239,21 @@ class SQLServiceSH6:
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            return [
-                {
+            rows = []
+            for r in cur.fetchall():
+                total_kg  = float(r[1]) if r[1] else 0.0
+                minutos   = float(r[2]) if r[2] else 0.0
+                horas     = minutos / 60.0
+                # KGH = KG total / horas totais; protege divisão por zero
+                kgh       = round(total_kg / horas, 2) if horas > 0 else 0.0
+                rows.append({
                     "recurso":       r[0],
                     "recurso_label": traduzir_recurso(r[0]),
-                    "media_kgh":     float(r[1]) if r[1] else 0.0,
-                    "registros":     int(r[2]),
-                }
-                for r in cur.fetchall()
-            ]
+                    "total_kg":      total_kg,
+                    "horas":         round(horas, 2),
+                    "kgh":           kgh,
+                })
+            return rows
 
     # ── Produção agrupada por recurso (extrusora) ─────────────────────────────
     def get_producao_por_recurso(

@@ -442,13 +442,18 @@ class ChatOrchestrator:
             rows = self.sql.get_kgh(ini, fim, recursos=recursos, is_diaria=is_diaria)
             if not rows:
                 return f"🔍 Nenhum dado de KGH encontrado{periodo}{rec_lbl}."
+            blocos = []
+            for r in rows:
+                bloco = (
+                    f"**{r['recurso_label']}**\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| KG total | {r['total_kg']:,.2f} KG |\n"
+                    f"| Horas totais | {r['horas']:,.2f} h |\n"
+                    f"| **KGH** | **{r['kgh']:,.2f}** |"
+                )
+                blocos.append(bloco)
             header = f"⚡ **KG/hora por extrusora**{periodo}{rec_lbl}\n\n"
-            header += "| Recurso | Média KGH | Registros |\n|---------|-----------|----------|\n"
-            linhas = "\n".join(
-                f"| {r['recurso_label']} | **{r['media_kgh']:,.2f}** | {r['registros']} |"
-                for r in rows
-            )
-            return header + linhas
+            return header + "\n\n".join(blocos)
 
         # ── Intents KARDEX (comentados durante testes SH6) ────────────────────
         # if ir.intent == "ranking_usuarios_ld": ...
