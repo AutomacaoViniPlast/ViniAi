@@ -139,7 +139,7 @@ class ChatOrchestrator:
 
         # 1. Lê o histórico para passar ao LLM como contexto
         self.context.append_user_message(payload.session_id, payload.message)
-        recent = self.context.get_recent(payload.session_id, limit=16)
+        recent = self.context.get_recent(payload.session_id, limit=32)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
@@ -176,6 +176,21 @@ class ChatOrchestrator:
             if followup_ir:
                 ir = followup_ir
                 print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
+
+        # Caso 3: SQL genérico sem operador → follow-up de recurso/extrusora
+        # Ex: "E na extrusora 2?" após consulta de KGH herda intent kgh + atualiza recurso
+        elif (
+            ir.route == "sql"
+            and ir.intent == "producao_por_operador"
+            and not ir.entity_value
+            and ir.confidence < 0.75
+        ):
+            followup_ir = self._try_context_followup(
+                recent, msg_ini, msg_fim, msg_lbl, recursos_new=ir.recursos,
+            )
+            if followup_ir:
+                ir = followup_ir
+                print(f"[{self.agent_name}] RAG recurso-carry: reutilizando intent '{ir.intent}' com novo recurso.")
 
         # Caso 2: consulta SQL sem período explícito → herda período do histórico
         # Ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?" herda janeiro
@@ -253,6 +268,7 @@ class ChatOrchestrator:
         ini_new: str | None,
         fim_new: str | None,
         lbl_new: str | None,
+        recursos_new: list[str] | None = None,
     ) -> InterpretationResult | None:
         """
         RAG conversacional: quando a mensagem atual só especifica um período
@@ -301,6 +317,9 @@ class ChatOrchestrator:
                     prev_ir.data_fim = fim_new
                 if lbl_new:
                     prev_ir.period_text = lbl_new
+                # Aplica recurso novo (ex: "E na extrusora 2?" atualiza de 0003 para 0007)
+                if recursos_new:
+                    prev_ir.recursos = recursos_new
 
                 prev_ir.route     = "sql"
                 prev_ir.reasoning = f"[context-carry] {prev_ir.reasoning}"
@@ -402,13 +421,41 @@ class ChatOrchestrator:
             )
             return header + linhas
 
+        # ── Comparativo entre extrusoras (SH6) ───────────────────────────────
+        if ir.intent == "comparativo_extrusoras":
+            rows = self.sql.get_producao_por_recurso(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            if not rows:
+                return f"🔍 Nenhum dado encontrado{periodo}{rec_lbl}."
+            header = f"⚙️ **Comparativo de produção por extrusora**{periodo}\n\n"
+            header += "| Extrusora | Total KG | Registros |\n|-----------|----------|----------|\n"
+            linhas = "\n".join(
+                f"| {r['recurso_label']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            # Calcula diferença se houver exatamente 2 máquinas
+            if len(rows) == 2:
+                diff = abs(rows[0]["total_kg"] - rows[1]["total_kg"])
+                lider = rows[0]["recurso_label"] if rows[0]["total_kg"] >= rows[1]["total_kg"] else rows[1]["recurso_label"]
+                linhas += f"\n\n> **{lider}** produziu **{_fmt_kg(diff)}** a mais no período."
+            return header + linhas
+
+        # ── Horas trabalhadas por extrusora (SH6) ─────────────────────────────
+        if ir.intent == "horas_trabalhadas":
+            rows = self.sql.get_horas_trabalhadas(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            if not rows:
+                return f"🔍 Nenhum dado de horas encontrado{periodo}{rec_lbl}."
+            header = f"⏱️ **Horas trabalhadas**{periodo}{rec_lbl}\n\n"
+            header += "| Extrusora | Horas | Minutos |\n|-----------|-------|--------|\n"
+            linhas = "\n".join(
+                f"| {r['recurso_label']} | **{r['horas']:,.2f} h** | {r['minutos']:,.0f} min |"
+                for r in rows
+            )
+            return header + linhas
+
         # ── Produção por operador específico (SH6) ────────────────────────────
         if ir.intent == "producao_por_operador":
             if not ir.entity_value:
-                return (
-                    "❓ Não consegui identificar o operador.\n\n"
-                    "Informe o nome ou pergunte como *'minha produção'* se for sobre você mesmo."
-                )
+                return "❓ Não consegui identificar o operador. Informe o nome completo ou login."
             total = self.sql.get_producao_por_operador(
                 ir.entity_value, ini, fim, recursos=recursos, is_diaria=is_diaria,
             )

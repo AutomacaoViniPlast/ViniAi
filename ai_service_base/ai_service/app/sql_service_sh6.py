@@ -255,6 +255,44 @@ class SQLServiceSH6:
                 })
             return rows
 
+    # ── Horas trabalhadas por recurso ─────────────────────────────────────────
+    def get_horas_trabalhadas(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+        is_diaria: bool = False,
+    ) -> list[dict]:
+        """SUM(MINUTOS) / 60 agrupado por recurso."""
+        col_data = "DATA_INI" if is_diaria else "DATA_APONT"
+        rec_sql, rec_p = _recursos_clause(recursos)
+        fil_sql, fil_p = _filial_clause(filial)
+        query = f"""
+            SELECT
+                LTRIM(RTRIM(RECURSO))   AS recurso,
+                COALESCE(SUM(MINUTOS), 0) AS total_minutos
+            FROM dbo.STG_PROD_SH6_VPLONAS
+            WHERE {col_data} BETWEEN ? AND ?
+              {fil_sql}
+              {rec_sql}
+            GROUP BY LTRIM(RTRIM(RECURSO))
+            ORDER BY recurso
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {
+                    "recurso":       r[0],
+                    "recurso_label": traduzir_recurso(r[0]),
+                    "minutos":       float(r[1]) if r[1] else 0.0,
+                    "horas":         round(float(r[1]) / 60.0, 2) if r[1] else 0.0,
+                }
+                for r in cur.fetchall()
+            ]
+
     # ── Produção agrupada por recurso (extrusora) ─────────────────────────────
     def get_producao_por_recurso(
         self,

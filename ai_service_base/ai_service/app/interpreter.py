@@ -432,6 +432,24 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Comparativo entre extrusoras
+    _COMPARATIVO = re.compile(
+        r"compar[ae]|versus|vs\.?|\bx\b|contra|diferen[cç]a\s+entre|"
+        r"qual\s+(?:extrusora|mac|m[aá]quina)\s+(?:mais|produziu|melhor)|"
+        r"(?:extrusora|mac)\s*1\s+e\s+(?:extrusora|mac)?\s*2|"
+        r"as\s+duas\s+(?:extrusoras?|m[aá]quinas?|macs?)|"
+        r"lado\s+a\s+lado|por\s+(?:extrusora|m[aá]quina|mac)",
+        re.IGNORECASE,
+    )
+
+    # Horas trabalhadas
+    _HORAS = re.compile(
+        r"horas?\s+trabalhadas?|total\s+de\s+horas?|quantas?\s+horas?|"
+        r"horas?\s+(?:de\s+)?(?:produ[cç][aã]o|trabalho|m[aá]quina|extrusora)|"
+        r"tempo\s+(?:de\s+)?(?:produ[cç][aã]o|trabalho|operação)",
+        re.IGNORECASE,
+    )
+
     # Totais gerais da fábrica
     _TOTAL = re.compile(
         r"\btotal\b|\bf[aá]brica\b|\bfabrica\b|\bgeral\b|"
@@ -678,6 +696,31 @@ class RuleBasedInterpreter:
                 setor=setor, origem=origem,
                 confidence=0.70,
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
+            )
+
+        # ── 10a. Comparativo entre extrusoras ────────────────────────────────
+        if self._COMPARATIVO.search(low) or (
+            self._PRODUCAO.search(low) and self._EXTRUSORA.search(low)
+            and not self._QUEM.search(low) and not self._RANKING.search(low)
+        ):
+            return InterpretationResult(
+                intent="comparativo_extrusoras", route="sql",
+                metric="producao_total",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.92,
+                reasoning="Comparativo de produção entre extrusoras.",
+            )
+
+        # ── 10b. Horas trabalhadas ────────────────────────────────────────────
+        if self._HORAS.search(low):
+            return InterpretationResult(
+                intent="horas_trabalhadas", route="sql",
+                metric="horas_trabalhadas",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.93,
+                reasoning="Consulta de horas trabalhadas por extrusora.",
             )
 
         # ── 11a. Metros por minuto ────────────────────────────────────────────
