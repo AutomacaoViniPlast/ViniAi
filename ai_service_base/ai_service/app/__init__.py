@@ -13,5 +13,6 @@ Pacote principal da aplicação FastAPI. Estrutura de módulos:
   orchestrator.py  → Orquestrador principal: interpreta → verifica permissão → responde
   permissions.py   → Controle de acesso por setor e mensagem formal de LGPD
   schemas.py       → Modelos Pydantic de entrada e saída da API
-  sql_service.py   → Queries SQL executadas contra a view v_kardex_ld
+  sql_service_kardex.py → Queries SQL para a view dbo.V_KARDEX (LD, TES, TURNO, LOTE)
+  sql_service_sh6.py    → Queries SQL para dbo.STG_PROD_SH6_VPLONAS (produção extrusoras)
 """
