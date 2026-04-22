@@ -12,5 +12,3 @@ frontAI/node_modules/
 backend/node_modules/
 logs/
 *.log
-project_memory/
-CLAUDE.md

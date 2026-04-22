@@ -1,0 +1,220 @@
+{
+  "main": {
+    "id": "04dafa3258d05dbb",
+    "type": "split",
+    "children": [
+      {
+        "id": "5a9a971b3bb3fe42",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a2c59f3ffa7b6ae4",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Visualização em gráfico"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "e431688e66aae3df",
+    "type": "split",
+    "children": [
+      {
+        "id": "2d0e17fd632d832d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "3c8af6abb6b8b11b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorador de arquivos"
+            }
+          },
+          {
+            "id": "e6812bb3ad6fbae6",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Procurar"
+            }
+          },
+          {
+            "id": "bf6320e783680149",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Marcadores"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 200
+  },
+  "right": {
+    "id": "3ddbeb67c2dc8374",
+    "type": "split",
+    "children": [
+      {
+        "id": "5dbc7896e313a202",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "cf78c9d1adff195f",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Decisoes/Decisoes-Tecnicas.md.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Links inversos para Decisoes-Tecnicas.md"
+            }
+          },
+          {
+            "id": "42ee9cb0282ffc54",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Links de saída"
+            }
+          },
+          {
+            "id": "c01f73ffe6252789",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Etiquetas"
+            }
+          },
+          {
+            "id": "0df9389d23bc9aa8",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Todas as propriedades"
+            }
+          },
+          {
+            "id": "f729c3150b897d29",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Sumário"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Abrir a troca rápida": false,
+      "graph:Abrir visualização em gráfico": false,
+      "canvas:Criar novo canvas": false,
+      "daily-notes:Abrir a nota de hoje": false,
+      "templates:Inserir modelo": false,
+      "command-palette:Abrir paleta de comandos": false,
+      "bases:Criar nova base": false
+    }
+  },
+  "active": "a2c59f3ffa7b6ae4",
+  "lastOpenFiles": [
+    "Decisoes/Decisoes-Tecnicas.md.md",
+    "Banco-De-Dados/PostgreSQL.md.md",
+    "Banco-De-Dados/SQLServer.md.md",
+    "Pendencias.md",
+    "SQLServer.md",
+    "Arquitetura-Geral.md",
+    "Projeto/Visão-Geral.md.md",
+    "Memoria-IA/Memoria-Do-Projeto.md.md",
+    "Temp/sessao_2026-04-20.md",
+    "Hub/Home.md.md",
+    "RunBooks/Changelog.md.md",
+    "Arquitetura/Arquitetura-geral.md.md",
+    "Agentes.md",
+    "Temp/sessao_2026-04-17.md",
+    "N8N/Fluxos-n8n.md.md",
+    "Integrações/Claude-Code.md.md",
+    "Deploy.md",
+    "RAG-Conversacional.md",
+    "Visão-Geral.md",
+    "RAG/RAG-Conversacional.md.md",
+    "Arquitetura/Agentes.md.md",
+    "RunBooks/Pendencias.md.md",
+    "RunBooks/Deploy.md.md",
+    "Intencao/Interpretacao-de-Intencao.md.md",
+    "Sem título.md",
+    "Temp",
+    "Decisoes",
+    "RunBooks",
+    "Sem título.canvas",
+    "N8N",
+    "Intencao",
+    "RAG",
+    "Banco-De-Dados",
+    "Integrações",
+    "Memoria-IA",
+    "Arquitetura",
+    "Bem-vindo.md"
+  ]
+}
