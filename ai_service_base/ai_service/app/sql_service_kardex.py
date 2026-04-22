@@ -2,40 +2,54 @@
 sql_service_kardex.py — Queries SQL para a view dbo.V_KARDEX no SQL Server (METABASE).
 
 Escopo desta view:
-  V_KARDEX representa movimentações de materiais relacionadas à produção, revisão
-  e movimentação interna. É consultada quando a request envolver: OP, TURNO, TES,
-  qualidade do material (Y=LD / I=Inteiro), lote, ou detalhamento de movimentação.
+  V_KARDEX representa movimentações de estoque, produção, entradas, saídas e registros
+  operacionais relacionados aos materiais da empresa.
+
+  Consultada quando o request envolver: OP, TURNO, TES, qualidade do material
+  (Y=LD / I=Inteiro / P=Fora de Padrão), LOTE, FAMILIA, UNIDADE ou detalhamento
+  de movimentação.
 
   Consultas de apontamento de extrusoras (KGH, m/min, ranking de peso) continuam
   sendo atendidas por sql_service_sh6.py (tabela STG_PROD_SH6_VPLONAS).
 
 Colunas da view:
   FILIAL      → empresa (ver FILIAL_MAP)
-  ORIGEM      → SD1, SD2, SD3 — filtro opcional
+  ORIGEM      → SD1=Entrada, SD2=Saída, SD3=Movimentação Interna (ver ORIGEM_MAP)
+  OP          → Ordem de Produção (gerada pelo PCP)
   EMISSAO     → date — campo principal de filtro por período
-  TES         → tipo de movimentação (ver TES_MAP)
+  LOCAL       → armazém (ver LOCAL_ARMAZENS_CONHECIDOS — significados pendentes)
+  TES         → tipo de movimentação (ver TES_MAP — PENDENTE: detalhamento completo)
   PRODUTO     → código do produto — ver parse_produto()
   DESCRICAO   → descrição completa do material
-  LOTE        → sequência gerada ao lançar bobina na produção
-  QUANTIDADE  → total produzido/movimentado
-                PENDENTE: TES 999 (saída) retorna valores negativos — confirmar
-                lógica de sinal e tratamento de saldo antes de implementar
+  TIPO        → PENDENTE: sem regra definida ainda
+  UM          → unidade de medida principal: KG | MT
+  LOTE        → sequência gerada ao registrar bobina na produção
+  QUANTIDADE  → total produzido/movimentado — sempre lido em conjunto com UM
   USUARIO     → operador que registrou o movimento
-  LOCAL_OP    → localização de operação. Valor atual mapeado: 'EXTRUSAO' (produção)
-                PENDENTE: mapear demais valores de LOCAL_OP
+  LOCAL_OP    → localização operacional (padrão: EXTRUSAO)
+               PENDENTE: mapear demais valores de LOCAL_OP
+  FAMILIA     → família do produto (3 primeiros chars de PRODUTO) — coluna direta da view
+  COR_FRENTE  → cor frente (prioritária sobre inferência do parser)
+  COR_MEIO    → cor meio (prioritária sobre inferência do parser)
+  COR_VERSO   → cor verso (prioritária sobre inferência do parser)
   TURNO       → turno — filtrado somente quando explicitamente solicitado
+  HORA        → hora do apontamento
+  QTSEGUM     → segunda quantidade — lida com UM2, regra especial de unidade por qualidade
   RECURSO     → extrusora (ver RECURSO_MAP)
-  QUALIDADE   → Y=LD, I=Inteiro (equivalente à posição 5 do código PRODUTO)
+  QUALIDADE   → Y=LD, I=Inteiro, P=Fora de Padrão (posição 5 do código PRODUTO)
+  USR_LIB_APO → usuário que libera o apontamento quando o lançamento está bloqueado
 
 Regras de query (SQL Server — pyodbc):
   - Parâmetros com ? (nunca %s)
   - Sempre LTRIM(RTRIM(campo)) para remover espaços
-  - Case-insensitive: UPPER(col) ou LOWER(col) conforme convenção do campo
+  - Case-insensitive: UPPER(col) conforme necessário
   - Paginação: TOP N (não LIMIT)
-  - Filtro de filial é sempre aplicado (padrão: 010101)
-  - LOCAL_OP é aplicado em todas as consultas de produção/soma
-  - Filtro por TURNO somente quando o usuário solicitar explicitamente
-  - Filtro por ORIGEM é opcional
+  - Filial padrão: 010101
+  - LOCAL_OP padrão: EXTRUSAO em consultas de produção/soma
+  - TURNO filtrado apenas quando o usuário solicitar explicitamente
+  - ORIGEM: filtro opcional
+  - TES 010: bloqueada — não exposta nem via solicitação direta
+  - QUANTIDADE + UM: nunca somar unidades diferentes sem separação explícita
 """
 from __future__ import annotations
 
@@ -44,11 +58,13 @@ from decimal import Decimal
 from app.db import get_mssql_conn
 
 
-# ── Constantes e Mapeamentos ──────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# CONSTANTES E MAPEAMENTOS
+# ══════════════════════════════════════════════════════════════════════════════
 
 FILIAL_MAP: dict[str, str] = {
     "010101": "VINIPLAST",
-    "010201": "VINITRADE INDUSTRIA E COMERCIO LTDA",
+    "010201": "MKTRADING",  # razão social: VINITRADE INDUSTRIA E COMERCIO LTDA
 }
 FILIAL_PADRAO = "010101"
 
@@ -57,88 +73,190 @@ RECURSO_MAP: dict[str, str] = {
     "0007": "Extrusora 2 (MAC2)",
 }
 
-# TES — Tipos de entrada/saída conhecidos
-# TES 010: existente no banco, mas sem mapeamento definitivo — mantida comentada
+# Qualidade do material — lida da posição 5 do código PRODUTO ou do campo QUALIDADE da view.
+# MSP008 é caso especial (BAG), não segue leitura posicional.
+QUALIDADE_MAP: dict[str, str] = {
+    "Y":   "LD / Leves Defeitos",
+    "I":   "Inteiro",
+    "P":   "Fora de Padrão",
+    "BAG": "BAG",
+}
+
+# TES — tipos de movimentação conhecidos.
+# TES 010: existente no banco, sem mapeamento definitivo — bloqueada.
+# PENDENTE: detalhamento completo de TES será fornecido pelo usuário.
 TES_MAP: dict[str, str] = {
     "499": "Movimentação interna de entrada (entrada de estoque)",
     "999": "Movimentação interna de saída",
-    "502": "Inconsistência XML — dados da nota não batem com a chave do XML (CNPJ, IE, Data, Modelo, Série, Número ou Tipo Emissão)",
+    "502": "Inconsistência XML — dados da nota não batem com a chave do XML",
     # "010": "— significado pendente de mapeamento —",
 }
 TES_ATIVAS: tuple[str, ...] = tuple(TES_MAP.keys())  # ("499", "999", "502")
 
-# LOCAL_OP para consultas de produção (extrusão)
-# PENDENTE: mapear outros valores de LOCAL_OP além de EXTRUSAO
+# Origens com descrição detalhada para exibição amigável.
+ORIGEM_MAP: dict[str, dict] = {
+    "SD1": {
+        "label": "Entrada",
+        "descricao": "Itens de notas fiscais de entrada (compra, devolução de venda, transferência recebida)",
+    },
+    "SD2": {
+        "label": "Saída",
+        "descricao": "Itens de notas fiscais de saída (vendas, remessas, transferências enviadas)",
+    },
+    "SD3": {
+        "label": "Movimentação Interna",
+        "descricao": "Movimentações internas sem NF (requisição, devolução interna, transferência)",
+    },
+}
+ORIGENS_VALIDAS: tuple[str, ...] = tuple(ORIGEM_MAP.keys())
+
+# Unidades de medida válidas para QUANTIDADE e QTSEGUM.
+UM_VALIDAS: tuple[str, ...] = ("KG", "MT")
+
+# LOCAL_OP padrão para consultas de produção (extrusão).
+# PENDENTE: mapear outros valores de LOCAL_OP além de EXTRUSAO.
 LOCAL_OP_PRODUCAO = "EXTRUSAO"
 
-# Origens conhecidas — filtro opcional
-ORIGENS_VALIDAS: tuple[str, ...] = ("SD1", "SD2", "SD3")
+# LOCAL (armazém) — valores identificados no banco, sem mapeamento de significado.
+# PENDENTE: o usuário irá detalhar o significado de cada armazém.
+LOCAL_ARMAZENS_CONHECIDOS: tuple[str, ...] = (
+    "01", "10", "12", "15", "20", "35", "40", "50", "60"
+)
 
 
-# ── Parser de produto ─────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# PARSER E TRADUTORES
+# ══════════════════════════════════════════════════════════════════════════════
 
 def parse_produto(codigo: str) -> dict:
     """
-    Interpreta o código do produto conforme regra da view V_KARDEX.
+    Interpreta estruturalmente o código do produto conforme regras da view V_KARDEX.
 
     Estrutura do código (exemplo: CLILA0600L0400A):
-      Posições 1-3  → código-base do produto          (ex: CLI)
-      Posição 5     → tipo de material: Y=LD, I=Inteiro
-      Posições 6-8  → cor 1                            (ex: A06)
-      Posições 11-13 → cor 2                           (ex: 040)
+      Posições 1–3  → família/código-base           (ex: CLI)
+      Posição 5     → qualidade: Y=LD, I=Inteiro, P=Fora de Padrão
+      Posições 6–8  → cor frente (inferida)
+      Posições 11–13→ cor verso (inferida)
 
-    Pontos de extensão futuros (não implementados ainda):
-      - Significado dos códigos-base (CLI, SUF, etc.) — aguarda documentação
-      - Variedades e variações de cor além das posições definidas
+    Caso especial:
+      MSP008 → BAG — identificação especial, não segue o padrão posicional.
+
+    IMPORTANTE: quando as colunas COR_FRENTE, COR_MEIO e COR_VERSO estiverem disponíveis
+    na query, elas devem ser priorizadas sobre os valores inferidos aqui.
+
+    Retorna estrutura segura (parcial) quando o código for incompleto ou nulo.
     """
     c = (codigo or "").strip()
-    codigo_base = c[0:3] if len(c) >= 3 else c
+
+    # Caso especial: produto BAG
+    if c.upper() == "MSP008":
+        return {
+            "codigo_produto_original": c,
+            "familia": "MSP",
+            "qualidade_material": "BAG",
+            "qualidade_descricao": QUALIDADE_MAP["BAG"],
+            "posicao_5_raw": None,
+            "cor_frente_inferida": None,
+            "cor_meio_inferida": None,   # posição no código não mapeada para este tipo
+            "cor_verso_inferida": None,
+            "is_bag": True,
+        }
+
+    familia = c[0:3] if len(c) >= 3 else (c or None)
     posicao_5 = c[4] if len(c) >= 5 else None
-    tipo_material = "LD" if posicao_5 == "Y" else ("INTEIRO" if posicao_5 == "I" else None)
-    cor_1 = c[5:8] if len(c) >= 8 else None
-    cor_2 = c[10:13] if len(c) >= 13 else None
+    qualidade_material = posicao_5 if posicao_5 in QUALIDADE_MAP else None
+    qualidade_descricao = QUALIDADE_MAP.get(posicao_5) if posicao_5 else None
 
     return {
-        "codigo_raw": c,
-        "codigo_base": codigo_base,
-        "tipo_material": tipo_material,   # "LD" | "INTEIRO" | None
-        "posicao_5_raw": posicao_5,       # "Y" | "I" | None
-        "cor_1": cor_1,
-        "cor_2": cor_2,
+        "codigo_produto_original": c,
+        "familia": familia,
+        "qualidade_material": qualidade_material,    # "Y" | "I" | "P" | None
+        "qualidade_descricao": qualidade_descricao,  # ex: "LD / Leves Defeitos" | None
+        "posicao_5_raw": posicao_5,
+        # Cores inferidas do código — usar colunas COR_FRENTE/COR_MEIO/COR_VERSO quando disponíveis.
+        "cor_frente_inferida": c[5:8] if len(c) >= 8 else None,
+        "cor_meio_inferida": None,          # posição no código não mapeada — aguarda documentação
+        "cor_verso_inferida": c[10:13] if len(c) >= 13 else None,
+        "is_bag": False,
     }
 
 
-def traduzir_recurso(recurso: str) -> str:
-    return RECURSO_MAP.get((recurso or "").strip(), (recurso or "").strip())
+def resolve_qualidade_produto(produto: str) -> str | None:
+    """Extrai apenas a qualidade do código do produto. Retorna 'Y', 'I', 'P', 'BAG' ou None."""
+    return parse_produto(produto)["qualidade_material"]
+
+
+def resolve_segunda_unidade_por_qualidade(qualidade: str | None) -> str | None:
+    """
+    Retorna a unidade de medida efetiva para QTSEGUM com base na qualidade do material.
+
+    Regra exclusiva para QTSEGUM (não confundir com QUANTIDADE + UM):
+      I / P   → KG
+      Y / BAG → MT
+
+    Retorna None quando a qualidade não for reconhecida.
+    """
+    if qualidade in ("I", "P"):
+        return "KG"
+    if qualidade in ("Y", "BAG"):
+        return "MT"
+    return None
+
+
+def normalize_quantidade_por_unidade(quantidade: float | None, um: str | None) -> dict:
+    """
+    Retorna a quantidade normalizada junto com sua unidade.
+    Nunca mistura unidades — o par (valor, unidade) é sempre retornado junto.
+    """
+    return {
+        "valor": quantidade if quantidade is not None else 0.0,
+        "unidade": (um or "").strip().upper() or None,
+    }
 
 
 def traduzir_filial(filial: str) -> str:
     return FILIAL_MAP.get((filial or "").strip(), (filial or "").strip())
 
 
-# ── Helpers internos de cláusula SQL ─────────────────────────────────────────
+def traduzir_recurso(recurso: str) -> str:
+    return RECURSO_MAP.get((recurso or "").strip(), (recurso or "").strip())
+
+
+def traduzir_origem(origem: str) -> str:
+    """Retorna o label amigável da origem (ex: 'SD2' → 'Saída')."""
+    return ORIGEM_MAP.get((origem or "").strip().upper(), {}).get("label", (origem or "").strip())
+
+
+def traduzir_qualidade(qualidade: str | None) -> str | None:
+    """Retorna a descrição amigável da qualidade (ex: 'Y' → 'LD / Leves Defeitos')."""
+    return QUALIDADE_MAP.get((qualidade or "").strip().upper())
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS DE CLÁUSULAS SQL
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _parse_date(date_str: str):
     """Converte string DD/MM/YYYY em datetime.date para pyodbc."""
     return datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
 
 
+def _rows_as_dicts(cur) -> list[dict]:
+    """Converte resultado do cursor em lista de dicts usando os nomes das colunas."""
+    cols = [d[0] for d in cur.description]
+    return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+
 def _filial_clause(filial: str | None) -> tuple[str, list]:
-    """Filial padrão 010101 quando não especificada."""
     return "AND LTRIM(RTRIM(FILIAL)) = ?", [filial or FILIAL_PADRAO]
 
 
 def _local_op_clause(local_op: str = LOCAL_OP_PRODUCAO) -> tuple[str, list]:
-    """
-    Filtro de LOCAL_OP para consultas de produção.
-    Usa UPPER() para comparação segura independente de capitalização no banco.
-    PENDENTE: mapear outros valores de LOCAL_OP além de EXTRUSAO.
-    """
+    # PENDENTE: mapear outros valores de LOCAL_OP além de EXTRUSAO.
     return "AND UPPER(LTRIM(RTRIM(LOCAL_OP))) = UPPER(?)", [local_op]
 
 
 def _origem_clause(origem: str | None) -> tuple[str, list]:
-    """Filtro opcional por origem (SD1, SD2, SD3)."""
     if origem and origem.upper() in ORIGENS_VALIDAS:
         return "AND LTRIM(RTRIM(ORIGEM)) = ?", [origem.upper()]
     return "", []
@@ -159,16 +277,53 @@ def _turno_clause(turno: str | None) -> tuple[str, list]:
 
 
 def _tes_clause(tes: str | list[str] | None) -> tuple[str, list]:
-    """
-    Filtro por TES. Aceita string única ou lista.
-    Apenas TES mapeadas em TES_ATIVAS são aceitas (TES 010 bloqueada).
-    """
+    """TES 010 bloqueada — não aceita mesmo se solicitada explicitamente."""
     if tes:
         valores = [tes] if isinstance(tes, str) else list(tes)
         validos = [t for t in valores if t in TES_ATIVAS]
         if validos:
             ph = ", ".join(["?"] * len(validos))
             return f"AND LTRIM(RTRIM(TES)) IN ({ph})", validos
+    return "", []
+
+
+def _qualidade_clause(qualidade: str | list[str] | None) -> tuple[str, list]:
+    """Filtro pelo campo QUALIDADE da view (Y, I, P)."""
+    if qualidade:
+        valores = [qualidade] if isinstance(qualidade, str) else list(qualidade)
+        validos = [q.upper() for q in valores if q.upper() in QUALIDADE_MAP]
+        if validos:
+            ph = ", ".join(["?"] * len(validos))
+            return f"AND LTRIM(RTRIM(QUALIDADE)) IN ({ph})", validos
+    return "", []
+
+
+def _op_clause(op: str | None) -> tuple[str, list]:
+    if op:
+        return "AND LTRIM(RTRIM(OP)) = ?", [op.strip()]
+    return "", []
+
+
+def _lote_clause(lote: str | None) -> tuple[str, list]:
+    if lote:
+        return "AND LTRIM(RTRIM(LOTE)) = ?", [lote.strip()]
+    return "", []
+
+
+def _local_armazem_clause(local: str | None) -> tuple[str, list]:
+    """
+    Filtro por LOCAL (armazém).
+    PENDENTE: o significado de cada armazém será detalhado pelo usuário.
+    """
+    if local:
+        return "AND LTRIM(RTRIM(LOCAL)) = ?", [local.strip()]
+    return "", []
+
+
+def _familia_clause(familia: str | None) -> tuple[str, list]:
+    """Filtro pelo campo FAMILIA da view (3 primeiros chars do produto)."""
+    if familia:
+        return "AND UPPER(LTRIM(RTRIM(FAMILIA))) = UPPER(?)", [familia.strip()]
     return "", []
 
 
@@ -186,10 +341,22 @@ def _excluir_clause(usuarios: list[str] | None) -> tuple[str, list]:
     return "", []
 
 
-# ── Service ───────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# SERVICE
+# ══════════════════════════════════════════════════════════════════════════════
 
 class SQLServiceKardex:
-    """Executa consultas na view dbo.V_KARDEX e retorna dados brutos para o orchestrator."""
+    """
+    Executa consultas na view dbo.V_KARDEX e retorna dados estruturados para o orchestrator.
+
+    Regras gerais:
+      - Filial padrão: 010101 (VINIPLAST)
+      - LOCAL_OP padrão: EXTRUSAO em consultas de produção
+      - QUANTIDADE sempre separada por UM — métodos agregados retornam {"KG": ..., "MT": ...}
+      - QTSEGUM lida com regra de unidade por qualidade via resolve_segunda_unidade_por_qualidade()
+      - COR_FRENTE, COR_MEIO, COR_VERSO priorizadas sobre inferência do parser
+      - TES 010 bloqueada em todas as queries
+    """
 
     # ── Produção total por período ────────────────────────────────────────────
     def get_producao_total(
@@ -199,31 +366,36 @@ class SQLServiceKardex:
         filial: str | None = None,
         recursos: list[str] | None = None,
         origem: str | None = None,
-    ) -> Decimal:
+    ) -> dict[str, Decimal]:
         """
-        Soma de QUANTIDADE filtrado por LOCAL_OP=EXTRUSAO.
-        Retorna o total de material produzido no período.
+        Soma de QUANTIDADE separada por UM (KG, MT), filtrado por LOCAL_OP=EXTRUSAO.
+        Retorna {"KG": Decimal(...), "MT": Decimal(...)}.
         """
         fil_sql, fil_p = _filial_clause(filial)
-        loc_sql, loc_p = _local_op_clause(LOCAL_OP_PRODUCAO)
+        loc_sql, loc_p = _local_op_clause()
         rec_sql, rec_p = _recurso_clause(recursos)
         ori_sql, ori_p = _origem_clause(origem)
 
         query = f"""
-            SELECT COALESCE(SUM(QUANTIDADE), 0)
+            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               {fil_sql}
               {loc_sql}
               {rec_sql}
               {ori_sql}
+            GROUP BY LTRIM(RTRIM(UM))
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + rec_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            row = cur.fetchone()
-            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
+            resultado = {um: Decimal("0") for um in UM_VALIDAS}
+            for row in cur.fetchall():
+                um = (row[0] or "").strip().upper()
+                if um in resultado:
+                    resultado[um] = Decimal(str(row[1]))
+            return resultado
 
     # ── Produção por operador ─────────────────────────────────────────────────
     def get_producao_por_operador(
@@ -234,14 +406,15 @@ class SQLServiceKardex:
         filial: str | None = None,
         recursos: list[str] | None = None,
         origem: str | None = None,
-    ) -> Decimal:
+    ) -> dict[str, Decimal]:
+        """Soma de QUANTIDADE por UM para um operador específico."""
         fil_sql, fil_p = _filial_clause(filial)
-        loc_sql, loc_p = _local_op_clause(LOCAL_OP_PRODUCAO)
+        loc_sql, loc_p = _local_op_clause()
         rec_sql, rec_p = _recurso_clause(recursos)
         ori_sql, ori_p = _origem_clause(origem)
 
         query = f"""
-            SELECT COALESCE(SUM(QUANTIDADE), 0)
+            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
             FROM dbo.V_KARDEX
             WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
               AND EMISSAO BETWEEN ? AND ?
@@ -249,13 +422,18 @@ class SQLServiceKardex:
               {loc_sql}
               {rec_sql}
               {ori_sql}
+            GROUP BY LTRIM(RTRIM(UM))
         """
         params = [f"%{operador.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + rec_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            row = cur.fetchone()
-            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
+            resultado = {um: Decimal("0") for um in UM_VALIDAS}
+            for row in cur.fetchall():
+                um = (row[0] or "").strip().upper()
+                if um in resultado:
+                    resultado[um] = Decimal(str(row[1]))
+            return resultado
 
     # ── LD por operador ───────────────────────────────────────────────────────
     def get_ld_por_operador(
@@ -265,25 +443,34 @@ class SQLServiceKardex:
         data_fim: str,
         filial: str | None = None,
         origem: str | None = None,
-    ) -> Decimal:
+    ) -> dict[str, Decimal]:
+        """
+        Soma de QUANTIDADE para QUALIDADE='Y' (LD) por UM.
+        PENDENTE: confirmar se registros de LD podem ter UM=MT na prática.
+        """
         fil_sql, fil_p = _filial_clause(filial)
         ori_sql, ori_p = _origem_clause(origem)
 
         query = f"""
-            SELECT COALESCE(SUM(QUANTIDADE), 0)
+            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
             FROM dbo.V_KARDEX
             WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
               AND EMISSAO BETWEEN ? AND ?
-              AND QUALIDADE = 'Y'
+              AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
               {fil_sql}
               {ori_sql}
+            GROUP BY LTRIM(RTRIM(UM))
         """
         params = [f"%{operador.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + fil_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            row = cur.fetchone()
-            return Decimal(str(row[0])) if row and row[0] is not None else Decimal("0")
+            resultado = {um: Decimal("0") for um in UM_VALIDAS}
+            for row in cur.fetchall():
+                um = (row[0] or "").strip().upper()
+                if um in resultado:
+                    resultado[um] = Decimal(str(row[1]))
+            return resultado
 
     # ── Ranking de LD por operador ────────────────────────────────────────────
     def get_ranking_ld(
@@ -291,40 +478,51 @@ class SQLServiceKardex:
         data_inicio: str,
         data_fim: str,
         limite: int = 5,
+        unidade: str = "KG",
         filial: str | None = None,
         recursos: list[str] | None = None,
         origem: str | None = None,
         filtro_usuarios: list[str] | None = None,
         excluir_usuarios: list[str] | None = None,
     ) -> list[dict]:
-        """Ranking de operadores por quantidade de LD (QUALIDADE = 'Y')."""
+        """
+        Ranking de operadores por quantidade de LD (QUALIDADE='Y').
+        O parâmetro `unidade` garante que o ranking compare grandezas equivalentes (KG ou MT).
+        """
         fil_sql, fil_p = _filial_clause(filial)
         rec_sql, rec_p = _recurso_clause(recursos)
         ori_sql, ori_p = _origem_clause(origem)
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
         excl_sql, excl_p = _excluir_clause(excluir_usuarios)
+        um_filtrado = (unidade or "KG").upper()
 
         query = f"""
             SELECT TOP {limite}
                 LTRIM(RTRIM(USUARIO)) AS operador,
-                SUM(QUANTIDADE)       AS total_kg
+                SUM(QUANTIDADE)       AS total
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND QUALIDADE = 'Y'
+              AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
+              AND UPPER(LTRIM(RTRIM(UM))) = ?
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
               {excl_sql}
             GROUP BY LTRIM(RTRIM(USUARIO))
-            ORDER BY total_kg DESC
+            ORDER BY total DESC
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p + ori_p + incl_p + excl_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim), um_filtrado] + fil_p + rec_p + ori_p + incl_p + excl_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
             return [
-                {"posicao": i + 1, "operador": r[0], "total_kg": float(r[1])}
+                {
+                    "posicao": i + 1,
+                    "operador": r[0],
+                    "total": float(r[1]),
+                    "unidade": um_filtrado,
+                }
                 for i, r in enumerate(cur.fetchall())
             ]
 
@@ -334,6 +532,7 @@ class SQLServiceKardex:
         data_inicio: str,
         data_fim: str,
         limite: int = 5,
+        unidade: str = "KG",
         filial: str | None = None,
         origem: str | None = None,
         filtro_usuarios: list[str] | None = None,
@@ -341,36 +540,49 @@ class SQLServiceKardex:
         fil_sql, fil_p = _filial_clause(filial)
         ori_sql, ori_p = _origem_clause(origem)
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
+        um_filtrado = (unidade or "KG").upper()
 
         query = f"""
             SELECT TOP {limite}
-                LTRIM(RTRIM(PRODUTO))             AS produto,
-                MAX(LTRIM(RTRIM(DESCRICAO)))      AS descricao,
-                SUM(QUANTIDADE)                   AS total_kg,
-                COUNT(*)                          AS ocorrencias
+                LTRIM(RTRIM(PRODUTO))          AS produto,
+                MAX(LTRIM(RTRIM(DESCRICAO)))   AS descricao,
+                MAX(LTRIM(RTRIM(FAMILIA)))     AS familia,
+                MAX(LTRIM(RTRIM(COR_FRENTE)))  AS cor_frente,
+                MAX(LTRIM(RTRIM(COR_MEIO)))    AS cor_meio,
+                MAX(LTRIM(RTRIM(COR_VERSO)))   AS cor_verso,
+                SUM(QUANTIDADE)                AS total,
+                COUNT(*)                       AS ocorrencias
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND QUALIDADE = 'Y'
+              AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
+              AND UPPER(LTRIM(RTRIM(UM))) = ?
               {fil_sql}
               {ori_sql}
               {incl_sql}
             GROUP BY LTRIM(RTRIM(PRODUTO))
-            ORDER BY total_kg DESC
+            ORDER BY total DESC
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + ori_p + incl_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim), um_filtrado] + fil_p + ori_p + incl_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
+            rows = cur.fetchall()
             return [
                 {
                     "posicao": i + 1,
                     "produto": r[0],
                     "descricao": r[1],
-                    "total_kg": float(r[2]),
-                    "ocorrencias": int(r[3]),
-                    "parsed": parse_produto(r[0]),
+                    # Coluna FAMILIA da view tem prioridade; fallback para inferência do parser.
+                    "familia": r[2] or parse_produto(r[0])["familia"],
+                    "cor_frente": r[3],
+                    "cor_meio": r[4],
+                    "cor_verso": r[5],
+                    "total": float(r[6]),
+                    "unidade": um_filtrado,
+                    "ocorrencias": int(r[7]),
+                    "parsed_produto": parse_produto(r[0]),
                 }
-                for i, r in enumerate(cur.fetchall())
+                for i, r in enumerate(rows)
             ]
 
     # ── Produção por turno ────────────────────────────────────────────────────
@@ -384,11 +596,11 @@ class SQLServiceKardex:
         filtro_usuarios: list[str] | None = None,
     ) -> list[dict]:
         """
-        Agrega QUANTIDADE por TURNO.
+        Agrega QUANTIDADE por TURNO e UM.
         Sempre aplica LOCAL_OP=EXTRUSAO — turno só é relevante em contexto de produção.
         """
         fil_sql, fil_p = _filial_clause(filial)
-        loc_sql, loc_p = _local_op_clause(LOCAL_OP_PRODUCAO)
+        loc_sql, loc_p = _local_op_clause()
         rec_sql, rec_p = _recurso_clause(recursos)
         ori_sql, ori_p = _origem_clause(origem)
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
@@ -396,7 +608,8 @@ class SQLServiceKardex:
         query = f"""
             SELECT
                 LTRIM(RTRIM(TURNO)) AS turno,
-                SUM(QUANTIDADE)     AS total_kg,
+                LTRIM(RTRIM(UM))    AS unidade,
+                SUM(QUANTIDADE)     AS total,
                 COUNT(*)            AS registros
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
@@ -405,15 +618,20 @@ class SQLServiceKardex:
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(TURNO))
-            ORDER BY total_kg DESC
+            GROUP BY LTRIM(RTRIM(TURNO)), LTRIM(RTRIM(UM))
+            ORDER BY turno, unidade
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + rec_p + ori_p + incl_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
             return [
-                {"turno": r[0], "total_kg": float(r[1]), "registros": int(r[2])}
+                {
+                    "turno": r[0],
+                    "unidade": r[1],
+                    "total": float(r[2]) if r[2] is not None else 0.0,
+                    "registros": int(r[3]),
+                }
                 for r in cur.fetchall()
             ]
 
@@ -429,8 +647,9 @@ class SQLServiceKardex:
     ) -> list[dict]:
         """
         Retorna registros de movimentação filtrados por TES.
-        TES 010 está bloqueada — não será incluída mesmo se solicitada.
-        PENDENTE: tratar sinal de QUANTIDADE para TES 999 (saída com valor negativo).
+        TES 010 bloqueada — não será incluída mesmo se solicitada.
+        PENDENTE: tratamento de sinal de QUANTIDADE para TES 999 (saída com valor negativo).
+        PENDENTE: regras completas de TES serão detalhadas pelo usuário.
         """
         fil_sql, fil_p = _filial_clause(filial)
         tes_sql, tes_p = _tes_clause(tes)
@@ -438,13 +657,23 @@ class SQLServiceKardex:
 
         query = f"""
             SELECT TOP {limite}
-                EMISSAO,
-                LTRIM(RTRIM(TES))       AS tes,
-                LTRIM(RTRIM(PRODUTO))   AS produto,
-                LTRIM(RTRIM(DESCRICAO)) AS descricao,
-                QUANTIDADE,
-                LTRIM(RTRIM(LOTE))      AS lote,
-                LTRIM(RTRIM(USUARIO))   AS usuario
+                EMISSAO                          AS emissao,
+                LTRIM(RTRIM(HORA))               AS hora,
+                LTRIM(RTRIM(TES))                AS tes,
+                LTRIM(RTRIM(PRODUTO))            AS produto,
+                LTRIM(RTRIM(DESCRICAO))          AS descricao,
+                LTRIM(RTRIM(FAMILIA))            AS familia,
+                LTRIM(RTRIM(QUALIDADE))          AS qualidade,
+                QUANTIDADE                       AS quantidade,
+                LTRIM(RTRIM(UM))                 AS um,
+                QTSEGUM                          AS qtsegum,
+                LTRIM(RTRIM(LOTE))               AS lote,
+                LTRIM(RTRIM(USUARIO))            AS usuario,
+                LTRIM(RTRIM(USR_LIB_APO))        AS usr_lib_apo,
+                LTRIM(RTRIM(COR_FRENTE))         AS cor_frente,
+                LTRIM(RTRIM(COR_MEIO))           AS cor_meio,
+                LTRIM(RTRIM(COR_VERSO))          AS cor_verso,
+                LTRIM(RTRIM(TIPO))               AS tipo
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               {fil_sql}
@@ -456,20 +685,8 @@ class SQLServiceKardex:
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            return [
-                {
-                    "emissao": str(r[0]),
-                    "tes": r[1],
-                    "tes_descricao": TES_MAP.get((r[1] or "").strip(), r[1]),
-                    "produto": r[2],
-                    "descricao": r[3],
-                    "quantidade": float(r[4]) if r[4] is not None else 0.0,
-                    "lote": r[5],
-                    "usuario": r[6],
-                    "parsed_produto": parse_produto(r[2]),
-                }
-                for r in cur.fetchall()
-            ]
+            rows = _rows_as_dicts(cur)
+        return [_enriquecer_registro(r) for r in rows]
 
     # ── Consulta por lote ─────────────────────────────────────────────────────
     def get_por_lote(
@@ -477,23 +694,30 @@ class SQLServiceKardex:
         lote: str,
         filial: str | None = None,
     ) -> list[dict]:
-        """
-        Retorna todos os registros de um lote específico.
-        Inclui turno e recurso para rastreabilidade completa da bobina.
-        """
+        """Retorna todos os registros de um lote para rastreabilidade completa da bobina."""
         fil_sql, fil_p = _filial_clause(filial)
 
         query = f"""
             SELECT
-                EMISSAO,
-                LTRIM(RTRIM(TES))       AS tes,
-                LTRIM(RTRIM(PRODUTO))   AS produto,
-                LTRIM(RTRIM(DESCRICAO)) AS descricao,
-                QUANTIDADE,
-                LTRIM(RTRIM(LOTE))      AS lote,
-                LTRIM(RTRIM(USUARIO))   AS usuario,
-                LTRIM(RTRIM(TURNO))     AS turno,
-                LTRIM(RTRIM(RECURSO))   AS recurso
+                EMISSAO                          AS emissao,
+                LTRIM(RTRIM(HORA))               AS hora,
+                LTRIM(RTRIM(TES))                AS tes,
+                LTRIM(RTRIM(PRODUTO))            AS produto,
+                LTRIM(RTRIM(DESCRICAO))          AS descricao,
+                LTRIM(RTRIM(FAMILIA))            AS familia,
+                LTRIM(RTRIM(QUALIDADE))          AS qualidade,
+                QUANTIDADE                       AS quantidade,
+                LTRIM(RTRIM(UM))                 AS um,
+                QTSEGUM                          AS qtsegum,
+                LTRIM(RTRIM(LOTE))               AS lote,
+                LTRIM(RTRIM(USUARIO))            AS usuario,
+                LTRIM(RTRIM(USR_LIB_APO))        AS usr_lib_apo,
+                LTRIM(RTRIM(TURNO))              AS turno,
+                LTRIM(RTRIM(RECURSO))            AS recurso,
+                LTRIM(RTRIM(COR_FRENTE))         AS cor_frente,
+                LTRIM(RTRIM(COR_MEIO))           AS cor_meio,
+                LTRIM(RTRIM(COR_VERSO))          AS cor_verso,
+                LTRIM(RTRIM(TIPO))               AS tipo
             FROM dbo.V_KARDEX
             WHERE LTRIM(RTRIM(LOTE)) = ?
               {fil_sql}
@@ -503,23 +727,65 @@ class SQLServiceKardex:
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            return [
-                {
-                    "emissao": str(r[0]),
-                    "tes": r[1],
-                    "tes_descricao": TES_MAP.get((r[1] or "").strip(), r[1]),
-                    "produto": r[2],
-                    "descricao": r[3],
-                    "quantidade": float(r[4]) if r[4] is not None else 0.0,
-                    "lote": r[5],
-                    "usuario": r[6],
-                    "turno": r[7],
-                    "recurso": r[8],
-                    "recurso_label": traduzir_recurso(r[8]) if r[8] else None,
-                    "parsed_produto": parse_produto(r[2]),
-                }
-                for r in cur.fetchall()
-            ]
+            rows = _rows_as_dicts(cur)
+        return [_enriquecer_registro(r) for r in rows]
+
+    # ── Consulta por OP ───────────────────────────────────────────────────────
+    def get_por_op(
+        self,
+        op: str,
+        data_inicio: str | None = None,
+        data_fim: str | None = None,
+        filial: str | None = None,
+        limite: int = 100,
+    ) -> list[dict]:
+        """
+        Retorna registros associados a uma Ordem de Produção.
+        Período é opcional — útil para OPs com registros em múltiplas datas.
+        """
+        fil_sql, fil_p = _filial_clause(filial)
+        op_sql, op_p = _op_clause(op)
+
+        periodo_sql = ""
+        periodo_p: list = []
+        if data_inicio and data_fim:
+            periodo_sql = "AND EMISSAO BETWEEN ? AND ?"
+            periodo_p = [_parse_date(data_inicio), _parse_date(data_fim)]
+
+        query = f"""
+            SELECT TOP {limite}
+                EMISSAO                          AS emissao,
+                LTRIM(RTRIM(HORA))               AS hora,
+                LTRIM(RTRIM(OP))                 AS op,
+                LTRIM(RTRIM(TES))                AS tes,
+                LTRIM(RTRIM(PRODUTO))            AS produto,
+                LTRIM(RTRIM(DESCRICAO))          AS descricao,
+                LTRIM(RTRIM(FAMILIA))            AS familia,
+                LTRIM(RTRIM(QUALIDADE))          AS qualidade,
+                QUANTIDADE                       AS quantidade,
+                LTRIM(RTRIM(UM))                 AS um,
+                QTSEGUM                          AS qtsegum,
+                LTRIM(RTRIM(LOTE))               AS lote,
+                LTRIM(RTRIM(USUARIO))            AS usuario,
+                LTRIM(RTRIM(USR_LIB_APO))        AS usr_lib_apo,
+                LTRIM(RTRIM(TURNO))              AS turno,
+                LTRIM(RTRIM(RECURSO))            AS recurso,
+                LTRIM(RTRIM(COR_FRENTE))         AS cor_frente,
+                LTRIM(RTRIM(COR_MEIO))           AS cor_meio,
+                LTRIM(RTRIM(COR_VERSO))          AS cor_verso
+            FROM dbo.V_KARDEX
+            WHERE 1=1
+              {op_sql}
+              {fil_sql}
+              {periodo_sql}
+            ORDER BY EMISSAO DESC
+        """
+        params = op_p + fil_p + periodo_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            rows = _rows_as_dicts(cur)
+        return [_enriquecer_registro(r) for r in rows]
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
     def get_periodos_disponiveis(
@@ -549,3 +815,41 @@ class SQLServiceKardex:
                 ano, mes = int(r[0]), int(r[1])
                 anos.setdefault(ano, []).append(mes)
             return [{"ano": ano, "meses": meses} for ano, meses in sorted(anos.items())]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPER INTERNO — ENRIQUECIMENTO DE REGISTRO DETALHADO
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _enriquecer_registro(r: dict) -> dict:
+    """
+    Aplica tradutores e resolve metadados derivados em registros detalhados.
+    Recebe dict com nomes de colunas em lowercase (gerado por _rows_as_dicts).
+
+    Prioridade das cores:
+      COR_FRENTE, COR_MEIO, COR_VERSO da view são definitivas.
+      Os campos cor_*_inferida do parser servem como fallback quando a coluna vier nula.
+    """
+    qualidade = (r.get("qualidade") or "").strip().upper() or None
+    produto = r.get("produto") or ""
+    parsed = parse_produto(produto)
+    quantidade = r.get("quantidade")
+    um = (r.get("um") or "").strip().upper() or None
+    qtsegum = r.get("qtsegum")
+
+    return {
+        **r,
+        "emissao": str(r["emissao"]) if r.get("emissao") is not None else None,
+        "tes_descricao": TES_MAP.get((r.get("tes") or "").strip()),
+        "qualidade_descricao": traduzir_qualidade(qualidade),
+        "recurso_label": traduzir_recurso(r["recurso"]) if r.get("recurso") else None,
+        "quantidade_normalizada": normalize_quantidade_por_unidade(
+            float(quantidade) if quantidade is not None else None, um
+        ),
+        "qtsegum_unidade_efetiva": resolve_segunda_unidade_por_qualidade(qualidade),
+        "qtsegum_normalizado": normalize_quantidade_por_unidade(
+            float(qtsegum) if qtsegum is not None else None,
+            resolve_segunda_unidade_por_qualidade(qualidade),
+        ),
+        "parsed_produto": parsed,
+    }
