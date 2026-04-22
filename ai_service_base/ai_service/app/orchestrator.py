@@ -40,7 +40,7 @@ import re
 
 from app.agents import get_agent
 from app.config import (
-    OPERADORES_ATIVOS,
+    OPERADORES_ATIVOS, ORIGENS,
     get_label_setor, get_operadores_setor, get_setor_de, todos_operadores,
 )
 from app.context_manager import PostgresContextManager
@@ -48,7 +48,7 @@ from app.interpreter import InterpretationResult, RuleBasedInterpreter, _periodo
 from app.llm_handler import LLMHandler
 from app.permissions import MENSAGEM_LGPD, verificar_permissao
 from app.schemas import ChatProcessRequest, ChatProcessResponse, ConversationTurn
-# from app.sql_service import SQLService  # KARDEX — comentado durante testes SH6
+from app.sql_service_kardex import SQLServiceKardex
 from app.sql_service_sh6 import SQLServiceSH6, traduzir_recurso, traduzir_filial
 
 
@@ -57,6 +57,18 @@ from app.sql_service_sh6 import SQLServiceSH6, traduzir_recurso, traduzir_filial
 def _fmt_kg(valor: float) -> str:
     """Formata um valor float para exibição em KG no padrão brasileiro."""
     return f"{valor:,.2f} KG".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _fmt_quantidade(resultado: dict) -> str:
+    """Formata resultado de QUANTIDADE separado por UM (retorno do KARDEX). Omite unidades zeradas."""
+    from decimal import Decimal
+    partes = []
+    for um in ("KG", "MT"):
+        val = float(resultado.get(um, 0))
+        if val > 0:
+            fmt = f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            partes.append(f"{fmt} {um}")
+    return " | ".join(partes) if partes else "0"
 
 
 def _posicao_label(pos: int) -> str:
@@ -127,6 +139,7 @@ class ChatOrchestrator:
         self.context      = PostgresContextManager()
         self.interpreter  = RuleBasedInterpreter()
         self.sql          = SQLServiceSH6()
+        self.kardex       = SQLServiceKardex()
         self.llm          = LLMHandler(
             agent_name=agent["name"],
             system_prompt=agent["system_prompt"],
@@ -177,6 +190,17 @@ class ChatOrchestrator:
                 ir = followup_ir
                 print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
 
+        # Caso 4: mensagem ambígua sem período mas com recurso → herda intent + período do histórico
+        # Ex: "E da MAC2?" após "Produção da MAC1 e 2 ontem?" — sem período, mas menciona recurso
+        # Sem este caso, o LLM responde com valor inventado baseado no histórico (alucinação)
+        elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
+            recurso_novo = self.interpreter._extract_recurso(payload.message)
+            if recurso_novo:
+                followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo)
+                if followup_ir:
+                    ir = followup_ir
+                    print(f"[{self.agent_name}] RAG recurso-carry (clarify): reutilizando intent '{ir.intent}' com recurso {recurso_novo}.")
+
         # Caso 3: SQL genérico sem operador → follow-up de recurso/extrusora
         # Ex: "E na extrusora 2?" após consulta de KGH herda intent kgh + atualiza recurso
         elif (
@@ -194,7 +218,11 @@ class ChatOrchestrator:
 
         # Caso 2: consulta SQL sem período explícito → herda período do histórico
         # Ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?" herda janeiro
-        elif ir.route == "sql" and not periodo_explicito and ir.confidence < 0.87:
+        # Também ativa para mensagens curtas (≤ 5 palavras) mesmo com alta confiança —
+        # evita que "E da extrusora 1?" use período padrão ao invés de herdar "ontem"
+        elif ir.route == "sql" and not periodo_explicito and (
+            ir.confidence < 0.87 or len(payload.message.strip().split()) <= 5
+        ):
             inherited = self._inherit_period_from_history(recent)
             if inherited:
                 ir.data_inicio, ir.data_fim, ir.period_text = inherited
@@ -502,14 +530,68 @@ class ChatOrchestrator:
             header = f"⚡ **KG/hora por extrusora**{periodo}{rec_lbl}\n\n"
             return header + "\n\n".join(blocos)
 
-        # ── Intents KARDEX (comentados durante testes SH6) ────────────────────
-        # if ir.intent == "ranking_usuarios_ld": ...
-        # if ir.intent == "ranking_produtos_ld": ...
-        # if ir.intent == "geracao_ld_por_operador": ...
-        # if ir.intent == "producao_por_produto": ...
-        # if ir.intent == "producao_por_turno": ...
-        # if ir.intent == "periodos_disponiveis": ...
-        # if ir.intent == "total_fabrica" (com LD): ...
+        # ── Intents KARDEX — consultas que envolvem qualidade do material ────────
+
+        # ── LD do próprio usuário ou de operador específico (KARDEX) ─────────────
+        if ir.intent == "geracao_ld_por_operador":
+            if ir.entity_value:
+                resultado = self.kardex.get_ld_por_operador(ir.entity_value, ini, fim)
+                total_str = _fmt_quantidade(resultado)
+                if all(float(v) == 0 for v in resultado.values()):
+                    return f"🔍 Nenhum LD registrado para **{ir.entity_value}**{periodo}."
+                tipo = "dia" if is_diaria else "mês"
+                return (
+                    f"⚠️ **LD — {ir.entity_value}**\n\n"
+                    f"📅 Período ({tipo}): {periodo.strip() or 'geral'}\n"
+                    f"📦 Total LD: **{total_str}**"
+                )
+            else:
+                # Sem operador específico — total geral de LD dos operadores ativos
+                resultado = self.kardex.get_ld_total(ini, fim, filtro_usuarios=OPERADORES_ATIVOS)
+                total_str = _fmt_quantidade(resultado)
+                if all(float(v) == 0 for v in resultado.values()):
+                    return f"🔍 Nenhum LD registrado{periodo}."
+                tipo = "dia" if is_diaria else "mês"
+                return (
+                    f"⚠️ **Total de LD**{periodo}\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| 📦 Total LD | **{total_str}** |"
+                )
+
+        # ── Ranking de operadores com mais LD (KARDEX) ────────────────────────────
+        if ir.intent == "ranking_usuarios_ld":
+            rows = self.kardex.get_ranking_ld(
+                ini, fim, limite=top_n,
+                recursos=recursos,
+                filtro_usuarios=OPERADORES_ATIVOS,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de LD encontrado{periodo}{rec_lbl}."
+            unidade = rows[0]["unidade"] if rows else "KG"
+            header = f"⚠️ **Top {top_n} — LD por operador**{periodo}{rec_lbl}\n\n"
+            header += f"| # | Operador | Total {unidade} |\n|---|----------|----------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total'])}** |"
+                for r in rows
+            )
+            return header + linhas
+
+        # ── Ranking de produtos com mais LD (KARDEX) ──────────────────────────────
+        if ir.intent == "ranking_produtos_ld":
+            rows = self.kardex.get_ranking_produtos_ld(
+                ini, fim, limite=top_n,
+                filtro_usuarios=OPERADORES_ATIVOS,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de LD por produto encontrado{periodo}."
+            header = f"⚠️ **Top {top_n} — Produtos com mais LD**{periodo}\n\n"
+            header += "| # | Produto | Descrição | Total | Ocorrências |\n|---|---------|-----------|-------|-------------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['produto']} | {r['descricao'] or '-'} "
+                f"| **{_fmt_kg(r['total'])}** | {r['ocorrencias']} |"
+                for r in rows
+            )
+            return header + linhas
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
 

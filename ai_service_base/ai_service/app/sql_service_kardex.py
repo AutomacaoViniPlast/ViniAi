@@ -787,6 +787,47 @@ class SQLServiceKardex:
             rows = _rows_as_dicts(cur)
         return [_enriquecer_registro(r) for r in rows]
 
+    # ── Total de LD (sem filtro de operador) ─────────────────────────────────
+    def get_ld_total(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+        origem: str | None = None,
+        filtro_usuarios: list[str] | None = None,
+    ) -> dict[str, Decimal]:
+        """
+        Soma de QUANTIDADE com QUALIDADE='Y' (LD) por UM, sem filtro de operador.
+        Usado quando nenhum operador específico for solicitado.
+        """
+        fil_sql, fil_p = _filial_clause(filial)
+        rec_sql, rec_p = _recurso_clause(recursos)
+        ori_sql, ori_p = _origem_clause(origem)
+        incl_sql, incl_p = _incluir_clause(filtro_usuarios)
+
+        query = f"""
+            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
+            FROM dbo.V_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
+              {fil_sql}
+              {rec_sql}
+              {ori_sql}
+              {incl_sql}
+            GROUP BY LTRIM(RTRIM(UM))
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p + ori_p + incl_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            resultado = {um: Decimal("0") for um in UM_VALIDAS}
+            for row in cur.fetchall():
+                um = (row[0] or "").strip().upper()
+                if um in resultado:
+                    resultado[um] = Decimal(str(row[1]))
+            return resultado
+
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
     def get_periodos_disponiveis(
         self,

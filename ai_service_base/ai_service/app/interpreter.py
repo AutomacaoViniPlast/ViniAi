@@ -703,11 +703,15 @@ class RuleBasedInterpreter:
             self._PRODUCAO.search(low) and self._EXTRUSORA.search(low)
             and not self._QUEM.search(low) and not self._RANKING.search(low)
         ):
+            # Quando há palavra de comparação explícita (ex: "MAC1 e 2", "MAC1 vs MAC2"),
+            # força recursos=None para garantir que ambas as máquinas sejam consultadas.
+            # Na branch PRODUCAO+EXTRUSORA sem comparação, mantém o recurso extraído.
+            comp_recursos = None if self._COMPARATIVO.search(low) else recursos
             return InterpretationResult(
                 intent="comparativo_extrusoras", route="sql",
                 metric="producao_total",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                recursos=recursos,
+                recursos=comp_recursos,
                 confidence=0.92,
                 reasoning="Comparativo de produção entre extrusoras.",
             )
