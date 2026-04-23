@@ -191,9 +191,17 @@ class ChatOrchestrator:
     def process(self, payload: ChatProcessRequest) -> ChatProcessResponse:
         """Processa uma mensagem e retorna a resposta do agente."""
 
-        # 1. Lê o histórico para passar ao LLM como contexto
-        self.context.append_user_message(payload.session_id, payload.message)
-        recent = self.context.get_recent(payload.session_id, limit=32)
+        is_whatsapp = payload.channel == "whatsapp"
+
+        # 1. Lê o histórico para passar ao LLM como contexto.
+        #    WhatsApp usa session_id = número de telefone (não existe na tabela mensagens),
+        #    então pula o lookup do PostgreSQL para evitar queries desnecessárias e
+        #    esgotamento do pool de conexões em caso de retentativas do N8N.
+        if is_whatsapp:
+            recent = []
+        else:
+            self.context.append_user_message(payload.session_id, payload.message)
+            recent = self.context.get_recent(payload.session_id, limit=32)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
