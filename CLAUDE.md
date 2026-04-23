@@ -190,12 +190,15 @@ Antes de considerar a sessão encerrada, verificar e executar cada item:
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-22 16:04 por `scripts/sync_memory.py`
+> Gerado em 2026-04-22 16:08 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
-- Fix: corrige alucinações no carry-over e integra handlers KARDEX (2026-04-22)
-- Refactor: expande sql_service_kardex.py com regras completas da V_KARDEX (2026-04-22)
-- Feat: implementa sql_service_kardex.py para view dbo.V_KARDEX (2026-04-21)
+- chore: adiciona *.zip ao .gitignore (2026-04-22)
+- chore: remove arquivo zip do vault Obsidian (2026-04-22)
+- chore: adiciona CLAUDE.md e vault Obsidian ao repositório (2026-04-22)
+
+**Arquivos alterados nesta sessao:**
+- `CLAUDE.md`
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

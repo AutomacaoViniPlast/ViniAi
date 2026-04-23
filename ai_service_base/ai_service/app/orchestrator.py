@@ -483,7 +483,16 @@ class ChatOrchestrator:
         # ── Produção por operador específico (SH6) ────────────────────────────
         if ir.intent == "producao_por_operador":
             if not ir.entity_value:
-                return "❓ Não consegui identificar o operador. Informe o nome completo ou login."
+                # Nenhum operador mencionado → retorna total geral da fábrica para o período
+                total = self.sql.get_producao_total(ini, fim, recursos=recursos, is_diaria=is_diaria)
+                if float(total) == 0:
+                    return f"🔍 Nenhum dado de produção encontrado{periodo}{rec_lbl}."
+                tipo = "dia" if is_diaria else "mês"
+                return (
+                    f"🏭 **Produção total da fábrica — {tipo}**{periodo}{rec_lbl}\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |"
+                )
             total = self.sql.get_producao_por_operador(
                 ir.entity_value, ini, fim, recursos=recursos, is_diaria=is_diaria,
             )

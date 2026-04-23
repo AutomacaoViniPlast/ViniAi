@@ -54,8 +54,10 @@ _RE_MONTH_YEAR = re.compile(
     r"(20\d{2})?",
     re.IGNORECASE,
 )
-_RE_YEAR_ONLY = re.compile(r"\b(20\d{2})\b")
-_RE_TOP_N     = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
+_RE_YEAR_ONLY       = re.compile(r"\b(20\d{2})\b")
+_RE_DATA_ESPECIFICA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(20\d{2})(?!\d)")          # DD/MM/YYYY
+_RE_DATA_DIA_MES    = re.compile(r"(?:no?\s+)?dia\s+(\d{1,2})/(\d{1,2})(?!/\d)", re.IGNORECASE)  # dia DD/MM
+_RE_TOP_N           = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
 _RE_OPERATOR  = re.compile(r"\b([a-záéíóúâêîôûãõç]+\.[a-záéíóúâêîôûãõç]+)\b", re.IGNORECASE)
 _RE_PRODUTO   = re.compile(r"\b(TD2[A-Z0-9]{2,})\b", re.IGNORECASE)
 
@@ -68,7 +70,8 @@ _RE_SEMANA_ATUAL = re.compile(
     r"semana\s+atual|semana\s+corrente",
     re.IGNORECASE,
 )
-_RE_ULTIMOS_DIAS = re.compile(r"[uú]ltimos?\s+(\d+)\s+dias?", re.IGNORECASE)
+_RE_ULTIMOS_DIAS  = re.compile(r"[uú]ltimos?\s+(\d+)\s+dias?", re.IGNORECASE)
+_RE_ULTIMOS_MESES = re.compile(r"[uú]ltimos?\s+(\d+)\s+meses?", re.IGNORECASE)
 _RE_MES_PASS     = re.compile(r"m[eê]s\s+passado|m[eê]s\s+anterior", re.IGNORECASE)
 _RE_MES_ATUAL    = re.compile(
     r"este\s+m[eê]s|m[eê]s\s+atual|nesse\s+m[eê]s|neste\s+m[eê]s|"
@@ -133,6 +136,24 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
         if as_start:
             return f"01/01/{ano}"
         return f"31/12/{ano}"
+
+    # "19/04/2026" / "dia 19/04/2026"
+    m_data = _RE_DATA_ESPECIFICA.search(s)
+    if m_data:
+        try:
+            d = date(int(m_data.group(3)), int(m_data.group(2)), int(m_data.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+    # "dia 19/04" (sem ano → ano atual)
+    m_dia = _RE_DATA_DIA_MES.search(s)
+    if m_dia:
+        try:
+            d = date(today.year, int(m_dia.group(2)), int(m_dia.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
 
     # "agosto de 2025" / "agosto 2025" / "agosto"
     m = _RE_MONTH_YEAR.search(s)
@@ -286,6 +307,42 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
             f"últimos {n} dias",
         )
 
+    # "19/04/2026" / "no dia 19/04/2026" / "dia 19/04/2026"
+    m_data = _RE_DATA_ESPECIFICA.search(text)
+    if m_data:
+        try:
+            d = date(int(m_data.group(3)), int(m_data.group(2)), int(m_data.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    # "dia 19/04" / "no dia 19/04" (sem ano → ano atual)
+    m_dia_mes = _RE_DATA_DIA_MES.search(text)
+    if m_dia_mes:
+        try:
+            d = date(today.year, int(m_dia_mes.group(2)), int(m_dia_mes.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    # "últimos N meses"
+    m_meses = _RE_ULTIMOS_MESES.search(lowered)
+    if m_meses:
+        n = int(m_meses.group(1))
+        mes = today.month - n
+        ano = today.year
+        while mes <= 0:
+            mes += 12
+            ano -= 1
+        inicio_d = date(ano, mes, 1)
+        return (
+            inicio_d.strftime("%d/%m/%Y"),
+            today.strftime("%d/%m/%Y"),
+            f"últimos {n} meses",
+        )
+
     # "mês passado / anterior"
     if _RE_MES_PASS.search(lowered):
         primeiro  = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
@@ -377,7 +434,10 @@ class RuleBasedInterpreter:
         r"produ[cç][aã]o|produziu|produzido|produzidos|produzir|produzi|"
         r"extrusora|bobina[s]?|fabricou|fabricado|fabricei|fabricar|"
         r"saiu\s+da\s+m[aá]quina|saiu\s+da\s+extrusora|"
-        r"quanto\s+(?:foi\s+)?produzido|quanto\s+(?:o\s+)?fez|quanto\s+(?:a\s+)?f[aá]brica",
+        r"quanto\s+(?:foi\s+)?produzido|quanto\s+(?:o\s+)?fez|quanto\s+(?:a\s+)?f[aá]brica|"
+        r"quanto\s+saiu|o\s+que\s+saiu|o\s+que\s+foi\s+(?:feito|produzido)|"
+        r"o\s+que\s+a\s+(?:f[aá]brica|m[aá]quina|extrusora)\s+fez|"
+        r"m[aá]quina\s+(?:produziu|fez)|linha\s+(?:produziu|fez)",
         re.IGNORECASE,
     )
 
