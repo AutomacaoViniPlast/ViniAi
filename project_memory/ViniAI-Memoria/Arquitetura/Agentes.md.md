@@ -17,7 +17,7 @@ Os agentes são registrados em `app/agents.py` e instanciados no `app/orchestrat
 
 | Nome | ID | Departamento | Status | Cobre |
 |------|----|-------------|--------|-------|
-| **Ayla** | `producao` | Produção | **Ativo** | Extrusora, Pesagem, Revisão/Qualidade, Expedição |
+| **Ayla** | `producao` | Produção | **Ativo** | Extrusora, Revisão/Qualidade |
 | Iris | `pcp` | PCP | Futuro | Planejamento e Controle de Produção |
 | Maya | `controladoria` | Controladoria | Futuro | Financeiro e Custos |
 | Nina | `rh` | RH | Futuro | Recursos Humanos |
@@ -32,27 +32,28 @@ Os agentes são registrados em `app/agents.py` e instanciados no `app/orchestrat
 
 ### Escopo
 
-A Ayla atende **toda a área de Produção** sem precisar de sub-agentes:
+A Ayla atende **Extrusora e Revisão/Qualidade**:
 
-| Sub-setor | O que responde |
-|-----------|---------------|
-| Extrusora | Produção de bobinas, volume, rankings de operadores |
-| Pesagem | Controle de peso das bobinas produzidas |
-| Qualidade / Revisão | Inspeção — LD (defeito) ou Inteiro, rankings, por operador |
-| Expedição | Liberação de bobinas para clientes, movimentação |
+| Sub-setor | O que responde | Base |
+|-----------|---------------|------|
+| Extrusora | Produção de bobinas, KG, KGH, m/min, rankings por peso | SH6 |
+| Qualidade / Revisão | Inteiro, LD, Fora de Padrão — por operador, período ou total | V_KARDEX |
 
 ### Operadores Cadastrados
 
 > Fonte da verdade: `app/config.py`
 
-| Setor | Operadores |
-|-------|-----------|
-| `revisao` | raul.araujo, igor.chiva, ezequiel.nunes, kaua.chagas |
-| `expedicao` | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
-| `producao` | *(em cadastramento — aguardando documentação do usuário)* |
+| Setor | ID config | Operadores | Dados via |
+|-------|-----------|-----------|-----------|
+| Extrusora | `extrusora` | celio.divino, aramis.leal, valdenrique.silva, andreson.reis, ednilson.soares, nobrega.valter, gilmar.santos | SH6 |
+| Revisão | `revisao` | kaua.chagas, ezequiel.nunes, igor.chiva, raul.ribeiro | V_KARDEX |
 
-**`OPERADORES_ATIVOS`** (escopo padrão quando nenhum setor é especificado):
-`ezequiel.nunes`, `raul.araujo`, `kaua.chagas`, `igor.chiva`
+**`OPERADORES_ATIVOS`** = `OPERADORES_EXTRUSORA` + `OPERADORES_REVISAO` (todos os listados acima)
+
+**Regra de roteamento por setor:**
+- Operador em `extrusora` → query vai para SH6 (produção de bobinas)
+- Operador em `revisao` → query vai para V_KARDEX (qualidade, LD, Inteiro, FP)
+- Operador desconhecido → ignorado por enquanto
 
 > [!note] kaua.chagas
 > Setor "produção" na empresa, mas operacionalmente atua na revisão. Listado em `revisao` no `config.py`.

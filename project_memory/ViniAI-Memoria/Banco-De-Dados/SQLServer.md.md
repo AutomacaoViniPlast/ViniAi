@@ -125,7 +125,7 @@ Implementada em `app/sql_service_kardex.py`.
 
 **Regras de negócio V_KARDEX:**
 - Filial padrão → `010101`
-- LOCAL_OP → sempre filtrar por `'EXTRUSAO'` em consultas de produção/soma
+- LOCAL_OP → filtro por `'EXTRUSAO'` aplicado em `get_producao_total()`, `get_producao_por_operador()`, `get_producao_por_turno()`. **NÃO aplicado** em `get_resumo_qualidade()` — dados de Inteiro/LD/FP têm LOCAL_OP variável.
 - TURNO → NÃO filtrar salvo solicitação explícita do usuário
 - TES 010 → bloqueada — não exposta mesmo se solicitada
 - QUANTIDADE → retornada separada por UM em todos os agregados: `{"KG": ..., "MT": ...}`
@@ -133,27 +133,29 @@ Implementada em `app/sql_service_kardex.py`.
 - COR_FRENTE/MEIO/VERSO → usar colunas diretas; parser fornece apenas inferência de fallback
 - `parse_produto()`: trata MSP008 como BAG, pos 1-3=família, pos 5=Y/I/P, pos 6-8=cor_frente inferida, pos 11-13=cor_verso inferida
 
-**Método `get_resumo_qualidade(ini, fim, operador?, filtro_usuarios?)` — IMPLEMENTADO:**
+**Método `get_resumo_qualidade(ini, fim, operador?)` — IMPLEMENTADO:**
 Retorna breakdown por QUALIDADE: `{"I": {"KG": ..., "MT": ...}, "Y": {...}, "P": {...}}`
-Usado pelo orchestrator para exibir: Inteiro + LD + FP + Total na mesma resposta.
+- Sem filtro de LOCAL_OP: registros de Inteiro (I) têm LOCAL_OP diferente de EXTRUSAO.
+- Sem filtro de USUARIO: Inteiro é registrado por operadores da extrusora, LD/FP por revisores.
+- Quando `operador` é informado, filtra por USUARIO LIKE operador.
+- Orchestrator exibe: Inteiro + LD + FP + Total na mesma resposta.
 
 **Método `get_periodos_disponiveis(filial?, filtro_usuarios?)` — IMPLEMENTADO:**
-Agrupa `EMISSAO` por ano/mês e é usado para cobertura temporal da base de
-Qualidade / Revisão.
+Agrupa `EMISSAO` por ano/mês e é usado para cobertura temporal da base de Qualidade / Revisão.
 
-**Operadores de revisão usados como filtro lógico da Ayla:**
-- `raul.ribeiro`
-- `kaua.chagas`
-- `ezequiel.nunes`
-- `igor.chiva`
+**Filtro `filtro_usuarios=OPERADORES_REVISAO` — onde se aplica:**
+- `get_ld_total()` — LD total: só registros de revisores
+- `get_ranking_ld()` — ranking de quem identificou mais LD
+- `get_ranking_produtos_ld()` — ranking de produtos com LD
+- **NÃO** se aplica em `get_resumo_qualidade()` (Inteiro é de extrusor, não revisor)
 
 > [!warning] Pendências V_KARDEX
+> - **CRÍTICO:** QUANTIDADE pode ser coluna errada para LD (Y) — total de LD difere do Metabase. Suspeita: Metabase usa `QTSEGUM`. Aguarda confirmação do usuário.
 > - LOCAL: mapear significado de cada armazém (01, 10, 12, 15, 20, 35, 40, 50, 60)
 > - LOCAL_OP: mapear outros valores além de 'EXTRUSAO'
 > - TIPO: sem regra de negócio definida ainda
 > - TES: detalhamento completo pendente
 > - QUANTIDADE negativa (TES 999): confirmar lógica de saldo antes de implementar somatórios mistos
-> - **CRÍTICO:** QUANTIDADE pode ser coluna errada para LD (Y) — usuário irá confirmar coluna correta (pode ser QTSEGUM)
 
 ---
 

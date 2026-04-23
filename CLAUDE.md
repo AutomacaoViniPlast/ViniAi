@@ -89,11 +89,13 @@ Consultada quando o request envolver: OP, TURNO, TES, qualidade Y/I, LOTE ou det
 
 **Regras de negócio V_KARDEX:**
 - Filial padrão → `010101` quando não especificada
-- LOCAL_OP → sempre filtrar por `'EXTRUSAO'` em consultas de produção/soma
+- LOCAL_OP → filtrar por `'EXTRUSAO'` em `get_producao_total()`, `get_producao_por_operador()`, `get_producao_por_turno()`. **NÃO aplicar** em `get_resumo_qualidade()` — dados I/Y/P têm LOCAL_OP variável
 - TURNO → NÃO filtrar salvo solicitação explícita do usuário
 - TES 010 → bloqueada no código — não exposta nem via solicitação direta
 - QUANTIDADE negativa (TES 999) → lógica de saldo PENDENTE de confirmação
-- parse_produto(): pos 1-3=código-base, pos 5=Y/I, pos 6-8=cor1, pos 11-13=cor2
+- `get_resumo_qualidade()` → NÃO usar `filtro_usuarios=OPERADORES_REVISAO` — Inteiro (I) é registrado por operadores de extrusora, não revisores; filtro excluiria todos os registros de Inteiro
+- `get_ld_total()`, `get_ranking_ld()`, `get_ranking_produtos_ld()` → USAR `filtro_usuarios=OPERADORES_REVISAO`
+- parse_produto(): pos 1-3=código-base, pos 5=Y/I/P, pos 6-8=cor1, pos 11-13=cor2
 
 **Roteamento V_KARDEX vs SH6 (CONFIRMADO — REGRA FIXA):**
 - **V_KARDEX** → qualquer consulta que envolva qualidade do material:
@@ -128,12 +130,12 @@ Exemplo: CLILA0600L0400A
 - Expedição  = liberação de bobinas para clientes. NUNCA entra em rankings de produção.
 
 ## Setores e operadores (arquivo: app/config.py — fonte da verdade)
-Produção (extrusora):  pendente — documentação sendo preparada pelo usuário
-Revisão:   raul.araujo, igor.chiva, ezequiel.nunes, kaua.chagas
-Expedição: john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar
-OPERADORES_ATIVOS (escopo padrão): ezequiel.nunes, raul.araujo, kaua.chagas, igor.chiva
+Extrusora (produção):  celio.divino, aramis.leal, valdenrique.Silva, andreson.reis, ednilson.soares, nobrega.valter, gilmar.santos
+Revisão:   kaua.chagas, ezequiel.nunes, igor.chiva, raul.ribeiro
+OPERADORES_ATIVOS = OPERADORES_EXTRUSORA + OPERADORES_REVISAO (todos os listados acima)
 
 > kaua.chagas: setor produção na empresa, mas operacionalmente atua na revisão — listado em revisao no config.py.
+> raul.ribeiro: operador de revisão — incluso em OPERADORES_REVISAO e no filtro de LD.
 
 ## Estrutura de arquivos
 app/config.py              → setores, operadores e tipos de origem (fonte da verdade)
@@ -167,16 +169,15 @@ main           → importa orchestrator, schemas
 - EMISSAO (STG_KARDEX) é tipo date nativo — sem conversão de texto
 
 ## Pendências técnicas
+- **CRÍTICO — QUANTIDADE vs QTSEGUM para LD (Y):** valores de LD diferem entre ViniAI e Metabase. Suspeita: Metabase usa `QTSEGUM` para QUALIDADE='Y'. Aguarda confirmação do usuário para alterar `get_resumo_qualidade()` e `get_ld_total()`
+- **V_KARDEX — LOCAL_OP:** mapear outros valores além de 'EXTRUSAO' — usuário explicará significado de cada armazém
 - Identificar e mapear colunas de dbo.STG_APONT_REV_GERAL
-- Cadastrar operadores do setor produção (extrusora) em config.py — aguardando documentação
 - Integrar STG_PROD_SH6 e STG_PROD_SD3 quando os novos agentes forem criados
-- Comparação entre períodos (intent comparacao_periodos)
+- Comparação entre períodos (intent comparacao_periodos — intent existe no interpreter, sem handler no orchestrator)
 - Novos agentes: Iris (PCP), Maya (Controladoria), Nina (RH), Eva (Vendas)
 - Tabela de tipos de produto (3 primeiros chars: CLI, SUF, etc.)
-- **V_KARDEX — LOCAL_OP:** mapear outros valores além de 'EXTRUSAO' (usuario explicará)
 - **V_KARDEX — QUANTIDADE negativa (TES 999):** confirmar lógica de sinal e tratamento de saldo
-- **V_KARDEX — Roteamento:** confirmar regra completa de quando usar V_KARDEX vs SH6 (quando envolver OP, TURNO, TES, Y/I, LOTE — mas aguardar confirmação final)
-- Integrar sql_service_kardex.py no orchestrator após confirmação do roteamento
+- N8N sem campo `setor` no payload — controle de acesso LGPD não funciona via N8N
 
 ## Regras de colaboração (OBRIGATÓRIO)
 - **Sempre perguntar ao usuário antes de codificar** quando houver qualquer dúvida
@@ -235,12 +236,15 @@ Antes de considerar a sessão encerrada, verificar e executar cada item:
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-23 14:16 por `scripts/sync_memory.py`
+> Gerado em 2026-04-23 16:20 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
+- Fix: resumo_qualidade remove filtro_usuarios para incluir Inteiro no breakdown (2026-04-23)
+- Fix: corrige roteamento de produtos LD, resumo qualidade e extrusora específica (2026-04-23)
 - Feat: validação de setor por operador e integração com Codex (2026-04-23)
-- Corrige consultas LD e roteamento do KARDEX (2026-04-23)
-- Melhora visual do guia de uso da IA (2026-04-23)
+
+**Arquivos alterados nesta sessao:**
+- `CLAUDE.md`
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

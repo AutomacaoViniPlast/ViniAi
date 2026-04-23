@@ -12,10 +12,10 @@ O `RuleBasedInterpreter` (`app/interpreter.py`) classifica cada mensagem em uma 
 
 O resultado é um `InterpretationResult` com: `intent`, `route`, `confidence`, `data_inicio`, `data_fim`, `entity_value`, `top_n`, `setor`, `origem`, `recursos`.
 
-- Intervalos curtos como *"01/04 atÃ© 08/04"* agora sÃ£o reconhecidos mesmo sem a
-  palavra `dia` e sem ano explÃ­cito.
-- Frases como *"qual a produÃ§Ã£o dia a dia de 01/04 atÃ© 08/04"* caem em
-  `producao_por_dia` para retorno diÃ¡rio em vez de somatÃ³rio Ãºnico do perÃ­odo.
+- Intervalos curtos como *"01/04 até 08/04"* agora são reconhecidos mesmo sem a
+  palavra `dia` e sem ano explícito.
+- Frases como *"qual a produção dia a dia de 01/04 até 08/04"* caem em
+  `producao_por_dia` para retorno diário em vez de somatório único do período.
 
 ---
 
@@ -44,8 +44,10 @@ O resultado é um `InterpretationResult` com: `intent`, `route`, `confidence`, `
  8.  LD próprio               → LD + "meu/minha/eu identifiquei"
  9.  geracao_ld_por_operador  → LD + ação de geração ou operador explícito
  9b. geracao_ld_por_operador  → LD genérico sem operador → usa usuário autenticado
-10a. comparativo_extrusoras   → comparar/versus/vs + extrusoras, produção + extrusora,
-                                "cada MAC", "cada máquina", "produção exata por extrusora"
+10a. comparativo_extrusoras   → comparar/versus/vs + extrusoras (plural), "cada MAC",
+                                "cada máquina", "produção exata por extrusora"
+                                ⚠️ "produção da Extrusora 1" NÃO cai aqui — recurso singular
+                                    mantém recursos=["0003"] ou recursos=["0007"]
 10b. horas_trabalhadas        → "horas trabalhadas", "total de horas", "quantas horas"
 11a. metros_por_minuto        → "metros por minuto", "m/min", "velocidade da máquina"
 11b. kgh                      → "kgh", "kg/h", "kg por hora", "produtividade em kg"
@@ -90,11 +92,14 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 
 ### Regras conversacionais importantes para extrusoras
 
-- Perguntas genéricas como *"qual a produção da extrusora?"*, *"qual o valor de cada MAC?"* e
-  *"qual o valor total de cada MAC na produção desse mês?"* agora devem cair em
+- Perguntas genéricas como *"qual o valor de cada MAC?"* e
+  *"qual o valor total de cada MAC na produção desse mês?"* caem em
   `comparativo_extrusoras`, não em `total_fabrica`.
-- Quando a frase menciona `extrusora`, `máquina` ou `MAC` sem número explícito, o interpretador
-  assume comparação/detalhamento das duas extrusoras produtivas (`0003` e `0007`).
+- **REGRA CRÍTICA (corrigida 2026-04-23):** `_COMPARATIVO` usa **plural** ("extrusoras",
+  "máquinas", "macs") para forçar `comp_recursos=None`. Singular ("Extrusora 1") NÃO
+  força comparativo — mantém o recurso extraído por `_extract_recurso()`.
+  - Errado antes: `produ[cç][aã]o\s+da\s+extrusora` (singular) interceptava "produção da Extrusora 1"
+  - Correto agora: `produ[cç][aã]o\s+das\s+extrusoras` (plural obrigatório)
 - Follow-ups como *"qual a soma desses valores?"* são tratados como `total_fabrica`, permitindo
   ao orchestrator herdar o período do contexto anterior e consolidar os valores exibidos por MAC.
 
@@ -138,7 +143,7 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 | Entidade | Como extrai |
 |----------|------------|
 | Operador | Padrão `nome.sobrenome` ou primeiro nome contra lista de `todos_operadores()` |
-| Produto | Código alfanumérico de produto (ex: CLI..., TD2...) |
+| Produto | Código alfanumérico de produto (ex: CLI..., TD2...) — regex usa `\bprodutos?\b` e `\bmateriais?\b` para capturar singular e plural |
 | Top N | `top 5`, `top 3`, `5 operadores` |
 | Setor | Palavras "extrusora", "expedição", "revisão", "produção" → normalizado via `config.py` |
 | Origem | `SD1`/`SD2`/`SD3` ou "entrada"/"saída"/"interna" |

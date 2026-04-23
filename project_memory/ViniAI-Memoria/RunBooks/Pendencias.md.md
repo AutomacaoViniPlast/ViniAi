@@ -9,8 +9,8 @@
 
 | Item | Detalhe | Arquivo |
 |------|---------|---------|
-| `kaua.chagas` ausente no setor `producao` | Está em `OPERADORES_ATIVOS` mas não em `SETORES["producao"]["operadores"]`. Consultas por setor produção não o retornam. | `app/config.py` |
-| **Valores incorretos nas queries de LD (KARDEX)** | O código usa `SUM(QUANTIDADE)` para LD, mas para registros de LD a coluna correta pode não ser `QUANTIDADE`. Regra de qual coluna usar para LD ainda não foi confirmada — usuário irá explicar. Suspeita: `QUANTIDADE` com `UM=MT` traz metros, não kg. | `app/sql_service_kardex.py` |
+| **QUANTIDADE vs QTSEGUM para LD (Y)** | `get_resumo_qualidade()` e `get_ld_total()` usam `SUM(QUANTIDADE)`. O Metabase usa valor diferente para LD — suspeita que a coluna correta seja `QTSEGUM` (que para Y/BAG tem unidade MT). Confirmação pendente com usuário. Impacto: total de LD diverge entre ViniAI e Metabase. | `app/sql_service_kardex.py` |
+| **LOCAL_OP: mapear outros valores além de EXTRUSAO** | O campo LOCAL_OP da V_KARDEX tem outros valores além de `EXTRUSAO`. Significado de cada valor pendente de explicação do usuário. Impacto: filtros futuros de LOCAL_OP podem estar errados. | `app/sql_service_kardex.py` |
 
 ---
 
