@@ -498,13 +498,24 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Referência genérica às máquinas de extrusão, mesmo sem número explícito
+    _EXTRUSORA_REFERENCIA = re.compile(
+        r"\bextrusora(?:s)?\b|\bmacs?\b|\bm[aá]quinas?\b",
+        re.IGNORECASE,
+    )
+
     # Comparativo entre extrusoras
     _COMPARATIVO = re.compile(
         r"compar[ae]|versus|vs\.?|\bx\b|contra|diferen[cç]a\s+entre|"
         r"qual\s+(?:extrusora|mac|m[aá]quina)\s+(?:mais|produziu|melhor)|"
         r"(?:extrusora|mac)\s*1\s+e\s+(?:extrusora|mac)?\s*2|"
         r"as\s+duas\s+(?:extrusoras?|m[aá]quinas?|macs?)|"
-        r"lado\s+a\s+lado|por\s+(?:extrusora|m[aá]quina|mac)",
+        r"lado\s+a\s+lado|por\s+(?:extrusora|m[aá]quina|mac)|"
+        r"cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"valor\s+(?:de|da)\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"valor\s+total\s+de\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"produ[cç][aã]o\s+exata\s+por\s+(?:extrusora|m[aá]quina|mac)|"
+        r"produ[cç][aã]o\s+(?:da|das)\s+(?:extrusoras?|m[aá]quinas?|macs?)",
         re.IGNORECASE,
     )
 
@@ -521,7 +532,9 @@ class RuleBasedInterpreter:
         r"\btotal\b|\bf[aá]brica\b|\bfabrica\b|\bgeral\b|"
         r"resumo|vis[aã]o\s+geral|resultado\s+geral|geral\s+da\s+f[aá]brica|"
         r"total\s+(?:geral|da\s+f[aá]brica|de\s+produ[cç][aã]o)|"
-        r"quanto\s+foi\s+(?:gerado|produzido)\s+no\s+total",
+        r"quanto\s+foi\s+(?:gerado|produzido)\s+no\s+total|"
+        r"soma\s+(?:desses?|destes?|dos)\s+valores?|"
+        r"somat[oó]rio\s+(?:desses?|destes?|dos)\s+valores?",
         re.IGNORECASE,
     )
 
@@ -766,12 +779,15 @@ class RuleBasedInterpreter:
 
         # ── 10a. Comparativo entre extrusoras ────────────────────────────────
         if self._COMPARATIVO.search(low) or (
-            self._PRODUCAO.search(low) and self._EXTRUSORA.search(low)
+            self._PRODUCAO.search(low)
+            and (self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low))
             and not self._QUEM.search(low) and not self._RANKING.search(low)
+            and not operador
         ):
             # Quando há palavra de comparação explícita (ex: "MAC1 e 2", "MAC1 vs MAC2"),
             # força recursos=None para garantir que ambas as máquinas sejam consultadas.
             # Na branch PRODUCAO+EXTRUSORA sem comparação, mantém o recurso extraído.
+            # Se a frase só citar "extrusora/máquina/MAC" genericamente, também consulta ambas.
             comp_recursos = None if self._COMPARATIVO.search(low) else recursos
             return InterpretationResult(
                 intent="comparativo_extrusoras", route="sql",

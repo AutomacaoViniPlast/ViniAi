@@ -39,7 +39,8 @@ O resultado é um `InterpretationResult` com: `intent`, `route`, `confidence`, `
  8.  LD próprio               → LD + "meu/minha/eu identifiquei"
  9.  geracao_ld_por_operador  → LD + ação de geração ou operador explícito
  9b. geracao_ld_por_operador  → LD genérico sem operador → usa usuário autenticado
-10a. comparativo_extrusoras   → comparar/versus/vs + extrusoras, ou produção + extrusora
+10a. comparativo_extrusoras   → comparar/versus/vs + extrusoras, produção + extrusora,
+                                "cada MAC", "cada máquina", "produção exata por extrusora"
 10b. horas_trabalhadas        → "horas trabalhadas", "total de horas", "quantas horas"
 11a. metros_por_minuto        → "metros por minuto", "m/min", "velocidade da máquina"
 11b. kgh                      → "kgh", "kg/h", "kg por hora", "produtividade em kg"
@@ -80,6 +81,16 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 | "extrusora 2", "mac 2", "máquina 2", "0007" | `["0007"]` |
 | "revisão" (sem mencionar extrusora/produção) | `["0005", "0006"]` |
 | Não mencionado | `None` → usa padrão `("0003", "0007")` |
+
+### Regras conversacionais importantes para extrusoras
+
+- Perguntas genéricas como *"qual a produção da extrusora?"*, *"qual o valor de cada MAC?"* e
+  *"qual o valor total de cada MAC na produção desse mês?"* agora devem cair em
+  `comparativo_extrusoras`, não em `total_fabrica`.
+- Quando a frase menciona `extrusora`, `máquina` ou `MAC` sem número explícito, o interpretador
+  assume comparação/detalhamento das duas extrusoras produtivas (`0003` e `0007`).
+- Follow-ups como *"qual a soma desses valores?"* são tratados como `total_fabrica`, permitindo
+  ao orchestrator herdar o período do contexto anterior e consolidar os valores exibidos por MAC.
 
 ---
 
