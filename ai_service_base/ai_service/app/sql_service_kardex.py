@@ -854,7 +854,6 @@ class SQLServiceKardex:
         pode ser que QTSEGUM deva ser usada para Y/BAG.
         """
         fil_sql, fil_p = _filial_clause(filial)
-        loc_sql, loc_p = _local_op_clause()
         rec_sql, rec_p = _recurso_clause(recursos)
         ori_sql, ori_p = _origem_clause(origem)
 
@@ -877,13 +876,12 @@ class SQLServiceKardex:
             WHERE EMISSAO BETWEEN ? AND ?
               {op_sql}
               {fil_sql}
-              {loc_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
             GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + loc_p + rec_p + ori_p + incl_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
 
         with get_mssql_conn() as conn:
             cur = conn.cursor()

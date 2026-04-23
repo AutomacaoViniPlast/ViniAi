@@ -141,6 +141,12 @@ Usado pelo orchestrator para exibir: Inteiro + LD + FP + Total na mesma resposta
 Agrupa `EMISSAO` por ano/mês e é usado para cobertura temporal da base de
 Qualidade / Revisão.
 
+**Operadores de revisão usados como filtro lógico da Ayla:**
+- `raul.ribeiro`
+- `kaua.chagas`
+- `ezequiel.nunes`
+- `igor.chiva`
+
 > [!warning] Pendências V_KARDEX
 > - LOCAL: mapear significado de cada armazém (01, 10, 12, 15, 20, 35, 40, 50, 60)
 > - LOCAL_OP: mapear outros valores além de 'EXTRUSAO'

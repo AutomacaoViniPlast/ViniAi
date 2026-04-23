@@ -57,7 +57,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               onKeyDown={handleKeyDown}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              placeholder="Ex: Qual o valor total de cada MAC em abril de 2026?"
+              placeholder="Digite sua mensagem..."
               disabled={disabled}
               rows={1}
               className="w-full bg-transparent text-base outline-none resize-none pt-1.5"

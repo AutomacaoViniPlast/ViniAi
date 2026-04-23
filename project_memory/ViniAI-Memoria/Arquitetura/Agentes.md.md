@@ -78,6 +78,9 @@ A Ayla atende **toda a área de Produção** sem precisar de sub-agentes:
   como a própria Ayla, e não como um texto sobre a Ayla em terceira pessoa.
 - Quando perguntarem sobre cobertura temporal, a Ayla deve responder com os períodos
   reais das bases que ela consulta, em vez de texto estático.
+- Os filtros de revisão usados pela Ayla para perguntas de LD e qualidade devem incluir
+  todos os revisores válidos do fluxo atual, incluindo `raul.ribeiro`,
+  para não truncar rankings ou totais da `V_KARDEX`.
 
 ### Rotas de resposta
 

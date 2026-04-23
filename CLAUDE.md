@@ -235,15 +235,12 @@ Antes de considerar a sessão encerrada, verificar e executar cada item:
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-23 10:49 por `scripts/sync_memory.py`
+> Gerado em 2026-04-23 14:16 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
-- Fix: adiciona handler producao_por_turno e simplifica capabilities para Qualidade+Extrusora (2026-04-23)
-- Feat: V_KARDEX retorna breakdown completo de qualidade (Inteiro + LD + FP + Total) (2026-04-23)
-- Fix: reconhece data DD/MM/YYYY no parser de período e retorna total da fábrica quando sem operador (2026-04-23)
-
-**Arquivos alterados nesta sessao:**
-- `CLAUDE.md`
+- Feat: validação de setor por operador e integração com Codex (2026-04-23)
+- Corrige consultas LD e roteamento do KARDEX (2026-04-23)
+- Melhora visual do guia de uso da IA (2026-04-23)
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

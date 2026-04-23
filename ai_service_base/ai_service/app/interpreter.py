@@ -491,10 +491,10 @@ class RuleBasedInterpreter:
 
     # Produto específico
     _PRODUTO = re.compile(
-        r"\bproduto\b|\bmaterial\b|\breferencia\b|\breferência\b|"
+        r"\bprodutos?\b|\bmateriais?\b|\breferencia\b|\breferência\b|"
         r"\bcódigo\b|\bcodigo\b|"
-        r"qual\s+produto|qual\s+material|que\s+produto|que\s+material|"
-        r"produto\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
+        r"qual\s+produtos?|qual\s+material|que\s+produtos?|que\s+material|"
+        r"produtos?\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
         re.IGNORECASE,
     )
 
@@ -549,7 +549,7 @@ class RuleBasedInterpreter:
         r"valor\s+(?:de|da)\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
         r"valor\s+total\s+de\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
         r"produ[cç][aã]o\s+exata\s+por\s+(?:extrusora|m[aá]quina|mac)|"
-        r"produ[cç][aã]o\s+(?:da|das)\s+(?:extrusoras?|m[aá]quinas?|macs?)",
+        r"produ[cç][aã]o\s+das\s+(?:extrusoras|m[aá]quinas|macs)",
         re.IGNORECASE,
     )
 
@@ -702,8 +702,14 @@ class RuleBasedInterpreter:
 
         # ── 2. Períodos disponíveis no banco ──────────────────────────────────
         if self._PERIODOS.search(low):
+            metric = None
+            if self._LD.search(low) or "qualidade" in low:
+                metric = "qualidade"
+            elif self._PRODUCAO.search(low) or self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low):
+                metric = "producao"
             return InterpretationResult(
                 intent="periodos_disponiveis", route="sql",
+                metric=metric,
                 confidence=0.93, reasoning="Pergunta sobre cobertura temporal dos dados.",
             )
 
@@ -936,7 +942,7 @@ class RuleBasedInterpreter:
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem, recursos=recursos,
                 confidence=0.91,
-                reasoning="ProduÃ§Ã£o dia a dia em intervalo.",
+                reasoning="Producao dia a dia em intervalo.",
             )
 
         if self._TOTAL.search(low) and not operador:

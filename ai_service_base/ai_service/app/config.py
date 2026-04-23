@@ -43,12 +43,15 @@ SETORES: dict[str, dict] = {
             "valdenrique.silva",
             "andreson.reis",
             "ednilson.soares",
+            "nobrega.valter",
+            "gilmar.santos",
         ],
     },
     "revisao": {
         "label": "Revisão",
         "descricao": "Revisores — inspecionam o material e identificam LD (Y) ou Inteiro (I). Consultados via KARDEX.",
         "operadores": [
+            "raul.ribeiro",
             "kaua.chagas",
             "ezequiel.nunes",
             "igor.chiva",

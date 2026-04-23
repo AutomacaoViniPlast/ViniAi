@@ -664,6 +664,26 @@ class ChatOrchestrator:
             if not periodos_sh6 and not periodos_kardex:
                 return "🔍 Não encontrei períodos disponíveis nas bases consultadas."
 
+            if ir.metric == "producao":
+                if not periodos_sh6:
+                    return "🔍 Não encontrei períodos disponíveis para produção na base SH6."
+                ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
+                return (
+                    "🗓️ **Tenho estes períodos disponíveis para produção (SH6):**\n\n"
+                    f"Cobertura: **{ini_sh6}** até **{fim_sh6}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_sh6)}"
+                )
+
+            if ir.metric == "qualidade":
+                if not periodos_kardex:
+                    return "🔍 Não encontrei períodos disponíveis para qualidade na base KARDEX."
+                ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
+                return (
+                    "🗓️ **Tenho estes períodos disponíveis para qualidade / revisão (KARDEX):**\n\n"
+                    f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_kardex)}"
+                )
+
             ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
             ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
             partes = ["🗓️ **Tenho estes períodos disponíveis nas bases que eu consulto:**"]
