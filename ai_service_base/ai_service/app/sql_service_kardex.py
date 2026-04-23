@@ -883,7 +883,7 @@ class SQLServiceKardex:
               {incl_sql}
             GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
         """
-        params = op_p + [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + rec_p + ori_p + incl_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + loc_p + rec_p + ori_p + incl_p
 
         with get_mssql_conn() as conn:
             cur = conn.cursor()

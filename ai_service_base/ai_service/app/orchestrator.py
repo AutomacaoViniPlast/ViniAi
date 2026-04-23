@@ -93,6 +93,47 @@ def _origem_label(origem: str | None) -> str:
     return f" [{nome}]"
 
 
+def _nome_mes_curto(mes: int) -> str:
+    nomes = {
+        1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
+        7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez",
+    }
+    return nomes.get(mes, str(mes))
+
+
+def _nome_mes_extenso(mes: int) -> str:
+    nomes = {
+        1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
+        7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+    }
+    return nomes.get(mes, str(mes))
+
+
+def _fmt_periodos_disponiveis(periodos: list[dict]) -> str:
+    """Formata anos/meses disponíveis agrupados por ano."""
+    if not periodos:
+        return "_Nenhum período encontrado._"
+    linhas = []
+    for bloco in periodos:
+        meses = ", ".join(_nome_mes_curto(m) for m in bloco["meses"])
+        linhas.append(f"- **{bloco['ano']}**: {meses}")
+    return "\n".join(linhas)
+
+
+def _extremos_periodos(periodos: list[dict]) -> tuple[str | None, str | None]:
+    """Retorna o primeiro e o último mês disponível em formato legível."""
+    if not periodos:
+        return None, None
+    primeiro_ano = periodos[0]["ano"]
+    primeiro_mes = periodos[0]["meses"][0]
+    ultimo_ano = periodos[-1]["ano"]
+    ultimo_mes = periodos[-1]["meses"][-1]
+    return (
+        f"{_nome_mes_extenso(primeiro_mes)} de {primeiro_ano}",
+        f"{_nome_mes_extenso(ultimo_mes)} de {ultimo_ano}",
+    )
+
+
 def _user_login_from_name(user_name: str | None) -> str | None:
     """
     Tenta mapear o nome do usuário autenticado para um login de operador.
@@ -251,7 +292,7 @@ class ChatOrchestrator:
         #        extraído do texto, usa o próprio usuário autenticado.
         #        Evita pedir o nome de quem já está logado.
         if (
-            ir.intent in ("geracao_ld_por_operador", "producao_por_operador")
+            ir.intent in ("geracao_ld_por_operador", "producao_por_operador", "resumo_qualidade")
             and not ir.entity_value
         ):
             user_login = _user_login_from_name(user_name)
@@ -425,6 +466,20 @@ class ChatOrchestrator:
             return f"👥 **Operadores da {label}**\n\n{linhas}"
 
         # ── Total geral da fábrica (SH6) ──────────────────────────────────────
+        if ir.intent == "producao_por_dia":
+            rows = self.sql.get_producao_por_dia(ini, fim, recursos=recursos)
+            if not rows:
+                return f"🔍 Nenhum dado de produção encontrado{periodo}{rec_lbl}."
+            total_periodo = sum(r["total_kg"] for r in rows)
+            header = f"📅 **Produção dia a dia da fábrica**{periodo}{rec_lbl}\n\n"
+            header += "| Data | Total KG | Registros |\n|------|----------|-----------|\n"
+            linhas = "\n".join(
+                f"| {r['data']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            resumo = f"\n\n**Total do período:** {_fmt_kg(total_periodo)}"
+            return header + linhas + resumo
+
         if ir.intent == "total_fabrica":
             total = self.sql.get_producao_total(ini, fim, recursos=recursos, is_diaria=is_diaria)
             if float(total) == 0:
@@ -567,11 +622,75 @@ class ChatOrchestrator:
 
         # ── Qualidade da produção: Inteiro / LD / FP (KARDEX) ───────────────────
         # Exibe breakdown completo: total geral + Inteiro (sem defeito) + LD (defeito) + FP
+        if ir.intent == "periodos_disponiveis":
+            periodos_sh6 = self.sql.get_periodos_disponiveis(recursos=recursos)
+            periodos_kardex = self.kardex.get_periodos_disponiveis()
+            if not periodos_sh6 and not periodos_kardex:
+                return "🔍 Não encontrei períodos disponíveis nas bases consultadas."
+
+            ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
+            ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
+            partes = ["🗓️ **Tenho estes períodos disponíveis nas bases que eu consulto:**"]
+
+            if periodos_sh6:
+                partes.append(
+                    "### Extrusora / Produção (SH6)\n"
+                    f"Cobertura: **{ini_sh6}** até **{fim_sh6}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_sh6)}"
+                )
+
+            if periodos_kardex:
+                partes.append(
+                    "### Qualidade / Revisão (KARDEX)\n"
+                    f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_kardex)}"
+                )
+
+            partes.append(
+                "Se você quiser, eu também posso te responder isso focando só em "
+                "**produção**, **qualidade**, **LD** ou **extrusora**."
+            )
+            return "\n\n".join(partes)
+
+        if ir.intent == "ld_total":
+            total_ld = self.kardex.get_ld_total(
+                ini, fim,
+                recursos=recursos,
+                origem=ir.origem,
+            )
+            if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
+                return f"🔍 Nenhum registro de LD encontrado{periodo}{rec_lbl}."
+
+            return (
+                f"⚠️ **Total de LD**{periodo}{rec_lbl}\n\n"
+                f"**{_fmt_quantidade(total_ld)}**"
+            )
+
         if ir.intent == "geracao_ld_por_operador":
+            if not ir.entity_value:
+                return "Preciso do nome do operador para consultar o LD identificado."
+
+            total_ld = self.kardex.get_ld_por_operador(
+                ir.entity_value,
+                ini, fim,
+                origem=ir.origem,
+            )
+            if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
+                nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
+                return f"🔍 Nenhum registro de LD encontrado{nome}{periodo}."
+
+            nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
+            return (
+                f"⚠️ **LD identificado{nome_str}**\n"
+                f"📅 Período{periodo}\n\n"
+                f"**{_fmt_quantidade(total_ld)}**"
+            )
+
+        if ir.intent == "resumo_qualidade":
             resumo = self.kardex.get_resumo_qualidade(
                 ini, fim,
                 operador=ir.entity_value or None,
-                filtro_usuarios=None if ir.entity_value else OPERADORES_ATIVOS,
+                origem=ir.origem,
             )
             inteiro_kg = float(resumo["I"]["KG"])
             ld_kg      = float(resumo["Y"]["KG"])
@@ -609,7 +728,6 @@ class ChatOrchestrator:
             rows = self.kardex.get_ranking_ld(
                 ini, fim, limite=top_n,
                 recursos=recursos,
-                filtro_usuarios=OPERADORES_ATIVOS,
             )
             if not rows:
                 return f"🔍 Nenhum dado de LD encontrado{periodo}{rec_lbl}."
@@ -626,7 +744,6 @@ class ChatOrchestrator:
         if ir.intent == "ranking_produtos_ld":
             rows = self.kardex.get_ranking_produtos_ld(
                 ini, fim, limite=top_n,
-                filtro_usuarios=OPERADORES_ATIVOS,
             )
             if not rows:
                 return f"🔍 Nenhum dado de LD por produto encontrado{periodo}."

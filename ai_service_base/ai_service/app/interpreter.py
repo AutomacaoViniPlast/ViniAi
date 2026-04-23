@@ -57,6 +57,7 @@ _RE_MONTH_YEAR = re.compile(
 _RE_YEAR_ONLY       = re.compile(r"\b(20\d{2})\b")
 _RE_DATA_ESPECIFICA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(20\d{2})(?!\d)")          # DD/MM/YYYY
 _RE_DATA_DIA_MES    = re.compile(r"(?:no?\s+)?dia\s+(\d{1,2})/(\d{1,2})(?!/\d)", re.IGNORECASE)  # dia DD/MM
+_RE_DATA_DIA_MES_LIVRE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!/\d)")  # DD/MM sem ano
 _RE_TOP_N           = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
 _RE_OPERATOR  = re.compile(r"\b([a-záéíóúâêîôûãõç]+\.[a-záéíóúâêîôûãõç]+)\b", re.IGNORECASE)
 _RE_PRODUTO   = re.compile(r"\b(TD2[A-Z0-9]{2,})\b", re.IGNORECASE)
@@ -151,6 +152,14 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
     if m_dia:
         try:
             d = date(today.year, int(m_dia.group(2)), int(m_dia.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+    m_dia_livre = _RE_DATA_DIA_MES_LIVRE.search(s)
+    if m_dia_livre:
+        try:
+            d = date(today.year, int(m_dia_livre.group(2)), int(m_dia_livre.group(1)))
             return d.strftime("%d/%m/%Y")
         except ValueError:
             pass
@@ -271,7 +280,8 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
     # ── Intervalos entre períodos (prioridade máxima) ─────────────────────────
     range_result = _try_parse_range(text)
     if range_result:
-        return range_result
+        ini_range, fim_range, _lbl_range = range_result
+        return ini_range, fim_range, f"{ini_range} até {fim_range}"
 
     # "ontem"
     if _RE_ONTEM.search(lowered):
@@ -322,6 +332,15 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
     if m_dia_mes:
         try:
             d = date(today.year, int(m_dia_mes.group(2)), int(m_dia_mes.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    m_dia_mes_livre = _RE_DATA_DIA_MES_LIVRE.search(text)
+    if m_dia_mes_livre:
+        try:
+            d = date(today.year, int(m_dia_mes_livre.group(2)), int(m_dia_mes_livre.group(1)))
             ds = d.strftime("%d/%m/%Y")
             return ds, ds, f"dia {ds}"
         except ValueError:
@@ -422,6 +441,16 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    _QUALIDADE_RESUMO = re.compile(
+        r"\binteiro\b|\bsem\s+defeito\b|"
+        r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
+        r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
+        r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
+        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
+        r"resumo\s+de\s+qualidade|quebra\s+por\s+qualidade",
+        re.IGNORECASE,
+    )
+
     # Ações de geração/identificação (revisão)
     _GERACAO = re.compile(
         r"gera[cç][aã]o|gerou|gerada|geradas|gerou|"
@@ -473,6 +502,11 @@ class RuleBasedInterpreter:
     _TURNO = re.compile(
         r"\bturno\b|\bturno\s*\d\b|\bturno\s*[ABC]\b|"
         r"por\s+turno|cada\s+turno|turnos?",
+        re.IGNORECASE,
+    )
+
+    _DIA_A_DIA = re.compile(
+        r"dia\s+a\s+dia|cada\s+dia|por\s+dia",
         re.IGNORECASE,
     )
 
@@ -741,6 +775,18 @@ class RuleBasedInterpreter:
 
         # ── 8. LD do PRÓPRIO usuário ("meu LD", "quanto eu identifiquei") ─────
         # entity_value=None → orchestrator injeta user_name automaticamente
+        if self._QUALIDADE_RESUMO.search(low):
+            return InterpretationResult(
+                intent="resumo_qualidade", route="sql",
+                metric="qualidade_material",
+                entity_type="operador" if (self._PROPRIO.search(low) or operador) else None,
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem,
+                confidence=0.87 if (self._PROPRIO.search(low) or operador) else 0.82,
+                reasoning="Resumo da producao por qualidade na V_KARDEX.",
+            )
+
         if self._LD.search(low) and self._PROPRIO.search(low):
             return InterpretationResult(
                 intent="geracao_ld_por_operador", route="sql",
@@ -753,7 +799,7 @@ class RuleBasedInterpreter:
             )
 
         # ── 9. LD por operador específico ou com ação de geração ──────────────
-        if self._LD.search(low) and (self._GERACAO.search(low) or self._PRODUCAO.search(low) or operador):
+        if self._LD.search(low) and operador:
             return InterpretationResult(
                 intent="geracao_ld_por_operador", route="sql",
                 metric="geracao_ld", entity_type="operador",
@@ -768,12 +814,12 @@ class RuleBasedInterpreter:
         # Exemplo: "LD de abril", "quanto de LD nesse mês"
         if self._LD.search(low):
             return InterpretationResult(
-                intent="geracao_ld_por_operador", route="sql",
-                metric="geracao_ld", entity_type="operador",
+                intent="ld_total", route="sql",
+                metric="geracao_ld", entity_type=None,
                 entity_value=None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem,
-                confidence=0.70,
+                confidence=0.78,
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
             )
 
@@ -883,6 +929,16 @@ class RuleBasedInterpreter:
             )
 
         # ── 15. Total geral da fábrica ────────────────────────────────────────
+        if self._PRODUCAO.search(low) and self._DIA_A_DIA.search(low) and data_inicio and data_fim:
+            return InterpretationResult(
+                intent="producao_por_dia", route="sql",
+                metric="producao_total", entity_type="dia",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem, recursos=recursos,
+                confidence=0.91,
+                reasoning="ProduÃ§Ã£o dia a dia em intervalo.",
+            )
+
         if self._TOTAL.search(low) and not operador:
             return InterpretationResult(
                 intent="total_fabrica", route="sql",
