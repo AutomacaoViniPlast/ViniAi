@@ -95,9 +95,17 @@ Consultada quando o request envolver: OP, TURNO, TES, qualidade Y/I, LOTE ou det
 - QUANTIDADE negativa (TES 999) → lógica de saldo PENDENTE de confirmação
 - parse_produto(): pos 1-3=código-base, pos 5=Y/I, pos 6-8=cor1, pos 11-13=cor2
 
-**Roteamento V_KARDEX vs SH6 (CONFIRMADO):**
-- V_KARDEX → qualquer consulta que envolva qualidade do material (Y=LD, I=Inteiro, P=Fora de Padrão)
-- SH6 → qualquer consulta que NÃO envolva qualidade do material (KGH, m/min, ranking de peso, horas trabalhadas)
+**Roteamento V_KARDEX vs SH6 (CONFIRMADO — REGRA FIXA):**
+- **V_KARDEX** → qualquer consulta que envolva qualidade do material:
+  - LD (Y), Inteiro (I), Fora de Padrão (P)
+  - "por qualidade", "qualidade da produção", "diferenciar LD e Inteiro"
+  - Resposta SEMPRE exibe breakdown: Inteiro + LD + FP + Total
+- **SH6** → consultas sem contexto de qualidade:
+  - Produção por operador (ex: "produção do Ezequiel em março")
+  - Produção por período (ex: "produção de ontem", "de janeiro até hoje")
+  - Extrusora (KGH, m/min, comparativo MAC1 vs MAC2, horas trabalhadas)
+  - Rankings de produção por peso (sem qualidade)
+- **Regra de desempate:** se houver dúvida, verificar se a consulta menciona Y/I/P, LD, Inteiro, FP → V_KARDEX. Caso contrário → SH6.
 
 ### dbo.STG_PROD_SD3 — movimentação interna
 ### dbo.STG_APONT_REV_GERAL — apontamentos de revisão (pendente mapeamento)
@@ -190,15 +198,12 @@ Antes de considerar a sessão encerrada, verificar e executar cada item:
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-22 16:08 por `scripts/sync_memory.py`
+> Gerado em 2026-04-23 09:52 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
+- Fix: reconhece data DD/MM/YYYY no parser de período e retorna total da fábrica quando sem operador (2026-04-23)
 - chore: adiciona *.zip ao .gitignore (2026-04-22)
 - chore: remove arquivo zip do vault Obsidian (2026-04-22)
-- chore: adiciona CLAUDE.md e vault Obsidian ao repositório (2026-04-22)
-
-**Arquivos alterados nesta sessao:**
-- `CLAUDE.md`
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

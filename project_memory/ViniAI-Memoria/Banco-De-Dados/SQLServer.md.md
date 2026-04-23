@@ -61,8 +61,11 @@ Tabela principal para consultas de produção das extrusoras MAC1 e MAC2.
 Representa movimentações industriais: produção, revisão e movimentação interna.
 Implementada em `app/sql_service_kardex.py`.
 
-**Quando usar:** qualquer consulta que envolva qualidade do material (Y=LD, I=Inteiro, P=Fora de Padrão).
-**Quando NÃO usar:** consultas sem qualidade → usar SH6 (KGH, m/min, ranking de peso, horas trabalhadas).
+**Roteamento (REGRA FIXA — confirmada com usuário 2026-04-23):**
+- **Usar V_KARDEX** sempre que a consulta mencionar qualidade do material: LD (Y), Inteiro (I), Fora de Padrão (P), "por qualidade", "diferenciar LD e Inteiro", "qualidade da produção"
+- **Usar SH6** para produção sem contexto de qualidade: por operador, por período, extrusora, KGH, m/min, horas trabalhadas
+- **Resposta V_KARDEX** SEMPRE exibe breakdown: Inteiro + LD + FP + Total geral
+- **Desempate:** se mencionou Y/I/P, LD, Inteiro ou FP → V_KARDEX; caso contrário → SH6
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -126,13 +129,17 @@ Implementada em `app/sql_service_kardex.py`.
 - COR_FRENTE/MEIO/VERSO → usar colunas diretas; parser fornece apenas inferência de fallback
 - `parse_produto()`: trata MSP008 como BAG, pos 1-3=família, pos 5=Y/I/P, pos 6-8=cor_frente inferida, pos 11-13=cor_verso inferida
 
+**Método `get_resumo_qualidade(ini, fim, operador?, filtro_usuarios?)` — IMPLEMENTADO:**
+Retorna breakdown por QUALIDADE: `{"I": {"KG": ..., "MT": ...}, "Y": {...}, "P": {...}}`
+Usado pelo orchestrator para exibir: Inteiro + LD + FP + Total na mesma resposta.
+
 > [!warning] Pendências V_KARDEX
 > - LOCAL: mapear significado de cada armazém (01, 10, 12, 15, 20, 35, 40, 50, 60)
 > - LOCAL_OP: mapear outros valores além de 'EXTRUSAO'
 > - TIPO: sem regra de negócio definida ainda
 > - TES: detalhamento completo pendente
 > - QUANTIDADE negativa (TES 999): confirmar lógica de saldo antes de implementar somatórios mistos
-> - Integração no orchestrator ainda não feita
+> - **CRÍTICO:** QUANTIDADE pode ser coluna errada para LD (Y) — usuário irá confirmar coluna correta (pode ser QTSEGUM)
 
 ---
 

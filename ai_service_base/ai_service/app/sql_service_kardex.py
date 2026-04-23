@@ -828,6 +828,77 @@ class SQLServiceKardex:
                     resultado[um] = Decimal(str(row[1]))
             return resultado
 
+    # ── Resumo de produção por qualidade (Inteiro / LD / FP) ────────────────
+    def get_resumo_qualidade(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        operador: str | None = None,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+        origem: str | None = None,
+        filtro_usuarios: list[str] | None = None,
+    ) -> dict[str, dict[str, Decimal]]:
+        """
+        Agrega QUANTIDADE por QUALIDADE e UM, filtrando LOCAL_OP=EXTRUSAO.
+
+        Retorna estrutura:
+          {"I": {"KG": Decimal, "MT": Decimal},
+           "Y": {"KG": Decimal, "MT": Decimal},
+           "P": {"KG": Decimal, "MT": Decimal}}
+
+        Usado pelo orchestrator para exibir o breakdown completo:
+          Inteiro (sem defeito) / LD (defeito) / Fora de Padrão.
+
+        PENDENTE: confirmar se QUANTIDADE é a coluna correta para LD (Y) —
+        pode ser que QTSEGUM deva ser usada para Y/BAG.
+        """
+        fil_sql, fil_p = _filial_clause(filial)
+        loc_sql, loc_p = _local_op_clause()
+        rec_sql, rec_p = _recurso_clause(recursos)
+        ori_sql, ori_p = _origem_clause(origem)
+
+        op_sql: str = ""
+        op_p: list = []
+        if operador:
+            op_sql = "AND LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)"
+            op_p = [f"%{operador.strip()}%"]
+
+        incl_sql, incl_p = "", []
+        if filtro_usuarios and not operador:
+            incl_sql, incl_p = _incluir_clause(filtro_usuarios)
+
+        query = f"""
+            SELECT
+                LTRIM(RTRIM(QUALIDADE)) AS qualidade,
+                LTRIM(RTRIM(UM))        AS unidade,
+                COALESCE(SUM(QUANTIDADE), 0) AS total
+            FROM dbo.V_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              {op_sql}
+              {fil_sql}
+              {loc_sql}
+              {rec_sql}
+              {ori_sql}
+              {incl_sql}
+            GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
+        """
+        params = op_p + [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + rec_p + ori_p + incl_p
+
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            resultado: dict[str, dict[str, Decimal]] = {
+                q: {um: Decimal("0") for um in UM_VALIDAS}
+                for q in ("I", "Y", "P")
+            }
+            for row in cur.fetchall():
+                qualidade = (row[0] or "").strip().upper()
+                um        = (row[1] or "").strip().upper()
+                if qualidade in resultado and um in UM_VALIDAS:
+                    resultado[qualidade][um] = Decimal(str(row[2]))
+            return resultado
+
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
     def get_periodos_disponiveis(
         self,

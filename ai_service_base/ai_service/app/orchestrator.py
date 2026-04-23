@@ -541,31 +541,44 @@ class ChatOrchestrator:
 
         # ── Intents KARDEX — consultas que envolvem qualidade do material ────────
 
-        # ── LD do próprio usuário ou de operador específico (KARDEX) ─────────────
+        # ── Qualidade da produção: Inteiro / LD / FP (KARDEX) ───────────────────
+        # Exibe breakdown completo: total geral + Inteiro (sem defeito) + LD (defeito) + FP
         if ir.intent == "geracao_ld_por_operador":
-            if ir.entity_value:
-                resultado = self.kardex.get_ld_por_operador(ir.entity_value, ini, fim)
-                total_str = _fmt_quantidade(resultado)
-                if all(float(v) == 0 for v in resultado.values()):
-                    return f"🔍 Nenhum LD registrado para **{ir.entity_value}**{periodo}."
-                tipo = "dia" if is_diaria else "mês"
-                return (
-                    f"⚠️ **LD — {ir.entity_value}**\n\n"
-                    f"📅 Período ({tipo}): {periodo.strip() or 'geral'}\n"
-                    f"📦 Total LD: **{total_str}**"
-                )
-            else:
-                # Sem operador específico — total geral de LD dos operadores ativos
-                resultado = self.kardex.get_ld_total(ini, fim, filtro_usuarios=OPERADORES_ATIVOS)
-                total_str = _fmt_quantidade(resultado)
-                if all(float(v) == 0 for v in resultado.values()):
-                    return f"🔍 Nenhum LD registrado{periodo}."
-                tipo = "dia" if is_diaria else "mês"
-                return (
-                    f"⚠️ **Total de LD**{periodo}\n\n"
-                    f"| Métrica | Valor |\n|---------|-------|\n"
-                    f"| 📦 Total LD | **{total_str}** |"
-                )
+            resumo = self.kardex.get_resumo_qualidade(
+                ini, fim,
+                operador=ir.entity_value or None,
+                filtro_usuarios=None if ir.entity_value else OPERADORES_ATIVOS,
+            )
+            inteiro_kg = float(resumo["I"]["KG"])
+            ld_kg      = float(resumo["Y"]["KG"])
+            ld_mt      = float(resumo["Y"]["MT"])
+            fp_kg      = float(resumo["P"]["KG"])
+            total_kg   = inteiro_kg + ld_kg + fp_kg
+
+            if total_kg == 0 and ld_mt == 0:
+                nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
+                return f"🔍 Nenhum registro de produção encontrado{nome}{periodo}."
+
+            tipo     = "dia" if is_diaria else "mês"
+            nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
+            header   = (
+                f"⚠️ **Produção por qualidade{nome_str}**\n"
+                f"📅 Período ({tipo}){periodo}\n\n"
+                "| Qualidade | Total |\n|-----------|-------|\n"
+            )
+            linhas = []
+            if inteiro_kg > 0:
+                linhas.append(f"| ✅ Inteiro (sem defeito) | **{_fmt_kg(inteiro_kg)}** |")
+            if ld_kg > 0:
+                linhas.append(f"| ⚠️ LD (defeito) | **{_fmt_kg(ld_kg)}** |")
+            if ld_mt > 0:
+                fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                linhas.append(f"| ⚠️ LD (defeito) | **{fmt_mt} MT** |")
+            if fp_kg > 0:
+                linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+            if total_kg > 0:
+                linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
+            return header + "\n".join(linhas)
 
         # ── Ranking de operadores com mais LD (KARDEX) ────────────────────────────
         if ir.intent == "ranking_usuarios_ld":

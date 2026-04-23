@@ -409,10 +409,16 @@ class RuleBasedInterpreter:
 
     # ── Agrupamentos de palavras-chave — cobertura ampliada ───────────────────
 
-    # LD (material defeituoso)
+    # Qualidade do material — LD, Inteiro, Fora de Padrão e qualidade geral
+    # Qualquer menção a qualidade → roteia para V_KARDEX (breakdown Inteiro/LD/FP)
     _LD = re.compile(
         r"\bld\b|\blaudo\s+de?\s+defeito\b|\bmaterial\s+(?:com\s+)?defeito\b|"
-        r"\bdefeituoso\b|\bdefeito\b",
+        r"\bdefeituoso\b|\bdefeito\b|"
+        r"\binteiro\b|\bsem\s+defeito\b|"
+        r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
+        r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
+        r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
+        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade",
         re.IGNORECASE,
     )
 
