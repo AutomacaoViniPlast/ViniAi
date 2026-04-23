@@ -521,6 +521,30 @@ class ChatOrchestrator:
                 f"| **Média m/min** | **{data['resultado']:.4f}** |"
             )
 
+        # ── Produção por turno (KARDEX) ──────────────────────────────────────────
+        if ir.intent == "producao_por_turno":
+            rows = self.kardex.get_producao_por_turno(ini, fim, recursos=recursos)
+            if not rows:
+                return f"🔍 Nenhum dado por turno encontrado{periodo}{rec_lbl}."
+            por_turno: dict[str, dict] = {}
+            for r in rows:
+                t = r["turno"] or "—"
+                if t not in por_turno:
+                    por_turno[t] = {"KG": 0.0, "MT": 0.0, "registros": 0}
+                um = (r["unidade"] or "").upper()
+                if um == "KG":
+                    por_turno[t]["KG"] += r["total"]
+                elif um == "MT":
+                    por_turno[t]["MT"] += r["total"]
+                por_turno[t]["registros"] += r["registros"]
+            header = f"🔄 **Produção por turno**{periodo}{rec_lbl}\n\n"
+            header += "| Turno | Total KG | Registros |\n|-------|----------|----------|\n"
+            linhas = [
+                f"| {turno} | **{_fmt_kg(dados['KG'])}** | {dados['registros']} |"
+                for turno, dados in sorted(por_turno.items())
+            ]
+            return header + "\n".join(linhas)
+
         # ── KGH — KG por hora (SH6) ───────────────────────────────────────────
         if ir.intent == "kgh":
             rows = self.sql.get_kgh(ini, fim, recursos=recursos, is_diaria=is_diaria)
