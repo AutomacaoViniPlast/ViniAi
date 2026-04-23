@@ -561,7 +561,8 @@ class ChatOrchestrator:
                 ld_kg      = float(resumo["Y"]["KG"])
                 ld_mt      = float(resumo["Y"]["MT"])
                 fp_kg      = float(resumo["P"]["KG"])
-                total_kg   = inteiro_kg + ld_kg + fp_kg
+                bag_kg     = float(resumo["BAG"]["KG"])
+                total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
                 if total_kg == 0 and ld_mt == 0:
                     return f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{periodo}."
                 tipo   = "dia" if is_diaria else "mês"
@@ -580,6 +581,8 @@ class ChatOrchestrator:
                     linhas.append(f"| ⚠️ LD | **{fmt_mt} MT** |")
                 if fp_kg > 0:
                     linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+                if bag_kg > 0:
+                    linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
                 if total_kg > 0:
                     linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
                 return header + "\n".join(linhas)
@@ -761,7 +764,8 @@ class ChatOrchestrator:
             ld_kg      = float(resumo["Y"]["KG"])
             ld_mt      = float(resumo["Y"]["MT"])
             fp_kg      = float(resumo["P"]["KG"])
-            total_kg   = inteiro_kg + ld_kg + fp_kg
+            bag_kg     = float(resumo["BAG"]["KG"])
+            total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
 
             if total_kg == 0 and ld_mt == 0:
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
@@ -784,6 +788,8 @@ class ChatOrchestrator:
                 linhas.append(f"| ⚠️ LD (defeito) | **{fmt_mt} MT** |")
             if fp_kg > 0:
                 linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+            if bag_kg > 0:
+                linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
             if total_kg > 0:
                 linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
             return header + "\n".join(linhas)

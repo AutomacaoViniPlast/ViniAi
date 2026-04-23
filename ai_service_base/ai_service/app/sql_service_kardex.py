@@ -874,6 +874,7 @@ class SQLServiceKardex:
                 COALESCE(SUM(QUANTIDADE), 0) AS total
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
+              AND COALESCE(QUANTIDADE, 0) > 0
               {op_sql}
               {fil_sql}
               {rec_sql}
@@ -888,7 +889,7 @@ class SQLServiceKardex:
             cur.execute(query, params)
             resultado: dict[str, dict[str, Decimal]] = {
                 q: {um: Decimal("0") for um in UM_VALIDAS}
-                for q in ("I", "Y", "P")
+                for q in ("I", "Y", "P", "BAG")
             }
             for row in cur.fetchall():
                 qualidade = (row[0] or "").strip().upper()
