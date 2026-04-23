@@ -1023,7 +1023,7 @@ class RuleBasedInterpreter:
     def _extract_setor(self, text: str) -> str | None:
         """Detecta menção a um setor no texto."""
         low = text.lower()
-        for setor_alias in ["expedição", "expedicao", "expedicão", "revisão", "revisao", "producao", "produção"]:
+        for setor_alias in ["extrusora", "expedição", "expedicao", "expedicão", "revisão", "revisao", "producao", "produção"]:
             if setor_alias in low:
                 return _normalizar_setor(setor_alias)
         return None

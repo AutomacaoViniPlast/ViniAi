@@ -184,6 +184,43 @@ main           → importa orchestrator, schemas
 - Commits sempre ao final de sessão com mensagem descritiva em português
 - CLAUDE.md não sobe para o git (está no .gitignore)
 
+## Protocolo Codex + Claude Code (OBRIGATÓRIO)
+
+Quando Codex e Claude Code atuarem no mesmo projeto, os dois devem trabalhar como revisão cruzada e não como fontes independentes de verdade.
+
+### Fonte de verdade
+- Código atual do workspace sempre vence memória antiga
+- `app/config.py` é a fonte de verdade para operadores, setores e origens
+- `CLAUDE.md` é resumo operacional do agente
+- `project_memory/ViniAI-Memoria/` é memória longa e deve refletir o código real
+
+### Regra de validação cruzada
+- Antes de afirmar regra de negócio, conferir no código e na tabela/serviço corretos
+- Antes de editar roteamento, conferir `interpreter.py`, `orchestrator.py` e o `sql_service_*` envolvido
+- Se um agente encontrar inconsistência entre documentação e código, deve corrigir a documentação e registrar a divergência
+- Se uma resposta depender de hipótese não confirmada, isso deve ser dito explicitamente
+
+### Como corrigir erro do outro agente
+- Não assumir que a resposta anterior está correta só porque foi dada por outro agente
+- Revalidar a intenção, a tabela consultada, os filtros aplicados e o período interpretado
+- Ao corrigir um erro anterior, registrar claramente:
+  1. qual era o comportamento errado
+  2. qual é a regra correta
+  3. em quais arquivos a correção foi feita
+- Se a correção não puder ser validada no banco real, deixar isso explícito
+
+### Handoff entre agentes
+- Ao encerrar uma sessão, deixar no vault e no `CLAUDE.md` apenas fatos validados
+- Sempre que alterar regra de roteamento, atualizar a nota correspondente no vault
+- Sempre que detectar bug relevante, registrar também em `RunBooks/Pendencias.md.md` ou remover de lá se foi resolvido
+- O próximo agente deve começar lendo `Hub/Home.md.md` e depois apenas as notas relacionadas ao arquivo alterado
+
+### Objetivo da colaboração
+- Reduzir alucinação
+- Evitar repetir erro já cometido
+- Garantir que interpretação, roteamento e SQL estejam alinhados
+- Fazer revisão mútua de contexto antes de qualquer mudança sensível
+
 ## Checklist obrigatório antes de encerrar qualquer sessão de desenvolvimento
 
 Antes de considerar a sessão encerrada, verificar e executar cada item:
@@ -198,12 +235,15 @@ Antes de considerar a sessão encerrada, verificar e executar cada item:
 <!-- SYNC_MEMORY:START -->
 
 ## Contexto Auto-Atualizado — Última Sessão
-> Gerado em 2026-04-23 09:52 por `scripts/sync_memory.py`
+> Gerado em 2026-04-23 10:49 por `scripts/sync_memory.py`
 
 **Ultimos commits:**
+- Fix: adiciona handler producao_por_turno e simplifica capabilities para Qualidade+Extrusora (2026-04-23)
+- Feat: V_KARDEX retorna breakdown completo de qualidade (Inteiro + LD + FP + Total) (2026-04-23)
 - Fix: reconhece data DD/MM/YYYY no parser de período e retorna total da fábrica quando sem operador (2026-04-23)
-- chore: adiciona *.zip ao .gitignore (2026-04-22)
-- chore: remove arquivo zip do vault Obsidian (2026-04-22)
+
+**Arquivos alterados nesta sessao:**
+- `CLAUDE.md`
 
 **Pendencias criticas (de `RunBooks/Pendencias.md.md`):**
 - `kaua.chagas` ausente no setor `producao`

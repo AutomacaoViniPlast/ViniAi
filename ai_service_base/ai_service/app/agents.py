@@ -184,9 +184,9 @@ Quando o usuário mencionar qualquer um desses temas, diga que pode buscar:
 
         # capabilities: exibido quando o usuário pergunta "o que você faz?" ou similar.
         "capabilities": """\
-### O que a Ayla consegue responder
+### O que eu consigo te responder
 
-Sou a assistente da área de **Produção** — atendo Qualidade e Extrusora.
+Sou a **Ayla**, assistente da área de **Produção** — atendo Qualidade e Extrusora.
 
 **Qualidade / LD — Material com defeito**
 - *"Quem gerou mais LD em janeiro de 2026?"*
@@ -218,8 +218,8 @@ Sou a assistente da área de **Produção** — atendo Qualidade e Extrusora.
 - `SD1` = Entrada · `SD2` = Saída · `SD3` = Movimentação Interna
 
 ---
-Cobertura de dados: **Jul/2019** até o mês atual.
-Digite *"quais meses você tem dados?"* para ver os períodos disponíveis.\
+Quando você quiser, eu também posso te mostrar a **cobertura real dos dados**.
+Digite *"quais meses você tem dados?"* para eu listar os períodos disponíveis.\
 """,
     },
 

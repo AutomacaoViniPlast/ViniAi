@@ -80,6 +80,34 @@ def _filial_clause(filial: str | None) -> tuple[str, list]:
 class SQLServiceSH6:
     """Consultas à tabela dbo.STG_PROD_SH6_VPLONAS."""
 
+    # ── Períodos disponíveis na SH6 (Extrusora) ─────────────────────────────
+    def get_periodos_disponiveis(
+        self,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+    ) -> list[dict]:
+        """Retorna anos e meses com registros agrupados por ano na SH6."""
+        rec_sql, rec_p = _recursos_clause(recursos)
+        fil_sql, fil_p = _filial_clause(filial)
+        query = f"""
+            SELECT YEAR(DATA_APONT) AS ano, MONTH(DATA_APONT) AS mes, COUNT(*) AS registros
+            FROM dbo.STG_PROD_SH6_VPLONAS
+            WHERE DATA_APONT IS NOT NULL
+              {fil_sql}
+              {rec_sql}
+            GROUP BY YEAR(DATA_APONT), MONTH(DATA_APONT)
+            ORDER BY ano, mes
+        """
+        params = fil_p + rec_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            anos: dict[int, list[int]] = {}
+            for r in cur.fetchall():
+                ano, mes = int(r[0]), int(r[1])
+                anos.setdefault(ano, []).append(mes)
+            return [{"ano": ano, "meses": meses} for ano, meses in sorted(anos.items())]
+
     # ── Produção total (mensal ou diária) ─────────────────────────────────────
     def get_producao_total(
         self,
@@ -327,6 +355,41 @@ class SQLServiceSH6:
                     "recurso_label": traduzir_recurso(r[0]),
                     "total_kg":      float(r[1]) if r[1] else 0.0,
                     "registros":     int(r[2]),
+                }
+                for r in cur.fetchall()
+            ]
+
+    # ── Produção dia a dia no intervalo ──────────────────────────────────────
+    def get_producao_por_dia(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+    ) -> list[dict]:
+        rec_sql, rec_p = _recursos_clause(recursos)
+        fil_sql, fil_p = _filial_clause(filial)
+        query = f"""
+            SELECT
+                DATA_INI                AS data_ref,
+                SUM(PESO_FILME_PASSADA) AS total_kg,
+                COUNT(*)                AS registros
+            FROM dbo.STG_PROD_SH6_VPLONAS
+            WHERE DATA_INI BETWEEN ? AND ?
+              {fil_sql}
+              {rec_sql}
+            GROUP BY DATA_INI
+            ORDER BY DATA_INI
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {
+                    "data": r[0].strftime("%d/%m/%Y") if r[0] else "",
+                    "total_kg": float(r[1]) if r[1] else 0.0,
+                    "registros": int(r[2]),
                 }
                 for r in cur.fetchall()
             ]

@@ -40,7 +40,7 @@ import re
 
 from app.agents import get_agent
 from app.config import (
-    OPERADORES_ATIVOS, ORIGENS,
+    OPERADORES_ATIVOS, OPERADORES_EXTRUSORA, OPERADORES_REVISAO, ORIGENS,
     get_label_setor, get_operadores_setor, get_setor_de, todos_operadores,
 )
 from app.context_manager import PostgresContextManager
@@ -290,15 +290,20 @@ class ChatOrchestrator:
 
         # ── 4d. Auto-inject: quando intent é de operador mas nenhum foi ───────
         #        extraído do texto, usa o próprio usuário autenticado.
-        #        Evita pedir o nome de quem já está logado.
+        #        Só injeta se o setor do usuário bate com o intent.
         if (
             ir.intent in ("geracao_ld_por_operador", "producao_por_operador", "resumo_qualidade")
             and not ir.entity_value
         ):
             user_login = _user_login_from_name(user_name)
             if user_login:
-                ir.entity_value = user_login
-                print(f"[{self.agent_name}] Auto-inject: entity_value='{user_login}' (usuário autenticado).")
+                setor_usuario = get_setor_de(user_login)
+                if ir.intent in ("geracao_ld_por_operador", "resumo_qualidade") and setor_usuario == "revisao":
+                    ir.entity_value = user_login
+                    print(f"[{self.agent_name}] Auto-inject (revisao): entity_value='{user_login}'.")
+                elif ir.intent == "producao_por_operador" and setor_usuario == "extrusora":
+                    ir.entity_value = user_login
+                    print(f"[{self.agent_name}] Auto-inject (extrusora): entity_value='{user_login}'.")
 
         # ── 4e. Consulta ao banco de dados → SQL ─────────────────────────────
         answer = self._handle_sql(ir)
@@ -548,6 +553,37 @@ class ChatOrchestrator:
                     f"| Métrica | Valor |\n|---------|-------|\n"
                     f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |"
                 )
+
+            # Operador da revisão → dados estão no KARDEX (qualidade), não no SH6
+            if ir.entity_value in OPERADORES_REVISAO:
+                resumo = self.kardex.get_resumo_qualidade(ini, fim, operador=ir.entity_value, origem=ir.origem)
+                inteiro_kg = float(resumo["I"]["KG"])
+                ld_kg      = float(resumo["Y"]["KG"])
+                ld_mt      = float(resumo["Y"]["MT"])
+                fp_kg      = float(resumo["P"]["KG"])
+                total_kg   = inteiro_kg + ld_kg + fp_kg
+                if total_kg == 0 and ld_mt == 0:
+                    return f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{periodo}."
+                tipo   = "dia" if is_diaria else "mês"
+                header = (
+                    f"⚠️ **Revisão por qualidade — {ir.entity_value}**\n"
+                    f"📅 Período ({tipo}){periodo}\n\n"
+                    "| Qualidade | Total |\n|-----------|-------|\n"
+                )
+                linhas = []
+                if inteiro_kg > 0:
+                    linhas.append(f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** |")
+                if ld_kg > 0:
+                    linhas.append(f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** |")
+                if ld_mt > 0:
+                    fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    linhas.append(f"| ⚠️ LD | **{fmt_mt} MT** |")
+                if fp_kg > 0:
+                    linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+                if total_kg > 0:
+                    linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
+                return header + "\n".join(linhas)
+
             total = self.sql.get_producao_por_operador(
                 ir.entity_value, ini, fim, recursos=recursos, is_diaria=is_diaria,
             )
@@ -657,6 +693,7 @@ class ChatOrchestrator:
                 ini, fim,
                 recursos=recursos,
                 origem=ir.origem,
+                filtro_usuarios=OPERADORES_REVISAO,
             )
             if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
                 return f"🔍 Nenhum registro de LD encontrado{periodo}{rec_lbl}."
@@ -669,6 +706,14 @@ class ChatOrchestrator:
         if ir.intent == "geracao_ld_por_operador":
             if not ir.entity_value:
                 return "Preciso do nome do operador para consultar o LD identificado."
+
+            # Operador da extrusora não tem registros de revisão no KARDEX
+            if ir.entity_value in OPERADORES_EXTRUSORA:
+                return (
+                    f"**{ir.entity_value}** é um operador da **Extrusora** — "
+                    "não tem registros de revisão de qualidade.\n\n"
+                    "Para consultar a produção dele, pergunte sobre produção."
+                )
 
             total_ld = self.kardex.get_ld_por_operador(
                 ir.entity_value,
@@ -691,6 +736,7 @@ class ChatOrchestrator:
                 ini, fim,
                 operador=ir.entity_value or None,
                 origem=ir.origem,
+                filtro_usuarios=OPERADORES_REVISAO if not ir.entity_value else None,
             )
             inteiro_kg = float(resumo["I"]["KG"])
             ld_kg      = float(resumo["Y"]["KG"])
@@ -728,6 +774,7 @@ class ChatOrchestrator:
             rows = self.kardex.get_ranking_ld(
                 ini, fim, limite=top_n,
                 recursos=recursos,
+                filtro_usuarios=OPERADORES_REVISAO,
             )
             if not rows:
                 return f"🔍 Nenhum dado de LD encontrado{periodo}{rec_lbl}."
@@ -744,6 +791,7 @@ class ChatOrchestrator:
         if ir.intent == "ranking_produtos_ld":
             rows = self.kardex.get_ranking_produtos_ld(
                 ini, fim, limite=top_n,
+                filtro_usuarios=OPERADORES_REVISAO,
             )
             if not rows:
                 return f"🔍 Nenhum dado de LD por produto encontrado{periodo}."

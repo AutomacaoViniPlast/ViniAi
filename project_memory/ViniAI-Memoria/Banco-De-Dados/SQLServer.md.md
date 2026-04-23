@@ -53,6 +53,10 @@ Tabela principal para consultas de produção das extrusoras MAC1 e MAC2.
 - KGH → `SUM(PESO_FILME_PASSADA) / (SUM(MINUTOS) / 60)` — nunca AVG(KGH)
 - Filial padrão → `010101` quando não especificada
 - Recurso padrão → `('0003', '0007')` — exclui Revisão automaticamente
+- Cobertura temporal disponível → `get_periodos_disponiveis()` agrupa `DATA_APONT`
+  por ano/mês para responder perguntas como `quais meses você tem dados?`
+- Produção dia a dia → `get_producao_por_dia()` agrupa `DATA_INI` por data
+  para intervalos como `01/04 até 08/04`
 
 ---
 
@@ -132,6 +136,10 @@ Implementada em `app/sql_service_kardex.py`.
 **Método `get_resumo_qualidade(ini, fim, operador?, filtro_usuarios?)` — IMPLEMENTADO:**
 Retorna breakdown por QUALIDADE: `{"I": {"KG": ..., "MT": ...}, "Y": {...}, "P": {...}}`
 Usado pelo orchestrator para exibir: Inteiro + LD + FP + Total na mesma resposta.
+
+**Método `get_periodos_disponiveis(filial?, filtro_usuarios?)` — IMPLEMENTADO:**
+Agrupa `EMISSAO` por ano/mês e é usado para cobertura temporal da base de
+Qualidade / Revisão.
 
 > [!warning] Pendências V_KARDEX
 > - LOCAL: mapear significado de cada armazém (01, 10, 12, 15, 20, 35, 40, 50, 60)

@@ -12,6 +12,11 @@ O `RuleBasedInterpreter` (`app/interpreter.py`) classifica cada mensagem em uma 
 
 O resultado é um `InterpretationResult` com: `intent`, `route`, `confidence`, `data_inicio`, `data_fim`, `entity_value`, `top_n`, `setor`, `origem`, `recursos`.
 
+- Intervalos curtos como *"01/04 atÃ© 08/04"* agora sÃ£o reconhecidos mesmo sem a
+  palavra `dia` e sem ano explÃ­cito.
+- Frases como *"qual a produÃ§Ã£o dia a dia de 01/04 atÃ© 08/04"* caem em
+  `producao_por_dia` para retorno diÃ¡rio em vez de somatÃ³rio Ãºnico do perÃ­odo.
+
 ---
 
 ## Rotas Possíveis
@@ -48,11 +53,12 @@ O resultado é um `InterpretationResult` com: `intent`, `route`, `confidence`, `
 13.  ranking_producao_geral   → ranking/top sem LD nem produção específica
 14.  producao_por_produto     → código de produto + produção
 15.  producao_por_turno       → palavra "turno"
-16.  total_fabrica            → "total", "geral", "visão geral"
-17.  producao_por_operador    → produção própria ("meu/minha/eu produzi")
-18.  producao_por_operador    → expedição ("expedido", "liberado", "bobinas liberadas")
-19.  producao_por_operador    → produção com operador explícito ou padrão
-20.  clarify (fallback)       → nada identificado com segurança
+16.  producao_por_dia         → "dia a dia", "cada dia", "por dia" + intervalo explícito
+17.  total_fabrica            → "total", "geral", "visão geral"
+18.  producao_por_operador    → produção própria ("meu/minha/eu produzi")
+19.  producao_por_operador    → expedição ("expedido", "liberado", "bobinas liberadas")
+20.  producao_por_operador    → produção com operador explícito ou padrão
+21.  clarify (fallback)       → nada identificado com segurança
 ```
 
 ---
@@ -102,6 +108,7 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 |-----------|------------------|
 | `hoje` | Data de hoje |
 | `ontem` | Data de ontem |
+| `01/04` | Dia específico no ano atual |
 | `esta semana`, `essa semana` | Seg–Dom da semana atual |
 | `semana passada` | Seg–Dom da semana anterior |
 | `últimos N dias` | Rolling: hoje − N dias |
@@ -122,6 +129,7 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 | `desde X até Y` | "desde março até abril de 2026" |
 | `entre X e Y` | "entre agosto e dezembro de 2025" |
 | `de X a Y` | "de agosto a dezembro de 2025" |
+| `de 01/04 até 08/04` | intervalo diário no ano atual |
 
 ---
 
@@ -132,7 +140,7 @@ Campo `recursos` no `InterpretationResult` — lista de strings com os recursos 
 | Operador | Padrão `nome.sobrenome` ou primeiro nome contra lista de `todos_operadores()` |
 | Produto | Código alfanumérico de produto (ex: CLI..., TD2...) |
 | Top N | `top 5`, `top 3`, `5 operadores` |
-| Setor | Palavras "expedição", "revisão", "produção" → normalizado via `config.py` |
+| Setor | Palavras "extrusora", "expedição", "revisão", "produção" → normalizado via `config.py` |
 | Origem | `SD1`/`SD2`/`SD3` ou "entrada"/"saída"/"interna" |
 | Recurso | "extrusora 1/2", "mac 1/2", "máquina 1/2", "0003"/"0007" → `_extract_recurso()` |
 

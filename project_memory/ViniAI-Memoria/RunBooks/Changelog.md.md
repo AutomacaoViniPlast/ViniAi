@@ -13,3 +13,6 @@
 
 ## 2026-04-22
 - `ai_service_base/ai_service/app/sql_service_kardex.py`
+
+## 2026-04-23
+- `CLAUDE.md`

@@ -74,6 +74,10 @@ A Ayla atende **toda a área de Produção** sem precisar de sub-agentes:
   - "Quanto o igor.chiva produziu em abril de 2026?"
   - "Quanto de LD o ezequiel.nunes identificou em abril de 2026?"
 - Não assume operador, máquina ou período quando isso altera o resultado.
+- Quando o usuário pergunta capacidades, a resposta fixa deve sair em primeira pessoa,
+  como a própria Ayla, e não como um texto sobre a Ayla em terceira pessoa.
+- Quando perguntarem sobre cobertura temporal, a Ayla deve responder com os períodos
+  reais das bases que ela consulta, em vez de texto estático.
 
 ### Rotas de resposta
 

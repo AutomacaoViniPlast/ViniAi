@@ -87,21 +87,31 @@ Turno 2 — user:      "E na extrusora 2?"
 
 ---
 
-### 4. Auto-inject de Operador
+### 4. Auto-inject de Operador (com validação de setor)
 
 **Quando ativa:**
-- `intent` in (`geracao_ld_por_operador`, `producao_por_operador`)
+- `intent` in (`geracao_ld_por_operador`, `producao_por_operador`, `resumo_qualidade`)
 - `entity_value` = None (nenhum operador foi extraído do texto)
 
 **O que faz:**
-Mapeia o nome do usuário autenticado (`user_name` do payload) para um login de operador cadastrado e injeta como `entity_value`.
+Mapeia o nome do usuário autenticado (`user_name` do payload) para um login de operador cadastrado e injeta como `entity_value` — **somente se o setor do usuário bate com o intent**:
+
+| Intent | Setor exigido |
+|--------|--------------|
+| `geracao_ld_por_operador` / `resumo_qualidade` | `revisao` |
+| `producao_por_operador` | `extrusora` |
 
 **Mapeamento:**
-- `"Ezequiel Nunes"` → `"ezequiel.nunes"`
+- `"Ezequiel Nunes"` → `"ezequiel.nunes"` (revisão → injetado em intent de LD)
 - `"igor"` → `"igor.chiva"` (busca por primeiro nome)
+- `"Celio"` → `"celio.divino"` (extrusora → injetado em intent de produção, não em LD)
 - `"Pedro Martins"` → `None` (não é operador cadastrado)
 
 **Consequência para não-operadores:** `entity_value` permanece `None` → mensagem de clarificação solicitando o nome.
+
+**Validação de setor no dispatch:**
+- `geracao_ld_por_operador` com operador da extrusora → mensagem explicando que ele não tem registros de revisão
+- `producao_por_operador` com operador da revisão → redireciona para KARDEX (`get_resumo_qualidade`)
 
 ---
 
@@ -150,6 +160,26 @@ Quando a rota é `smalltalk` ou `clarify`, o orchestrator injeta no system promp
 ```
 
 Isso permite à Ayla saudar pelo nome e personalizar a conversa ao contexto do departamento.
+
+---
+
+## Intent Especial: Períodos Disponíveis
+
+Mensagens como:
+
+- `quais meses você tem dados?`
+- `desde quando tem dados?`
+- `quais períodos estão disponíveis?`
+
+caem no intent `periodos_disponiveis` com rota `sql`.
+
+O orchestrator responde diretamente, sem LLM, consolidando a cobertura temporal das
+duas bases do domínio da Ayla:
+
+- **SH6** → Extrusora / Produção
+- **V_KARDEX** → Qualidade / Revisão
+
+Isso evita fallback genérico e elimina resposta ambígua sobre o histórico disponível.
 
 ---
 

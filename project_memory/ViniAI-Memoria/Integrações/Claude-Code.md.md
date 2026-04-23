@@ -46,6 +46,31 @@ O ViniAI usa três camadas de contexto para o Claude Code:
 
 ---
 
+## Protocolo de Colaboração com Codex
+
+Quando Claude Code e Codex trabalharem no ViniAI, ambos devem operar com revisão cruzada de contexto.
+
+### Regras obrigatórias
+- Nenhum agente deve confiar cegamente na resposta anterior do outro
+- Toda regra de negócio deve ser confirmada no código atual antes de virar instrução fixa
+- Se houver divergência entre vault, `CLAUDE.md` e código, o código atual é a referência principal até a documentação ser corrigida
+- Mudanças em `interpreter.py`, `orchestrator.py` e `sql_service_*` exigem revisão conjunta de intenção, roteamento e query
+
+### Checklist de validação mútua
+1. Confirmar qual tabela deve responder a pergunta
+2. Confirmar qual intent o interpretador está gerando
+3. Confirmar qual handler do orchestrator executa a consulta
+4. Confirmar filtros de operador, recurso, origem e período
+5. Confirmar se a resposta depende de banco real ou só de validação estática
+
+### Quando um agente corrigir o outro
+- Registrar o erro original de forma objetiva
+- Atualizar a documentação afetada
+- Não propagar hipóteses antigas como se ainda fossem válidas
+- Se o problema era de roteamento, revisar também exemplos de pergunta do usuário
+
+---
+
 ## Como o vault é mantido automaticamente
 
 ### Hook Stop (automático)
