@@ -39,3 +39,7 @@
 - `get_resumo_qualidade()`: removido filtro `LOCAL_OP=EXTRUSAO` — dados de qualidade (Inteiro/LD/FP) têm LOCAL_OP variável, não só EXTRUSAO
 
 - `CLAUDE.md`
+
+## 2026-04-24
+- `CLAUDE.md`
+- `PLANILHA_VALIDACAO_IA.md`
