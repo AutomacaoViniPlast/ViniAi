@@ -61,22 +61,22 @@
 
   /* Cores específicas para o tema claro */
   [data-theme="light"] {
-    --background: 0 0% 80%;
+    --background: 0 0% 77%;
     --foreground: 0 0% 1%;
-    --sidebar: 0 0% 74%;
+    --sidebar: 0 0% 71%;
     --primary: 2 72% 44%;
     --primary-foreground: 0 0% 100%;
     --primary-hover: 2 72% 38%;
-    --secondary: 0 0% 70%;
+    --secondary: 0 0% 67%;
     --secondary-foreground: 0 0% 1%;
-    --muted: 0 0% 72%;
+    --muted: 0 0% 69%;
     --muted-foreground: 0 0% 10%;
-    --border: 0 0% 64%;
-    --input: 0 0% 72%;
+    --border: 0 0% 61%;
+    --input: 0 0% 69%;
     --ring: 2 72% 44%;
-    --card: 0 0% 75%;
+    --card: 0 0% 72%;
     --card-foreground: 0 0% 1%;
-    --popover: 0 0% 75%;
+    --popover: 0 0% 72%;
     --popover-foreground: 0 0% 1%;
     --accent: 0 0% 68%;
     --accent-foreground: 0 0% 1%;
@@ -84,7 +84,7 @@
     --destructive-foreground: 0 0% 100%;
     --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
     --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.1) 0%, hsl(0 0% 65% / 0.1) 100%);
-    --glass-bg: hsl(0 0% 80% / 0.75);
+    --glass-bg: hsl(0 0% 77% / 0.75);
     --glass-border: hsl(0 0% 0% / 0.1);
     --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.1);
     --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.15), 0 1px 2px hsl(0 0% 0% / 0.1);
@@ -96,7 +96,8 @@
   }
 
   html {
-    scroll-behavior: smooth;
+    height: 100%;
+    overflow: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
@@ -104,6 +105,8 @@
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     margin: 0;
+    height: 100%;
+    overflow: hidden;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

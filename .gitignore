@@ -12,3 +12,10 @@ frontAI/node_modules/
 backend/node_modules/
 logs/
 *.log
+*.zip
+
+# Arquivos de sessão temporária do Claude Code
+project_memory/ViniAI-Memoria/Temp/
+PLANILHA_VALIDACAO_IA.md
+image*.png
+CLAUDE.md

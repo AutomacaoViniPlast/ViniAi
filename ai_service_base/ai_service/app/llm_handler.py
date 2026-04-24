@@ -160,14 +160,16 @@ class LLMHandler:
     def _fallback(self, intent: str | None) -> str:
         if intent == "smalltalk":
             return (
-                f"Olá! Sou a **{self._agent_name}**, assistente de produção da Viniplast.\n\n"
-                "Posso te ajudar com **LD**, **produção**, **rankings**, **turnos** e mais.\n"
-                "Digite *\"o que você sabe fazer?\"* para ver todas as opções."
+                f"Olá! Sou a **{self._agent_name}**, assistente de produção da Viniplast. 👋\n\n"
+                "Posso buscar dados de **LD**, **produção**, **rankings**, **turnos** e **expedição**.\n\n"
+                "O que você precisa?"
             )
         return (
-            "Não consegui identificar sua solicitação. Tente algo como:\n\n"
-            "- *\"Quem mais produziu LD em janeiro de 2026?\"*\n"
-            "- *\"Top 5 da revisão com mais LD em 2025\"*\n"
-            "- *\"Produção por turno em março de 2026\"*\n"
-            "- *\"Total da fábrica este mês\"*"
+            "Não consegui identificar exatamente o que você precisa. Pode reformular?\n\n"
+            "Alguns exemplos do que posso buscar:\n\n"
+            "- *\"Quem mais gerou LD em janeiro de 2026?\"*\n"
+            "- *\"Top 5 de produção em 2025\"*\n"
+            "- *\"Produção por turno em março\"*\n"
+            "- *\"Total da fábrica este mês\"*\n\n"
+            "Se quiser saber tudo que posso fazer, é só perguntar *\"o que você consegue?\"*"
         )

@@ -6,11 +6,18 @@ Qualquer alteração de operadores ou setores deve ser feita APENAS aqui.
 
 Conceitos de negócio
 ────────────────────
-  producao  → material que saiu da extrusora. Ranking padrão de "produção".
-  revisao   → inspeção de qualidade do material. Identifica LD (defeito) ou I (inteiro).
-              Os números da revisão representam o que foi inspecionado, NÃO produzido.
-  expedicao → liberação de bobinas para clientes. Não produzem — apenas movimentam.
-              NUNCA entram em rankings de produção.
+  extrusora  → operadores que PRODUZEM material nas máquinas MAC1/MAC2.
+               Dados consultados via dbo.STG_PROD_SH6_VPLONAS (sql_service_sh6.py).
+
+  revisao    → operadores que REVISAM o material produzido.
+               Identificam LD (defeito=Y) ou Inteiro (sem defeito=I).
+               Dados consultados via dbo.V_KARDEX (sql_service_kardex.py).
+
+Regra de roteamento por setor
+──────────────────────────────
+  Operador em extrusora → query vai para SH6 (produção)
+  Operador em revisao   → query vai para KARDEX (qualidade)
+  Operador desconhecido → ignorar por enquanto
 
 Estrutura do código de produto
 ──────────────────────────────
@@ -27,46 +34,37 @@ from __future__ import annotations
 # ── Setores e operadores ──────────────────────────────────────────────────────
 
 SETORES: dict[str, dict] = {
-    "producao": {
-        "label": "Produção",
-        "descricao": "Operadores da extrusora — geram o material bruto.",
-        # Preenchido conforme operadores forem cadastrados.
-        "operadores": [],
+    "extrusora": {
+        "label": "Extrusora",
+        "descricao": "Operadores da extrusora — produzem material (MAC1/MAC2). Consultados via SH6.",
+        "operadores": [
+            "celio.divino",
+            "aramis.leal",
+            "valdenrique.silva",
+            "andreson.reis",
+            "ednilson.soares",
+            "nobrega.valter",
+            "gilmar.santos",
+        ],
     },
     "revisao": {
         "label": "Revisão",
-        "descricao": "Inspecionam o material e identificam defeitos (LD) ou material inteiro.",
+        "descricao": "Revisores — inspecionam o material e identificam LD (Y) ou Inteiro (I). Consultados via KARDEX.",
         "operadores": [
-            "raul.araujo",
-            "igor.chiva",
+            "raul.ribeiro",
+            "kaua.chagas",
             "ezequiel.nunes",
+            "igor.chiva",
         ],
     },
-    "expedicao": {
-        "label": "Expedição",
-        "descricao": "Liberam bobinas para clientes. Não participam de rankings de produção.",
-        "operadores": [
-            "john.moraes",
-            "rafael.paiva",
-            "andre.prado",
-            "richard.santos",
-            "arilson.aguiar",
-        ],
-    },
-    # Futuros setores: adicionar aqui conforme necessário.
-    # "corte":   {"label": "Corte",   "descricao": "...", "operadores": []},
-    # "costura": {"label": "Costura", "descricao": "...", "operadores": []},
 }
 
-# ── Escopo padrão de operadores ativos ───────────────────────────────────────
-# Consultas sem setor explícito se restringem a esta lista.
-# Para ampliar o escopo, basta adicionar operadores aqui.
-OPERADORES_ATIVOS: list[str] = [
-    "ezequiel.nunes",
-    "raul.araujo",
-    "kaua.chagas",
-    "igor.chiva",
-]
+# ── Listas por setor (atalhos para uso no orchestrator) ───────────────────────
+OPERADORES_EXTRUSORA: list[str] = SETORES["extrusora"]["operadores"]
+OPERADORES_REVISAO:   list[str] = SETORES["revisao"]["operadores"]
+
+# Todos os operadores ativos — used para filtros gerais e auto-inject
+OPERADORES_ATIVOS: list[str] = OPERADORES_EXTRUSORA + OPERADORES_REVISAO
 
 # ── Tipos de movimentação (coluna `origem` na view) ───────────────────────────
 ORIGENS: dict[str, str] = {
@@ -74,9 +72,6 @@ ORIGENS: dict[str, str] = {
     "SD2": "Saída",
     "SD3": "Movimentação Interna",
 }
-
-# ── Setores excluídos de rankings de produção ─────────────────────────────────
-_EXCLUIDOS_DA_PRODUCAO = {"expedicao"}
 
 
 # ── Funções auxiliares ────────────────────────────────────────────────────────
@@ -87,7 +82,7 @@ def get_label_setor(setor: str) -> str:
 
 
 def get_setor_de(operador: str) -> str | None:
-    """Retorna o setor de um operador, ou None se não cadastrado."""
+    """Retorna o setor de um operador ('extrusora' | 'revisao' | None)."""
     for setor, dados in SETORES.items():
         if operador.lower() in dados["operadores"]:
             return setor
@@ -100,14 +95,6 @@ def get_operadores_setor(setor: str) -> list[str]:
     return list(SETORES.get(chave, {}).get("operadores", []))
 
 
-def get_excluidos_producao() -> list[str]:
-    """Retorna todos os operadores que não devem entrar em rankings de produção."""
-    excluidos = []
-    for setor in _EXCLUIDOS_DA_PRODUCAO:
-        excluidos.extend(SETORES.get(setor, {}).get("operadores", []))
-    return excluidos
-
-
 def todos_operadores() -> list[str]:
     """Retorna todos os operadores cadastrados em qualquer setor."""
     return [op for dados in SETORES.values() for op in dados["operadores"]]
@@ -116,12 +103,14 @@ def todos_operadores() -> list[str]:
 def _normalizar_setor(setor: str) -> str:
     """Normaliza variações de nome de setor para a chave interna."""
     aliases = {
-        "producao":  "producao",
-        "produção":  "producao",
-        "expedicao": "expedicao",
-        "expedição": "expedicao",
-        "expedicão": "expedicao",
-        "revisao":   "revisao",
-        "revisão":   "revisao",
+        "extrusora":  "extrusora",
+        "producao":   "extrusora",  # alias histórico
+        "produção":   "extrusora",  # alias histórico
+        "revisao":    "revisao",
+        "revisão":    "revisao",
+        # expedição mantida para compatibilidade com código legado (sem operadores)
+        "expedicao":  "expedicao",
+        "expedição":  "expedicao",
+        "expedicão":  "expedicao",
     }
     return aliases.get(setor.lower().strip(), setor.lower().strip())

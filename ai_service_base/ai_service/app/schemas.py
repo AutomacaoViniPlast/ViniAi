@@ -67,6 +67,7 @@ class InterpretationResult(BaseModel):
     produto_filtro: str | None = None    # código do produto (ex: TD2AYBR1BOBR100)
     setor: str | None = None             # "expedicao" | "revisao" | "producao"
     origem: str | None = None            # "SD1" | "SD2" | "SD3"
+    recursos: list[str] | None = None    # ["0003"] | ["0007"] | ["0003","0007"] — extrusoras
     confidence: float = 0.0              # confiança da interpretação (0.0–1.0)
     reasoning: str | None = None         # explicação textual da decisão
 

@@ -1,6 +1,6 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 3.1  
+**Versão:** 3.2  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -362,10 +362,11 @@ Expressões que definem um **range de meses** são resolvidas automaticamente pe
 As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro:
 
 ```
- 1. tipos_informacao    — "o que você faz?" / capacidades
+ 1. tipos_informacao    — "o que a Ayla faz?" / "o que você consegue?" (padrão restrito)
  2. periodos_disponiveis — "quais meses tem?"
- 3. smalltalk (curto)   — saudações ≤ 8 palavras
- 4. smalltalk (longo)   — conversa natural
+ 3. smalltalk (curto)   — saudações ≤ 8 palavras (lista expandida: despedidas, variações)
+ 4. smalltalk (longo)   — conversa natural  ⚠️ com guard: se a mensagem contém
+                          LD / PRODUCAO / EXPEDICAO, deixa cair para SQL rules
  ── [extração de entidades: período, operador, produto, setor] ──
  5. list_operadores     — "quais operadores da revisão?"
  6. ranking_produtos_ld — LD + produto + qual/ranking/top
@@ -383,6 +384,20 @@ As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro
 18. prod por operador   — PRODUCAO ou operador explícito
 19. clarify (fallback)  — nada identificado → LLM explica
 ```
+
+### Guard da regra 4 (smalltalk_longa)
+
+A regra 4 verifica explicitamente antes de ativar:
+
+```python
+_tem_dado = self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
+if self._SMALLTALK_LONGA.search(low) and not _tem_dado:
+    # → smalltalk
+```
+
+Isso garante que frases como *"me fale sobre o LD de janeiro"* ou
+*"pode me dizer quanto o Igor produziu?"* caiam nas regras SQL (9 e 18),
+e não sejam respondidas como conversa pelo ChatGPT.
 
 ---
 
@@ -522,6 +537,16 @@ FastAPI (ai_service)
 | "de agosto de 2025 até hoje" retornava só "hoje" | `_try_parse_range()` + `_parse_endpoint()` em `interpreter.py` |
 | "entre agosto e dezembro" não era reconhecido | Padrão `entre X e Y` adicionado ao `_try_parse_range()` |
 | "de agosto a dezembro de 2025" não era reconhecido | Padrão `de X a Y` com validação de endpoint adicionado |
+
+### Corrigido na v3.2
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| Ayla respondia saudações de forma fria / sem oferecer ajuda | `system_prompt` reescrito com instruções explícitas para saudações proativas e variadas |
+| `_SMALLTALK_LONGA` interceptava consultas de dados como *"me fale sobre o LD de janeiro"* | Guard adicionado à regra 4: não ativa se `_LD / _PRODUCAO / _EXPEDICAO` presentes |
+| `_CAPACIDADES` muito ampla (`ajuda`, `pode me dizer`) capturava perguntas erradas | Padrão restrito a consultas explícitas sobre capacidades da Ayla |
+| Saudações como "até logo", "bom fds", variações com "Ayla" não eram reconhecidas | `_SMALLTALK` expandido com despedidas e variantes de nome |
+| `boa[!.]*$` no regex causava conflito com `\b` no fechamento do grupo | Corrigido para `boa\b` |
 
 ### Próximos passos sugeridos
 

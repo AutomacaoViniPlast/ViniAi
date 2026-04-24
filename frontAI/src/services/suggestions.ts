@@ -14,8 +14,10 @@ export const sectorSuggestions = {
   ],
 
   PRODUÇÃO: [
-    "Produção total por mês",
-    "Produção em um dia específico",
+    "Qual foi a produção total da fábrica neste mês?",
+    "Qual o valor total de cada MAC neste mês?",
+    "Qual foi a produção da Extrusora 1 hoje?",
+    "Qual foi a produção por turno neste mês?",
   ],
 
   CEO: [

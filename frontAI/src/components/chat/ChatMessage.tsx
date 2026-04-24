@@ -50,20 +50,18 @@ const ChatMessage = ({
 
       <div
         className={cn(
-          "max-w-[75%] px-5 py-3.5 rounded-2xl",
+          "max-w-[75%] px-5 py-3.5 rounded-xl",
           isUser
-            ? "bg-primary text-primary-foreground rounded-br-md"
-            : "glass rounded-bl-md"
+            ? "bg-primary text-white rounded-tr-[4px]"
+            : "glass rounded-tl-[4px]"
         )}
       >
         {isTyping ? (
-          <div className="flex gap-1">
-            <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-            <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce delay-100" />
-            <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce delay-200" />
+          <div className="flex items-center gap-1.5 text-muted-foreground font-medium py-1">
+            <span className="animate-pulse">Pensando</span>
           </div>
         ) : (
-          <div className="prose-chat max-w-none break-words">
+          <div className={cn("max-w-none break-words", isUser ? "text-white [&_*]:!text-white" : "prose-chat")}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeSanitize]}

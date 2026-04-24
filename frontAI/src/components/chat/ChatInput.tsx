@@ -57,7 +57,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               onKeyDown={handleKeyDown}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              placeholder="Escreva sua mensagem..."
+              placeholder="Digite sua mensagem..."
               disabled={disabled}
               rows={1}
               className="w-full bg-transparent text-base outline-none resize-none pt-1.5"
@@ -107,7 +107,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       <div className="flex items-center justify-center gap-1.5 mt-2.5">
         <Sparkles size={11} style={{ color: "hsl(var(--muted-foreground) / 0.6)" }} />
         <span className="text-xs" style={{ color: "hsl(var(--muted-foreground) / 0.6)" }}>
-          ViniPlast © 2026
+          Use: metrica + recorte + periodo
         </span>
       </div>
     </form>

@@ -54,8 +54,11 @@ _RE_MONTH_YEAR = re.compile(
     r"(20\d{2})?",
     re.IGNORECASE,
 )
-_RE_YEAR_ONLY = re.compile(r"\b(20\d{2})\b")
-_RE_TOP_N     = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
+_RE_YEAR_ONLY       = re.compile(r"\b(20\d{2})\b")
+_RE_DATA_ESPECIFICA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(20\d{2})(?!\d)")          # DD/MM/YYYY
+_RE_DATA_DIA_MES    = re.compile(r"(?:no?\s+)?dia\s+(\d{1,2})/(\d{1,2})(?!/\d)", re.IGNORECASE)  # dia DD/MM
+_RE_DATA_DIA_MES_LIVRE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!/\d)")  # DD/MM sem ano
+_RE_TOP_N           = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
 _RE_OPERATOR  = re.compile(r"\b([a-záéíóúâêîôûãõç]+\.[a-záéíóúâêîôûãõç]+)\b", re.IGNORECASE)
 _RE_PRODUTO   = re.compile(r"\b(TD2[A-Z0-9]{2,})\b", re.IGNORECASE)
 
@@ -68,7 +71,8 @@ _RE_SEMANA_ATUAL = re.compile(
     r"semana\s+atual|semana\s+corrente",
     re.IGNORECASE,
 )
-_RE_ULTIMOS_DIAS = re.compile(r"[uú]ltimos?\s+(\d+)\s+dias?", re.IGNORECASE)
+_RE_ULTIMOS_DIAS  = re.compile(r"[uú]ltimos?\s+(\d+)\s+dias?", re.IGNORECASE)
+_RE_ULTIMOS_MESES = re.compile(r"[uú]ltimos?\s+(\d+)\s+meses?", re.IGNORECASE)
 _RE_MES_PASS     = re.compile(r"m[eê]s\s+passado|m[eê]s\s+anterior", re.IGNORECASE)
 _RE_MES_ATUAL    = re.compile(
     r"este\s+m[eê]s|m[eê]s\s+atual|nesse\s+m[eê]s|neste\s+m[eê]s|"
@@ -133,6 +137,32 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
         if as_start:
             return f"01/01/{ano}"
         return f"31/12/{ano}"
+
+    # "19/04/2026" / "dia 19/04/2026"
+    m_data = _RE_DATA_ESPECIFICA.search(s)
+    if m_data:
+        try:
+            d = date(int(m_data.group(3)), int(m_data.group(2)), int(m_data.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+    # "dia 19/04" (sem ano → ano atual)
+    m_dia = _RE_DATA_DIA_MES.search(s)
+    if m_dia:
+        try:
+            d = date(today.year, int(m_dia.group(2)), int(m_dia.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+    m_dia_livre = _RE_DATA_DIA_MES_LIVRE.search(s)
+    if m_dia_livre:
+        try:
+            d = date(today.year, int(m_dia_livre.group(2)), int(m_dia_livre.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
 
     # "agosto de 2025" / "agosto 2025" / "agosto"
     m = _RE_MONTH_YEAR.search(s)
@@ -250,7 +280,8 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
     # ── Intervalos entre períodos (prioridade máxima) ─────────────────────────
     range_result = _try_parse_range(text)
     if range_result:
-        return range_result
+        ini_range, fim_range, _lbl_range = range_result
+        return ini_range, fim_range, f"{ini_range} até {fim_range}"
 
     # "ontem"
     if _RE_ONTEM.search(lowered):
@@ -284,6 +315,51 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
             inicio.strftime("%d/%m/%Y"),
             today.strftime("%d/%m/%Y"),
             f"últimos {n} dias",
+        )
+
+    # "19/04/2026" / "no dia 19/04/2026" / "dia 19/04/2026"
+    m_data = _RE_DATA_ESPECIFICA.search(text)
+    if m_data:
+        try:
+            d = date(int(m_data.group(3)), int(m_data.group(2)), int(m_data.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    # "dia 19/04" / "no dia 19/04" (sem ano → ano atual)
+    m_dia_mes = _RE_DATA_DIA_MES.search(text)
+    if m_dia_mes:
+        try:
+            d = date(today.year, int(m_dia_mes.group(2)), int(m_dia_mes.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    m_dia_mes_livre = _RE_DATA_DIA_MES_LIVRE.search(text)
+    if m_dia_mes_livre:
+        try:
+            d = date(today.year, int(m_dia_mes_livre.group(2)), int(m_dia_mes_livre.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    # "últimos N meses"
+    m_meses = _RE_ULTIMOS_MESES.search(lowered)
+    if m_meses:
+        n = int(m_meses.group(1))
+        mes = today.month - n
+        ano = today.year
+        while mes <= 0:
+            mes += 12
+            ano -= 1
+        inicio_d = date(ano, mes, 1)
+        return (
+            inicio_d.strftime("%d/%m/%Y"),
+            today.strftime("%d/%m/%Y"),
+            f"últimos {n} meses",
         )
 
     # "mês passado / anterior"
@@ -352,10 +428,26 @@ class RuleBasedInterpreter:
 
     # ── Agrupamentos de palavras-chave — cobertura ampliada ───────────────────
 
-    # LD (material defeituoso)
+    # Qualidade do material — LD, Inteiro, Fora de Padrão e qualidade geral
+    # Qualquer menção a qualidade → roteia para V_KARDEX (breakdown Inteiro/LD/FP)
     _LD = re.compile(
         r"\bld\b|\blaudo\s+de?\s+defeito\b|\bmaterial\s+(?:com\s+)?defeito\b|"
-        r"\bdefeituoso\b|\bdefeito\b",
+        r"\bdefeituoso\b|\bdefeito\b|"
+        r"\binteiro\b|\bsem\s+defeito\b|"
+        r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
+        r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
+        r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
+        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade",
+        re.IGNORECASE,
+    )
+
+    _QUALIDADE_RESUMO = re.compile(
+        r"\binteiro\b|\bsem\s+defeito\b|"
+        r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
+        r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
+        r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
+        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
+        r"resumo\s+de\s+qualidade|quebra\s+por\s+qualidade",
         re.IGNORECASE,
     )
 
@@ -377,7 +469,10 @@ class RuleBasedInterpreter:
         r"produ[cç][aã]o|produziu|produzido|produzidos|produzir|produzi|"
         r"extrusora|bobina[s]?|fabricou|fabricado|fabricei|fabricar|"
         r"saiu\s+da\s+m[aá]quina|saiu\s+da\s+extrusora|"
-        r"quanto\s+(?:foi\s+)?produzido|quanto\s+(?:o\s+)?fez|quanto\s+(?:a\s+)?f[aá]brica",
+        r"quanto\s+(?:foi\s+)?produzido|quanto\s+(?:o\s+)?fez|quanto\s+(?:a\s+)?f[aá]brica|"
+        r"quanto\s+saiu|o\s+que\s+saiu|o\s+que\s+foi\s+(?:feito|produzido)|"
+        r"o\s+que\s+a\s+(?:f[aá]brica|m[aá]quina|extrusora)\s+fez|"
+        r"m[aá]quina\s+(?:produziu|fez)|linha\s+(?:produziu|fez)",
         re.IGNORECASE,
     )
 
@@ -396,10 +491,10 @@ class RuleBasedInterpreter:
 
     # Produto específico
     _PRODUTO = re.compile(
-        r"\bproduto\b|\bmaterial\b|\breferencia\b|\breferência\b|"
+        r"\bprodutos?\b|\bmateriais?\b|\breferencia\b|\breferência\b|"
         r"\bcódigo\b|\bcodigo\b|"
-        r"qual\s+produto|qual\s+material|que\s+produto|que\s+material|"
-        r"produto\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
+        r"qual\s+produtos?|qual\s+material|que\s+produtos?|que\s+material|"
+        r"produtos?\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
         re.IGNORECASE,
     )
 
@@ -410,12 +505,70 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    _DIA_A_DIA = re.compile(
+        r"dia\s+a\s+dia|cada\s+dia|por\s+dia",
+        re.IGNORECASE,
+    )
+
+    # Metros por minuto
+    _METROS_MIN = re.compile(
+        r"metro[s]?\s+por\s+minuto|m[/\s]min|metros?\s*/?\s*min|"
+        r"velocidade\s+(?:da\s+)?(?:m[aá]quina|extrusora)|"
+        r"m[/.]min\b",
+        re.IGNORECASE,
+    )
+
+    # KGH — quilo por hora
+    _KGH = re.compile(
+        r"\bkgh\b|\bkg[/\s]h\b|kg\s+por\s+hora|quilo[s]?\s+por\s+hora|"
+        r"produtividade\s+(?:em\s+)?kg",
+        re.IGNORECASE,
+    )
+
+    # Extrusora / recurso específico
+    _EXTRUSORA = re.compile(
+        r"extrusora\s*([12])|mac\s*([12])|m[aá]quina\s*([12])|"
+        r"\b0003\b|\b0007\b",
+        re.IGNORECASE,
+    )
+
+    # Referência genérica às máquinas de extrusão, mesmo sem número explícito
+    _EXTRUSORA_REFERENCIA = re.compile(
+        r"\bextrusora(?:s)?\b|\bmacs?\b|\bm[aá]quinas?\b",
+        re.IGNORECASE,
+    )
+
+    # Comparativo entre extrusoras
+    _COMPARATIVO = re.compile(
+        r"compar[ae]|versus|vs\.?|\bx\b|contra|diferen[cç]a\s+entre|"
+        r"qual\s+(?:extrusora|mac|m[aá]quina)\s+(?:mais|produziu|melhor)|"
+        r"(?:extrusora|mac)\s*1\s+e\s+(?:extrusora|mac)?\s*2|"
+        r"as\s+duas\s+(?:extrusoras?|m[aá]quinas?|macs?)|"
+        r"lado\s+a\s+lado|por\s+(?:extrusora|m[aá]quina|mac)|"
+        r"cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"valor\s+(?:de|da)\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"valor\s+total\s+de\s+cada\s+(?:extrusora|m[aá]quina|mac)|"
+        r"produ[cç][aã]o\s+exata\s+por\s+(?:extrusora|m[aá]quina|mac)|"
+        r"produ[cç][aã]o\s+das\s+(?:extrusoras|m[aá]quinas|macs)",
+        re.IGNORECASE,
+    )
+
+    # Horas trabalhadas
+    _HORAS = re.compile(
+        r"horas?\s+trabalhadas?|total\s+de\s+horas?|quantas?\s+horas?|"
+        r"horas?\s+(?:de\s+)?(?:produ[cç][aã]o|trabalho|m[aá]quina|extrusora)|"
+        r"tempo\s+(?:de\s+)?(?:produ[cç][aã]o|trabalho|operação)",
+        re.IGNORECASE,
+    )
+
     # Totais gerais da fábrica
     _TOTAL = re.compile(
         r"\btotal\b|\bf[aá]brica\b|\bfabrica\b|\bgeral\b|"
         r"resumo|vis[aã]o\s+geral|resultado\s+geral|geral\s+da\s+f[aá]brica|"
         r"total\s+(?:geral|da\s+f[aá]brica|de\s+produ[cç][aã]o)|"
-        r"quanto\s+foi\s+(?:gerado|produzido)\s+no\s+total",
+        r"quanto\s+foi\s+(?:gerado|produzido)\s+no\s+total|"
+        r"soma\s+(?:desses?|destes?|dos)\s+valores?|"
+        r"somat[oó]rio\s+(?:desses?|destes?|dos)\s+valores?",
         re.IGNORECASE,
     )
 
@@ -459,14 +612,19 @@ class RuleBasedInterpreter:
         r"^(oi|ol[aá]|bom\s+dia|boa\s+tarde|boa\s+noite|"
         r"tudo\s+bem|tudo\s+bom|tudo\s+certo|e\s+a[ií]|"
         r"como\s+vai|como\s+voc[eê]\s+est[aá]|"
-        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|"
-        r"oi\s+tudo|preciso\s+de\s+ajuda|pode\s+me\s+ajudar|"
-        r"boa\b|ol[aá]\s+boa|e\s+a[ií]\s+boa|"
-        r"at[eé]\s+mais|tchau|flw|falou)\b",
+        r"obrigad[ao]|valeu|show|bl[zZ]|beleza|boa\b|"
+        r"oi\s+tudo|e\s+a[ií]\s+gente|e\s+a[ií]\s+pessoal|"
+        r"bom\s+dia\s+ayla|boa\s+tarde\s+ayla|boa\s+noite\s+ayla|"
+        r"ol[aá]\s+ayla|oi\s+ayla|"
+        r"preciso\s+de\s+ajuda|pode\s+me\s+ajudar|"
+        r"ol[aá]\s+boa|e\s+a[ií]\s+boa|"
+        r"at[eé]\s+mais|tchau|flw|falou|at[eé]\s+logo|"
+        r"um\s+abra[cç]o|abraços|boa\s+sorte|"
+        r"bom\s+trabalho|bom\s+fds|bom\s+fim\s+de\s+semana)\b",
         re.IGNORECASE,
     )
 
-    # Conversa natural mais longa
+    # Conversa natural — perguntas e comentários que devem ir ao LLM
     _SMALLTALK_LONGA = re.compile(
         r"(como\s+voc[eê]\s+est[aá]|como\s+vai\s+voc[eê]|"
         r"o\s+que\s+[eé]\s+ld|me\s+conta\s+sobre|"
@@ -474,7 +632,25 @@ class RuleBasedInterpreter:
         r"quero\s+entender|n[aã]o\s+entendi|"
         r"boa\s+noite\s+vin|oi\s+vin|ol[aá]\s+vin|"
         r"o\s+que\s+[eé]\s+revis[aã]o|como\s+funciona|"
-        r"me\s+d[aá]\s+uma\s+dica|me\s+ajuda\s+a\s+entender)",
+        r"me\s+d[aá]\s+uma\s+dica|me\s+ajuda\s+a\s+entender|"
+        # conceitos e dúvidas sobre a fábrica
+        r"o\s+que\s+[eé]\s+expedi[cç][aã]o|o\s+que\s+[eé]\s+turno|"
+        r"o\s+que\s+[eé]\s+inteiro|o\s+que\s+[eé]\s+bobina|"
+        r"como\s+[eé]\s+calculado|como\s+funciona\s+o|"
+        r"qual\s+a\s+diferen[cç]a\s+entre|diferença\s+entre|"
+        r"o\s+que\s+significa|o\s+que\s+quer\s+dizer|"
+        r"pode\s+explicar|me\s+explique|me\s+fale\s+sobre|"
+        r"tenho\s+uma\s+d[uú]vida|tenho\s+d[uú]vida|"
+        r"n[aã]o\s+sei\s+o\s+que|n[aã]o\s+conhe[cç]o|"
+        # feedback e comentários
+        r"muito\s+bom|que\s+legal|que\s+[oó]timo|perfeito|"
+        r"entendi|ficou\s+claro|[oó]timo\s+obrigad|"
+        r"que\s+interessante|que\s+bacana|n[aã]o\s+sabia|"
+        # pedidos de ajuda genéricos
+        r"pode\s+me\s+dizer|pode\s+me\s+mostrar|pode\s+me\s+explicar|"
+        r"me\s+d[aá]\s+uma\s+ideia|me\s+orienta|me\s+indica|"
+        r"como\s+eu\s+fa[cç]o\s+para|o\s+que\s+eu\s+devo\s+perguntar|"
+        r"como\s+eu\s+consulto|como\s+posso\s+ver|como\s+vejo)",
         re.IGNORECASE,
     )
 
@@ -485,14 +661,19 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
-    # Capacidades da IA
+    # Capacidades da IA — perguntas diretas sobre o que o agente sabe/faz
     _CAPACIDADES = re.compile(
-        r"tipos?\s+de\s+informa[cç][aã]o|o\s+que\s+voc[eê]?\s+sabe|o\s+que\s+conseg|"
-        r"quais?\s+informa[cç][oõ]es|o\s+que\s+pod[eê]|capacidade|funcionalidade|"
-        r"o\s+que\s+.{0,20}informa|como\s+usar|o\s+que\s+faz|"
-        r"o\s+que\s+voc[eê]\s+(?:consegue|pode|sabe|responde)|"
-        r"quais\s+consultas|o\s+que\s+posso\s+perguntar|"
-        r"me\s+ajude\s+com|pode\s+me\s+dizer|ajuda",
+        r"tipos?\s+de\s+informa[cç][aã]o|"
+        r"o\s+que\s+voc[eê]\s+(?:consegue|pode|sabe|responde|faz)\b|"
+        r"o\s+que\s+conseg[uo]\s+perguntar|"
+        r"quais?\s+informa[cç][oõ]es\s+(?:voc[eê]\s+)?(?:tem|tem\s+acesso|pode|conseg)|"
+        r"quais?\s+consultas\s+(?:posso|voc[eê]\s+faz)|"
+        r"o\s+que\s+posso\s+perguntar\s+(?:pra|para)\s+voc[eê]|"
+        r"capacidades?\s+(?:da|de)\s+(?:voc[eê]|ayla)|"
+        r"funcionalidades?\s+(?:da|de)\s+(?:voc[eê]|ayla)|"
+        r"como\s+(?:posso\s+usar|usar)\s+(?:voc[eê]|ayla)|"
+        r"o\s+que\s+a\s+ayla\s+(?:faz|sabe|pode)|"
+        r"me\s+mostra\s+(?:o\s+que\s+voc[eê]\s+(?:faz|sabe|pode))",
         re.IGNORECASE,
     )
 
@@ -521,8 +702,14 @@ class RuleBasedInterpreter:
 
         # ── 2. Períodos disponíveis no banco ──────────────────────────────────
         if self._PERIODOS.search(low):
+            metric = None
+            if self._LD.search(low) or "qualidade" in low:
+                metric = "qualidade"
+            elif self._PRODUCAO.search(low) or self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low):
+                metric = "producao"
             return InterpretationResult(
                 intent="periodos_disponiveis", route="sql",
+                metric=metric,
                 confidence=0.93, reasoning="Pergunta sobre cobertura temporal dos dados.",
             )
 
@@ -534,7 +721,10 @@ class RuleBasedInterpreter:
             )
 
         # ── 4. Conversa natural longa ─────────────────────────────────────────
-        if self._SMALLTALK_LONGA.search(low):
+        # Guard: se a mensagem contém LD ou produção E tem período explícito,
+        # deixa cair para as regras SQL — ex: "me fale sobre o LD de janeiro"
+        _tem_dado = self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
+        if self._SMALLTALK_LONGA.search(low) and not _tem_dado:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
                 confidence=0.90, reasoning="Conversa natural identificada.",
@@ -552,6 +742,7 @@ class RuleBasedInterpreter:
         produto  = self._extract_produto_code(text)
         setor    = self._extract_setor(text)
         origem   = self._extract_origem(text)
+        recursos = self._extract_recurso(text)
 
         # ── 5. Listar operadores de um setor ──────────────────────────────────
         if self._OPERADOR.search(low) and (self._LISTA.search(low) or self._QUEM.search(low)):
@@ -590,6 +781,18 @@ class RuleBasedInterpreter:
 
         # ── 8. LD do PRÓPRIO usuário ("meu LD", "quanto eu identifiquei") ─────
         # entity_value=None → orchestrator injeta user_name automaticamente
+        if self._QUALIDADE_RESUMO.search(low):
+            return InterpretationResult(
+                intent="resumo_qualidade", route="sql",
+                metric="qualidade_material",
+                entity_type="operador" if (self._PROPRIO.search(low) or operador) else None,
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem,
+                confidence=0.87 if (self._PROPRIO.search(low) or operador) else 0.82,
+                reasoning="Resumo da producao por qualidade na V_KARDEX.",
+            )
+
         if self._LD.search(low) and self._PROPRIO.search(low):
             return InterpretationResult(
                 intent="geracao_ld_por_operador", route="sql",
@@ -602,7 +805,7 @@ class RuleBasedInterpreter:
             )
 
         # ── 9. LD por operador específico ou com ação de geração ──────────────
-        if self._LD.search(low) and (self._GERACAO.search(low) or self._PRODUCAO.search(low) or operador):
+        if self._LD.search(low) and operador:
             return InterpretationResult(
                 intent="geracao_ld_por_operador", route="sql",
                 metric="geracao_ld", entity_type="operador",
@@ -617,13 +820,67 @@ class RuleBasedInterpreter:
         # Exemplo: "LD de abril", "quanto de LD nesse mês"
         if self._LD.search(low):
             return InterpretationResult(
-                intent="geracao_ld_por_operador", route="sql",
-                metric="geracao_ld", entity_type="operador",
+                intent="ld_total", route="sql",
+                metric="geracao_ld", entity_type=None,
                 entity_value=None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem,
-                confidence=0.70,
+                confidence=0.78,
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
+            )
+
+        # ── 10a. Comparativo entre extrusoras ────────────────────────────────
+        if self._COMPARATIVO.search(low) or (
+            self._PRODUCAO.search(low)
+            and (self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low))
+            and not self._QUEM.search(low) and not self._RANKING.search(low)
+            and not operador
+        ):
+            # Quando há palavra de comparação explícita (ex: "MAC1 e 2", "MAC1 vs MAC2"),
+            # força recursos=None para garantir que ambas as máquinas sejam consultadas.
+            # Na branch PRODUCAO+EXTRUSORA sem comparação, mantém o recurso extraído.
+            # Se a frase só citar "extrusora/máquina/MAC" genericamente, também consulta ambas.
+            comp_recursos = None if self._COMPARATIVO.search(low) else recursos
+            return InterpretationResult(
+                intent="comparativo_extrusoras", route="sql",
+                metric="producao_total",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=comp_recursos,
+                confidence=0.92,
+                reasoning="Comparativo de produção entre extrusoras.",
+            )
+
+        # ── 10b. Horas trabalhadas ────────────────────────────────────────────
+        if self._HORAS.search(low):
+            return InterpretationResult(
+                intent="horas_trabalhadas", route="sql",
+                metric="horas_trabalhadas",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.93,
+                reasoning="Consulta de horas trabalhadas por extrusora.",
+            )
+
+        # ── 11a. Metros por minuto ────────────────────────────────────────────
+        if self._METROS_MIN.search(low):
+            return InterpretationResult(
+                intent="metros_por_minuto", route="sql",
+                metric="metros_por_minuto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de metros por minuto.",
+            )
+
+        # ── 11b. KGH — KG por hora ────────────────────────────────────────────
+        if self._KGH.search(low):
+            return InterpretationResult(
+                intent="kgh", route="sql",
+                metric="kgh",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de KG por hora.",
             )
 
         # ── 11. Ranking de PRODUÇÃO com quem/qual/top ─────────────────────────
@@ -636,7 +893,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 top_n=top_n or 5,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.86,
                 reasoning="Ranking geral de produção por operador.",
             )
@@ -648,7 +905,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 top_n=top_n or 5,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.82,
                 reasoning="Ranking geral de produção.",
             )
@@ -661,7 +918,7 @@ class RuleBasedInterpreter:
                 entity_value=produto,
                 produto_filtro=produto,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                origem=origem,
+                origem=origem, recursos=recursos,
                 confidence=0.87,
                 reasoning="Produção de produto específico.",
             )
@@ -672,18 +929,28 @@ class RuleBasedInterpreter:
                 intent="producao_por_turno", route="sql",
                 metric="producao_total", entity_type="turno",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.88,
                 reasoning="Produção agrupada por turno.",
             )
 
         # ── 15. Total geral da fábrica ────────────────────────────────────────
+        if self._PRODUCAO.search(low) and self._DIA_A_DIA.search(low) and data_inicio and data_fim:
+            return InterpretationResult(
+                intent="producao_por_dia", route="sql",
+                metric="producao_total", entity_type="dia",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem, recursos=recursos,
+                confidence=0.91,
+                reasoning="Producao dia a dia em intervalo.",
+            )
+
         if self._TOTAL.search(low) and not operador:
             return InterpretationResult(
                 intent="total_fabrica", route="sql",
                 metric="producao_total",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.85,
                 reasoning="Total geral de produção da fábrica.",
             )
@@ -695,7 +962,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.86,
                 reasoning="Produção do próprio usuário autenticado (primeira pessoa).",
             )
@@ -707,7 +974,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor="expedicao", origem=origem,
+                setor="expedicao", origem=origem, recursos=recursos,
                 confidence=0.83,
                 reasoning="Consulta de expedição.",
             )
@@ -719,7 +986,7 @@ class RuleBasedInterpreter:
                 metric="producao_total", entity_type="operador",
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor=setor, origem=origem,
+                setor=setor, origem=origem, recursos=recursos,
                 confidence=0.80 if operador else 0.60,
                 reasoning="Produção total por operador.",
             )
@@ -762,7 +1029,7 @@ class RuleBasedInterpreter:
     def _extract_setor(self, text: str) -> str | None:
         """Detecta menção a um setor no texto."""
         low = text.lower()
-        for setor_alias in ["expedição", "expedicao", "expedicão", "revisão", "revisao", "producao", "produção"]:
+        for setor_alias in ["extrusora", "expedição", "expedicao", "expedicão", "revisão", "revisao", "producao", "produção"]:
             if setor_alias in low:
                 return _normalizar_setor(setor_alias)
         return None
@@ -784,3 +1051,20 @@ class RuleBasedInterpreter:
     def _extract_produto_code(self, text: str) -> str | None:
         m = _RE_PRODUTO.search(text)
         return m.group(1).upper() if m else None
+
+    def _extract_recurso(self, text: str) -> list[str] | None:
+        """
+        Detecta referência a extrusora/recurso específico.
+        Retorna lista de códigos ou None (padrão = ambas extrusoras no service).
+        """
+        low = text.lower()
+        # Extrusora 1 / MAC1 / Máquina 1
+        if re.search(r"extrusora\s*1|mac\s*1|m[aá]quina\s*1|\b0003\b", low):
+            return ["0003"]
+        # Extrusora 2 / MAC2 / Máquina 2
+        if re.search(r"extrusora\s*2|mac\s*2|m[aá]quina\s*2|\b0007\b", low):
+            return ["0007"]
+        # Revisão explícita (recursos de revisão)
+        if re.search(r"revis[aã]o", low) and not re.search(r"produ[cç][aã]o|extrusora", low):
+            return ["0005", "0006"]
+        return None

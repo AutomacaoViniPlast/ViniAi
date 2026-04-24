@@ -40,7 +40,7 @@ import re
 
 from app.agents import get_agent
 from app.config import (
-    OPERADORES_ATIVOS, ORIGENS,
+    OPERADORES_ATIVOS, OPERADORES_EXTRUSORA, OPERADORES_REVISAO, ORIGENS,
     get_label_setor, get_operadores_setor, get_setor_de, todos_operadores,
 )
 from app.context_manager import PostgresContextManager
@@ -48,7 +48,8 @@ from app.interpreter import InterpretationResult, RuleBasedInterpreter, _periodo
 from app.llm_handler import LLMHandler
 from app.permissions import MENSAGEM_LGPD, verificar_permissao
 from app.schemas import ChatProcessRequest, ChatProcessResponse, ConversationTurn
-from app.sql_service import SQLService
+from app.sql_service_kardex import SQLServiceKardex
+from app.sql_service_sh6 import SQLServiceSH6, traduzir_recurso, traduzir_filial
 
 
 # ── Helpers de formatação ─────────────────────────────────────────────────────
@@ -56,6 +57,18 @@ from app.sql_service import SQLService
 def _fmt_kg(valor: float) -> str:
     """Formata um valor float para exibição em KG no padrão brasileiro."""
     return f"{valor:,.2f} KG".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _fmt_quantidade(resultado: dict) -> str:
+    """Formata resultado de QUANTIDADE separado por UM (retorno do KARDEX). Omite unidades zeradas."""
+    from decimal import Decimal
+    partes = []
+    for um in ("KG", "MT"):
+        val = float(resultado.get(um, 0))
+        if val > 0:
+            fmt = f"{val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            partes.append(f"{fmt} {um}")
+    return " | ".join(partes) if partes else "0"
 
 
 def _posicao_label(pos: int) -> str:
@@ -78,6 +91,47 @@ def _origem_label(origem: str | None) -> str:
         return ""
     nome = ORIGENS.get(origem, origem)
     return f" [{nome}]"
+
+
+def _nome_mes_curto(mes: int) -> str:
+    nomes = {
+        1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
+        7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez",
+    }
+    return nomes.get(mes, str(mes))
+
+
+def _nome_mes_extenso(mes: int) -> str:
+    nomes = {
+        1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
+        7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+    }
+    return nomes.get(mes, str(mes))
+
+
+def _fmt_periodos_disponiveis(periodos: list[dict]) -> str:
+    """Formata anos/meses disponíveis agrupados por ano."""
+    if not periodos:
+        return "_Nenhum período encontrado._"
+    linhas = []
+    for bloco in periodos:
+        meses = ", ".join(_nome_mes_curto(m) for m in bloco["meses"])
+        linhas.append(f"- **{bloco['ano']}**: {meses}")
+    return "\n".join(linhas)
+
+
+def _extremos_periodos(periodos: list[dict]) -> tuple[str | None, str | None]:
+    """Retorna o primeiro e o último mês disponível em formato legível."""
+    if not periodos:
+        return None, None
+    primeiro_ano = periodos[0]["ano"]
+    primeiro_mes = periodos[0]["meses"][0]
+    ultimo_ano = periodos[-1]["ano"]
+    ultimo_mes = periodos[-1]["meses"][-1]
+    return (
+        f"{_nome_mes_extenso(primeiro_mes)} de {primeiro_ano}",
+        f"{_nome_mes_extenso(ultimo_mes)} de {ultimo_ano}",
+    )
 
 
 def _user_login_from_name(user_name: str | None) -> str | None:
@@ -125,7 +179,8 @@ class ChatOrchestrator:
         self.capabilities = agent.get("capabilities", "")
         self.context      = PostgresContextManager()
         self.interpreter  = RuleBasedInterpreter()
-        self.sql          = SQLService()
+        self.sql          = SQLServiceSH6()
+        self.kardex       = SQLServiceKardex()
         self.llm          = LLMHandler(
             agent_name=agent["name"],
             system_prompt=agent["system_prompt"],
@@ -136,9 +191,17 @@ class ChatOrchestrator:
     def process(self, payload: ChatProcessRequest) -> ChatProcessResponse:
         """Processa uma mensagem e retorna a resposta do agente."""
 
-        # 1. Lê o histórico para passar ao LLM como contexto
-        self.context.append_user_message(payload.session_id, payload.message)
-        recent = self.context.get_recent(payload.session_id, limit=16)
+        is_whatsapp = payload.channel == "whatsapp"
+
+        # 1. Lê o histórico para passar ao LLM como contexto.
+        #    WhatsApp usa session_id = número de telefone (não existe na tabela mensagens),
+        #    então pula o lookup do PostgreSQL para evitar queries desnecessárias e
+        #    esgotamento do pool de conexões em caso de retentativas do N8N.
+        if is_whatsapp:
+            recent = []
+        else:
+            self.context.append_user_message(payload.session_id, payload.message)
+            recent = self.context.get_recent(payload.session_id, limit=32)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
@@ -176,9 +239,39 @@ class ChatOrchestrator:
                 ir = followup_ir
                 print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
 
+        # Caso 4: mensagem ambígua sem período mas com recurso → herda intent + período do histórico
+        # Ex: "E da MAC2?" após "Produção da MAC1 e 2 ontem?" — sem período, mas menciona recurso
+        # Sem este caso, o LLM responde com valor inventado baseado no histórico (alucinação)
+        elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
+            recurso_novo = self.interpreter._extract_recurso(payload.message)
+            if recurso_novo:
+                followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo)
+                if followup_ir:
+                    ir = followup_ir
+                    print(f"[{self.agent_name}] RAG recurso-carry (clarify): reutilizando intent '{ir.intent}' com recurso {recurso_novo}.")
+
+        # Caso 3: SQL genérico sem operador → follow-up de recurso/extrusora
+        # Ex: "E na extrusora 2?" após consulta de KGH herda intent kgh + atualiza recurso
+        elif (
+            ir.route == "sql"
+            and ir.intent == "producao_por_operador"
+            and not ir.entity_value
+            and ir.confidence < 0.75
+        ):
+            followup_ir = self._try_context_followup(
+                recent, msg_ini, msg_fim, msg_lbl, recursos_new=ir.recursos,
+            )
+            if followup_ir:
+                ir = followup_ir
+                print(f"[{self.agent_name}] RAG recurso-carry: reutilizando intent '{ir.intent}' com novo recurso.")
+
         # Caso 2: consulta SQL sem período explícito → herda período do histórico
         # Ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?" herda janeiro
-        elif ir.route == "sql" and not periodo_explicito and ir.confidence < 0.87:
+        # Também ativa para mensagens curtas (≤ 5 palavras) mesmo com alta confiança —
+        # evita que "E da extrusora 1?" use período padrão ao invés de herdar "ontem"
+        elif ir.route == "sql" and not periodo_explicito and (
+            ir.confidence < 0.87 or len(payload.message.strip().split()) <= 5
+        ):
             inherited = self._inherit_period_from_history(recent)
             if inherited:
                 ir.data_inicio, ir.data_fim, ir.period_text = inherited
@@ -205,15 +298,20 @@ class ChatOrchestrator:
 
         # ── 4d. Auto-inject: quando intent é de operador mas nenhum foi ───────
         #        extraído do texto, usa o próprio usuário autenticado.
-        #        Evita pedir o nome de quem já está logado.
+        #        Só injeta se o setor do usuário bate com o intent.
         if (
-            ir.intent in ("geracao_ld_por_operador", "producao_por_operador")
+            ir.intent in ("geracao_ld_por_operador", "producao_por_operador", "resumo_qualidade")
             and not ir.entity_value
         ):
             user_login = _user_login_from_name(user_name)
             if user_login:
-                ir.entity_value = user_login
-                print(f"[{self.agent_name}] Auto-inject: entity_value='{user_login}' (usuário autenticado).")
+                setor_usuario = get_setor_de(user_login)
+                if ir.intent in ("geracao_ld_por_operador", "resumo_qualidade") and setor_usuario == "revisao":
+                    ir.entity_value = user_login
+                    print(f"[{self.agent_name}] Auto-inject (revisao): entity_value='{user_login}'.")
+                elif ir.intent == "producao_por_operador" and setor_usuario == "extrusora":
+                    ir.entity_value = user_login
+                    print(f"[{self.agent_name}] Auto-inject (extrusora): entity_value='{user_login}'.")
 
         # ── 4e. Consulta ao banco de dados → SQL ─────────────────────────────
         answer = self._handle_sql(ir)
@@ -252,6 +350,7 @@ class ChatOrchestrator:
         ini_new: str | None,
         fim_new: str | None,
         lbl_new: str | None,
+        recursos_new: list[str] | None = None,
     ) -> InterpretationResult | None:
         """
         RAG conversacional: quando a mensagem atual só especifica um período
@@ -300,6 +399,9 @@ class ChatOrchestrator:
                     prev_ir.data_fim = fim_new
                 if lbl_new:
                     prev_ir.period_text = lbl_new
+                # Aplica recurso novo (ex: "E na extrusora 2?" atualiza de 0003 para 0007)
+                if recursos_new:
+                    prev_ir.recursos = recursos_new
 
                 prev_ir.route     = "sql"
                 prev_ir.reasoning = f"[context-carry] {prev_ir.reasoning}"
@@ -342,48 +444,29 @@ class ChatOrchestrator:
         except Exception as exc:
             return f"Ocorreu um erro ao consultar o banco de dados: {exc}"
 
+    @staticmethod
+    def _is_diaria(ir: InterpretationResult) -> bool:
+        """Consulta diária quando período é um único dia (ini == fim)."""
+        return bool(ir.data_inicio and ir.data_fim and ir.data_inicio == ir.data_fim)
+
+    @staticmethod
+    def _recurso_label(recursos: list[str] | None) -> str:
+        """Gera sufixo legível para o recurso filtrado."""
+        if not recursos:
+            return ""
+        labels = [traduzir_recurso(r) for r in recursos]
+        return f" [{', '.join(labels)}]"
+
     def _dispatch(self, ir: InterpretationResult) -> str:  # noqa: C901
-        """Despacha o intent para a query SQL correspondente e formata a resposta."""
+        """Despacha o intent para a query SH6 correspondente e formata a resposta."""
 
-        periodo  = _periodo_label(ir)
-        orig_lbl = _origem_label(ir.origem)
-        ini      = ir.data_inicio
-        fim      = ir.data_fim
-        top_n    = ir.top_n or 5
-        origem   = ir.origem
-        setor    = ir.setor
-
-        # Setor explícito → filtra aquele setor; sem setor → usa OPERADORES_ATIVOS
-        if setor:
-            filtro_usuarios = get_operadores_setor(setor)
-            setor_label     = get_label_setor(setor)
-        else:
-            filtro_usuarios = list(OPERADORES_ATIVOS)
-            setor_label     = None
-
-        # ── Períodos disponíveis ──────────────────────────────────────────────
-        if ir.intent == "periodos_disponiveis":
-            _MESES_NOME = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-            periodos = self.sql.get_periodos_disponiveis(filtro_usuarios)
-            if not periodos:
-                return "Não encontrei dados no banco para os operadores ativos."
-
-            linhas, avisos = [], []
-            for p in periodos:
-                ano, meses = p["ano"], p["meses"]
-                if meses == list(range(1, 13)):
-                    linhas.append(f"- **{ano}**: ano completo (Jan–Dez)")
-                else:
-                    nomes = ", ".join(_MESES_NOME[m - 1] for m in meses)
-                    linhas.append(f"- **{ano}**: {nomes}")
-                    if len(meses) < 6:
-                        avisos.append(f"{ano} (dados esparsos — {len(meses)} meses)")
-
-            nota = ""
-            if avisos:
-                nota = "\n\n> ⚠️ Dados incompletos em: " + ", ".join(avisos)
-            nota += "\n\n> Para consultas confiáveis, recomendo usar **2022 em diante**."
-            return "📅 **Períodos com dados disponíveis**\n\n" + "\n".join(linhas) + nota
+        periodo   = _periodo_label(ir)
+        ini       = ir.data_inicio
+        fim       = ir.data_fim
+        top_n     = ir.top_n or 5
+        recursos  = ir.recursos  # None = ambas extrusoras (default no service)
+        is_diaria = self._is_diaria(ir)
+        rec_lbl   = self._recurso_label(recursos)
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
@@ -392,114 +475,41 @@ class ChatOrchestrator:
             label = get_label_setor(alvo)
             if not ops:
                 return f"Nenhum operador cadastrado para o setor {label}."
-            encontrados = self.sql.get_review_operators(ops)
-            linhas  = "\n".join(f"- {op}" for op in ops)
-            sem_reg = [o for o in ops if o not in encontrados]
-            nota = f"\n\n> ⚠️ Sem registros no banco: {', '.join(sem_reg)}" if sem_reg else ""
-            return f"👥 **Operadores da {label}**\n\n{linhas}{nota}"
+            linhas = "\n".join(f"- {op}" for op in ops)
+            return f"👥 **Operadores da {label}**\n\n{linhas}"
 
-        # ── Ranking de revisão por LD ─────────────────────────────────────────
-        if ir.intent == "ranking_usuarios_ld":
-            rows = self.sql.get_ranking_usuarios_ld(
-                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
-            )
+        # ── Total geral da fábrica (SH6) ──────────────────────────────────────
+        if ir.intent == "producao_por_dia":
+            rows = self.sql.get_producao_por_dia(ini, fim, recursos=recursos)
             if not rows:
-                contexto = f" da {setor_label}" if setor_label else ""
-                return f"🔍 Nenhum dado de LD encontrado{contexto}{periodo}{orig_lbl}."
-            contexto = f" da {setor_label}" if setor_label else ""
-            header = f"🏆 **Top {top_n} — Revisão de LD{contexto}**{periodo}{orig_lbl}\n\n"
-            header += "| # | Operador | Total LD |\n|---|----------|----------|\n"
+                return f"🔍 Nenhum dado de produção encontrado{periodo}{rec_lbl}."
+            total_periodo = sum(r["total_kg"] for r in rows)
+            header = f"📅 **Produção dia a dia da fábrica**{periodo}{rec_lbl}\n\n"
+            header += "| Data | Total KG | Registros |\n|------|----------|-----------|\n"
             linhas = "\n".join(
-                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
+                f"| {r['data']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
                 for r in rows
             )
-            return header + linhas
+            resumo = f"\n\n**Total do período:** {_fmt_kg(total_periodo)}"
+            return header + linhas + resumo
 
-        # ── Ranking de produtos por LD ────────────────────────────────────────
-        if ir.intent == "ranking_produtos_ld":
-            rows = self.sql.get_ranking_produtos_ld(
-                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
-            )
-            if not rows:
-                return f"🔍 Nenhum produto com LD encontrado{periodo}{orig_lbl}."
-            header = f"🏆 **Top {top_n} — Produtos com mais LD**{periodo}{orig_lbl}\n\n"
-            header += "| # | Produto | Total | Ocorrências |\n|---|---------|-------|-------------|\n"
-            linhas = "\n".join(
-                f"| {_posicao_label(r['posicao'])} | `{r['produto']}` | **{_fmt_kg(r['total_kg'])}** | {r['ocorrencias']} |"
-                for r in rows
-            )
-            return header + linhas
-
-        # ── LD por operador específico ─────────────────────────────────────────
-        if ir.intent == "geracao_ld_por_operador":
-            if not ir.entity_value:
-                return (
-                    "❓ Não consegui identificar o operador.\n\n"
-                    "Informe o nome (ex: *ezequiel.nunes* ou só *'Ezequiel'*) "
-                    "ou pergunte como *'meu LD'* se for sobre você mesmo."
-                )
-            setor_op   = get_setor_de(ir.entity_value)
-            setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
-            total = self.sql.get_ld_por_operador(ir.entity_value, ini, fim, origem)
+        if ir.intent == "total_fabrica":
+            total = self.sql.get_producao_total(ini, fim, recursos=recursos, is_diaria=is_diaria)
             if float(total) == 0:
-                return (
-                    f"🔍 Nenhum LD identificado por **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n\n"
-                    "Verifique o nome ou o período informado."
-                )
+                return f"🔍 Nenhum dado de produção encontrado{periodo}{rec_lbl}."
+            tipo = "dia" if is_diaria else "mês"
             return (
-                f"⚠️ **LD identificado — {ir.entity_value}**{setor_info}\n\n"
-                f"📅 Período: {periodo.strip() or 'geral'}\n"
-                f"⚖️ Total: **{_fmt_kg(float(total))}**"
+                f"🏭 **Produção total da fábrica — {tipo}**{periodo}{rec_lbl}\n\n"
+                f"| Métrica | Valor |\n|---------|-------|\n"
+                f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |"
             )
 
-        # ── Produção / movimentação por operador específico ───────────────────
-        if ir.intent == "producao_por_operador":
-            if not ir.entity_value:
-                return (
-                    "❓ Não consegui identificar o operador.\n\n"
-                    "Informe o nome (ex: *john.moraes* ou só *'John'*) "
-                    "ou pergunte como *'minha produção'* se for sobre você mesmo."
-                )
-            setor_op   = get_setor_de(ir.entity_value)
-            setor_info = f" ({get_label_setor(setor_op)})" if setor_op else ""
-            total = self.sql.get_producao_por_operador(ir.entity_value, ini, fim, origem)
-            if float(total) == 0:
-                return (
-                    f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{setor_info}{periodo}{orig_lbl}.\n\n"
-                    "Verifique o nome ou o período informado."
-                )
-            emoji   = "📦" if setor_op == "expedicao" else "⚙️"
-            titulo  = "Bobinas liberadas — Expedição" if setor_op == "expedicao" else "Produção"
-            metrica = "Total movimentado" if setor_op == "expedicao" else "Total"
-            return (
-                f"{emoji} **{titulo} — {ir.entity_value}**{setor_info}\n\n"
-                f"📅 Período: {periodo.strip() or 'geral'}\n"
-                f"⚖️ {metrica}: **{_fmt_kg(float(total))}**"
-            )
-
-        # ── Produção por produto específico ───────────────────────────────────
-        if ir.intent == "producao_por_produto":
-            if not ir.entity_value:
-                return "❓ Não identifiquei o código do produto. Informe o código (ex: TD2AYBR1BOBR100)."
-            total = self.sql.get_producao_por_produto(ir.entity_value, ini, fim, origem)
-            if float(total) == 0:
-                return f"🔍 Nenhuma produção encontrada para **{ir.entity_value}**{periodo}{orig_lbl}."
-            return (
-                f"⚙️ **Produção por produto**{periodo}{orig_lbl}\n\n"
-                f"🏷️ Produto: `{ir.entity_value}`\n"
-                f"⚖️ Total: **{_fmt_kg(float(total))}**"
-            )
-
-        # ── Ranking geral de produção ─────────────────────────────────────────
+        # ── Ranking de produção por operador (SH6) ────────────────────────────
         if ir.intent == "ranking_producao_geral":
-            rows = self.sql.get_ranking_producao_geral(
-                ini, fim, top_n, origem, filtro_usuarios=filtro_usuarios,
-            )
+            rows = self.sql.get_ranking_producao(ini, fim, top_n, recursos=recursos, is_diaria=is_diaria)
             if not rows:
-                contexto = f" da {setor_label}" if setor_label else ""
-                return f"🔍 Nenhum dado encontrado{contexto}{periodo}{orig_lbl}."
-            contexto = f" da {setor_label}" if setor_label else ""
-            header = f"🏆 **Top {top_n} — Produção{contexto}**{periodo}{orig_lbl}\n\n"
+                return f"🔍 Nenhum dado encontrado{periodo}{rec_lbl}."
+            header = f"🏆 **Top {top_n} — Produção**{periodo}{rec_lbl}\n\n"
             header += "| # | Operador | Total |\n|---|----------|-------|\n"
             linhas = "\n".join(
                 f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
@@ -507,35 +517,325 @@ class ChatOrchestrator:
             )
             return header + linhas
 
-        # ── Produção por turno ────────────────────────────────────────────────
-        if ir.intent == "producao_por_turno":
-            rows = self.sql.get_producao_por_turno(
-                ini, fim, origem, filtro_usuarios=filtro_usuarios,
-            )
+        # ── Comparativo entre extrusoras (SH6) ───────────────────────────────
+        if ir.intent == "comparativo_extrusoras":
+            rows = self.sql.get_producao_por_recurso(ini, fim, recursos=recursos, is_diaria=is_diaria)
             if not rows:
-                return f"🔍 Nenhum dado de turno encontrado{periodo}{orig_lbl}."
-            contexto = f" da {setor_label}" if setor_label else ""
-            header = f"🔄 **Produção por turno{contexto}**{periodo}{orig_lbl}\n\n"
-            header += "| Turno | Total | Registros |\n|-------|-------|-----------|\n"
+                return f"🔍 Nenhum dado encontrado{periodo}{rec_lbl}."
+            header = f"⚙️ **Comparativo de produção por extrusora**{periodo}\n\n"
+            header += "| Extrusora | Total KG | Registros |\n|-----------|----------|----------|\n"
             linhas = "\n".join(
-                f"| {r['turno']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                f"| {r['recurso_label']} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            # Calcula diferença se houver exatamente 2 máquinas
+            if len(rows) == 2:
+                diff = abs(rows[0]["total_kg"] - rows[1]["total_kg"])
+                lider = rows[0]["recurso_label"] if rows[0]["total_kg"] >= rows[1]["total_kg"] else rows[1]["recurso_label"]
+                linhas += f"\n\n> **{lider}** produziu **{_fmt_kg(diff)}** a mais no período."
+            return header + linhas
+
+        # ── Horas trabalhadas por extrusora (SH6) ─────────────────────────────
+        if ir.intent == "horas_trabalhadas":
+            rows = self.sql.get_horas_trabalhadas(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            if not rows:
+                return f"🔍 Nenhum dado de horas encontrado{periodo}{rec_lbl}."
+            header = f"⏱️ **Horas trabalhadas**{periodo}{rec_lbl}\n\n"
+            header += "| Extrusora | Horas | Minutos |\n|-----------|-------|--------|\n"
+            linhas = "\n".join(
+                f"| {r['recurso_label']} | **{r['horas']:,.2f} h** | {r['minutos']:,.0f} min |"
                 for r in rows
             )
             return header + linhas
 
-        # ── Total geral da fábrica ────────────────────────────────────────────
-        if ir.intent == "total_fabrica":
-            total    = self.sql.get_total_fabrica(ini, fim, origem, filtro_usuarios)
-            total_ld = self.sql.get_total_ld_fabrica(ini, fim, origem, filtro_usuarios)
-            if float(total) == 0:
-                return f"🔍 Nenhum dado de produção encontrado{periodo}{orig_lbl}."
-            pct_ld = (float(total_ld) / float(total) * 100) if float(total) > 0 else 0
-            return (
-                f"🏭 **Produção total da fábrica**{periodo}{orig_lbl}\n\n"
-                f"| Métrica | Valor |\n|---------|-------|\n"
-                f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |\n"
-                f"| ⚠️ Total LD | **{_fmt_kg(float(total_ld))}** ({pct_ld:.1f}%) |"
+        # ── Produção por operador específico (SH6) ────────────────────────────
+        if ir.intent == "producao_por_operador":
+            if not ir.entity_value:
+                # Nenhum operador mencionado → retorna total geral da fábrica para o período
+                total = self.sql.get_producao_total(ini, fim, recursos=recursos, is_diaria=is_diaria)
+                if float(total) == 0:
+                    return f"🔍 Nenhum dado de produção encontrado{periodo}{rec_lbl}."
+                tipo = "dia" if is_diaria else "mês"
+                return (
+                    f"🏭 **Produção total da fábrica — {tipo}**{periodo}{rec_lbl}\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |"
+                )
+
+            # Operador da revisão → dados estão no KARDEX (qualidade), não no SH6
+            if ir.entity_value in OPERADORES_REVISAO:
+                resumo = self.kardex.get_resumo_qualidade(ini, fim, operador=ir.entity_value, origem=ir.origem)
+                inteiro_kg = float(resumo["I"]["KG"])
+                ld_kg      = float(resumo["Y"]["KG"])
+                ld_mt      = float(resumo["Y"]["MT"])
+                fp_kg      = float(resumo["P"]["KG"])
+                bag_kg     = float(resumo["BAG"]["KG"])
+                total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
+                if total_kg == 0 and ld_mt == 0:
+                    return f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{periodo}."
+                tipo   = "dia" if is_diaria else "mês"
+                header = (
+                    f"⚠️ **Revisão por qualidade — {ir.entity_value}**\n"
+                    f"📅 Período ({tipo}){periodo}\n\n"
+                    "| Qualidade | Total |\n|-----------|-------|\n"
+                )
+                linhas = []
+                if inteiro_kg > 0:
+                    linhas.append(f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** |")
+                if ld_kg > 0:
+                    linhas.append(f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** |")
+                if ld_mt > 0:
+                    fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    linhas.append(f"| ⚠️ LD | **{fmt_mt} MT** |")
+                if fp_kg > 0:
+                    linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+                if bag_kg > 0:
+                    linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
+                if total_kg > 0:
+                    linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
+                return header + "\n".join(linhas)
+
+            total = self.sql.get_producao_por_operador(
+                ir.entity_value, ini, fim, recursos=recursos, is_diaria=is_diaria,
             )
+            if float(total) == 0:
+                return (
+                    f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{periodo}{rec_lbl}.\n\n"
+                    "Verifique o nome ou o período informado."
+                )
+            tipo = "dia" if is_diaria else "mês"
+            return (
+                f"⚙️ **Produção — {ir.entity_value}**\n\n"
+                f"📅 Período ({tipo}): {periodo.strip() or 'geral'}{rec_lbl}\n"
+                f"⚖️ Total: **{_fmt_kg(float(total))}**"
+            )
+
+        # ── Metros por minuto (SH6) ───────────────────────────────────────────
+        if ir.intent == "metros_por_minuto":
+            data = self.sql.get_metros_por_minuto(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            if data["resultado"] == 0:
+                return f"🔍 Nenhum dado de metros/min encontrado{periodo}{rec_lbl}."
+            return (
+                f"📏 **Metros por minuto**{periodo}{rec_lbl}\n\n"
+                f"| Métrica | Valor |\n|---------|-------|\n"
+                f"| Metros totais | {data['metros']:,.2f} m |\n"
+                f"| Minutos totais | {data['minutos']:,.0f} min |\n"
+                f"| **Média m/min** | **{data['resultado']:.4f}** |"
+            )
+
+        # ── Produção por turno (KARDEX) ──────────────────────────────────────────
+        if ir.intent == "producao_por_turno":
+            rows = self.kardex.get_producao_por_turno(ini, fim, recursos=recursos)
+            if not rows:
+                return f"🔍 Nenhum dado por turno encontrado{periodo}{rec_lbl}."
+            por_turno: dict[str, dict] = {}
+            for r in rows:
+                t = r["turno"] or "—"
+                if t not in por_turno:
+                    por_turno[t] = {"KG": 0.0, "MT": 0.0, "registros": 0}
+                um = (r["unidade"] or "").upper()
+                if um == "KG":
+                    por_turno[t]["KG"] += r["total"]
+                elif um == "MT":
+                    por_turno[t]["MT"] += r["total"]
+                por_turno[t]["registros"] += r["registros"]
+            header = f"🔄 **Produção por turno**{periodo}{rec_lbl}\n\n"
+            header += "| Turno | Total KG | Registros |\n|-------|----------|----------|\n"
+            linhas = [
+                f"| {turno} | **{_fmt_kg(dados['KG'])}** | {dados['registros']} |"
+                for turno, dados in sorted(por_turno.items())
+            ]
+            return header + "\n".join(linhas)
+
+        # ── KGH — KG por hora (SH6) ───────────────────────────────────────────
+        if ir.intent == "kgh":
+            rows = self.sql.get_kgh(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            if not rows:
+                return f"🔍 Nenhum dado de KGH encontrado{periodo}{rec_lbl}."
+            blocos = []
+            for r in rows:
+                bloco = (
+                    f"**{r['recurso_label']}**\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| KG total | {r['total_kg']:,.2f} KG |\n"
+                    f"| Horas totais | {r['horas']:,.2f} h |\n"
+                    f"| **KGH** | **{r['kgh']:,.2f}** |"
+                )
+                blocos.append(bloco)
+            header = f"⚡ **KG/hora por extrusora**{periodo}{rec_lbl}\n\n"
+            return header + "\n\n".join(blocos)
+
+        # ── Intents KARDEX — consultas que envolvem qualidade do material ────────
+
+        # ── Qualidade da produção: Inteiro / LD / FP (KARDEX) ───────────────────
+        # Exibe breakdown completo: total geral + Inteiro (sem defeito) + LD (defeito) + FP
+        if ir.intent == "periodos_disponiveis":
+            periodos_sh6 = self.sql.get_periodos_disponiveis(recursos=recursos)
+            periodos_kardex = self.kardex.get_periodos_disponiveis()
+            if not periodos_sh6 and not periodos_kardex:
+                return "🔍 Não encontrei períodos disponíveis nas bases consultadas."
+
+            if ir.metric == "producao":
+                if not periodos_sh6:
+                    return "🔍 Não encontrei períodos disponíveis para produção na base SH6."
+                ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
+                return (
+                    "🗓️ **Tenho estes períodos disponíveis para produção (SH6):**\n\n"
+                    f"Cobertura: **{ini_sh6}** até **{fim_sh6}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_sh6)}"
+                )
+
+            if ir.metric == "qualidade":
+                if not periodos_kardex:
+                    return "🔍 Não encontrei períodos disponíveis para qualidade na base KARDEX."
+                ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
+                return (
+                    "🗓️ **Tenho estes períodos disponíveis para qualidade / revisão (KARDEX):**\n\n"
+                    f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_kardex)}"
+                )
+
+            ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
+            ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
+            partes = ["🗓️ **Tenho estes períodos disponíveis nas bases que eu consulto:**"]
+
+            if periodos_sh6:
+                partes.append(
+                    "### Extrusora / Produção (SH6)\n"
+                    f"Cobertura: **{ini_sh6}** até **{fim_sh6}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_sh6)}"
+                )
+
+            if periodos_kardex:
+                partes.append(
+                    "### Qualidade / Revisão (KARDEX)\n"
+                    f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_kardex)}"
+                )
+
+            partes.append(
+                "Se você quiser, eu também posso te responder isso focando só em "
+                "**produção**, **qualidade**, **LD** ou **extrusora**."
+            )
+            return "\n\n".join(partes)
+
+        if ir.intent == "ld_total":
+            total_ld = self.kardex.get_ld_total(
+                ini, fim,
+                recursos=recursos,
+                origem=ir.origem,
+                filtro_usuarios=OPERADORES_REVISAO,
+            )
+            if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
+                return f"🔍 Nenhum registro de LD encontrado{periodo}{rec_lbl}."
+
+            return (
+                f"⚠️ **Total de LD**{periodo}{rec_lbl}\n\n"
+                f"**{_fmt_quantidade(total_ld)}**"
+            )
+
+        if ir.intent == "geracao_ld_por_operador":
+            if not ir.entity_value:
+                return "Preciso do nome do operador para consultar o LD identificado."
+
+            # Operador da extrusora não tem registros de revisão no KARDEX
+            if ir.entity_value in OPERADORES_EXTRUSORA:
+                return (
+                    f"**{ir.entity_value}** é um operador da **Extrusora** — "
+                    "não tem registros de revisão de qualidade.\n\n"
+                    "Para consultar a produção dele, pergunte sobre produção."
+                )
+
+            total_ld = self.kardex.get_ld_por_operador(
+                ir.entity_value,
+                ini, fim,
+                origem=ir.origem,
+            )
+            if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
+                nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
+                return f"🔍 Nenhum registro de LD encontrado{nome}{periodo}."
+
+            nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
+            return (
+                f"⚠️ **LD identificado{nome_str}**\n"
+                f"📅 Período{periodo}\n\n"
+                f"**{_fmt_quantidade(total_ld)}**"
+            )
+
+        if ir.intent == "resumo_qualidade":
+            resumo = self.kardex.get_resumo_qualidade(
+                ini, fim,
+                operador=ir.entity_value or None,
+                origem=ir.origem,
+            )
+            inteiro_kg = float(resumo["I"]["KG"])
+            ld_kg      = float(resumo["Y"]["KG"])
+            ld_mt      = float(resumo["Y"]["MT"])
+            fp_kg      = float(resumo["P"]["KG"])
+            bag_kg     = float(resumo["BAG"]["KG"])
+            total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
+
+            if total_kg == 0 and ld_mt == 0:
+                nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
+                return f"🔍 Nenhum registro de produção encontrado{nome}{periodo}."
+
+            tipo     = "dia" if is_diaria else "mês"
+            nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
+            header   = (
+                f"⚠️ **Produção por qualidade{nome_str}**\n"
+                f"📅 Período ({tipo}){periodo}\n\n"
+                "| Qualidade | Total |\n|-----------|-------|\n"
+            )
+            linhas = []
+            if inteiro_kg > 0:
+                linhas.append(f"| ✅ Inteiro (sem defeito) | **{_fmt_kg(inteiro_kg)}** |")
+            if ld_kg > 0:
+                linhas.append(f"| ⚠️ LD (defeito) | **{_fmt_kg(ld_kg)}** |")
+            if ld_mt > 0:
+                fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                linhas.append(f"| ⚠️ LD (defeito) | **{fmt_mt} MT** |")
+            if fp_kg > 0:
+                linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+            if bag_kg > 0:
+                linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
+            if total_kg > 0:
+                linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
+            return header + "\n".join(linhas)
+
+        # ── Ranking de operadores com mais LD (KARDEX) ────────────────────────────
+        if ir.intent == "ranking_usuarios_ld":
+            rows = self.kardex.get_ranking_ld(
+                ini, fim, limite=top_n,
+                recursos=recursos,
+                filtro_usuarios=OPERADORES_REVISAO,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de LD encontrado{periodo}{rec_lbl}."
+            unidade = rows[0]["unidade"] if rows else "KG"
+            header = f"⚠️ **Top {top_n} — LD por operador**{periodo}{rec_lbl}\n\n"
+            header += f"| # | Operador | Total {unidade} |\n|---|----------|----------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total'])}** |"
+                for r in rows
+            )
+            return header + linhas
+
+        # ── Ranking de produtos com mais LD (KARDEX) ──────────────────────────────
+        if ir.intent == "ranking_produtos_ld":
+            rows = self.kardex.get_ranking_produtos_ld(
+                ini, fim, limite=top_n,
+                filtro_usuarios=OPERADORES_REVISAO,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de LD por produto encontrado{periodo}."
+            header = f"⚠️ **Top {top_n} — Produtos com mais LD**{periodo}\n\n"
+            header += "| # | Produto | Descrição | Total | Ocorrências |\n|---|---------|-----------|-------|-------------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['produto']} | {r['descricao'] or '-'} "
+                f"| **{_fmt_kg(r['total'])}** | {r['ocorrencias']} |"
+                for r in rows
+            )
+            return header + linhas
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
 
