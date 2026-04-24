@@ -17,5 +17,5 @@ logs/
 # Arquivos de sessão temporária do Claude Code
 project_memory/ViniAI-Memoria/Temp/
 PLANILHA_VALIDACAO_IA.md
-*.png
+image*.png
 CLAUDE.md
