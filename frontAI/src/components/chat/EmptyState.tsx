@@ -7,6 +7,13 @@ interface EmptyStateProps {
   setor?: string;
 }
 
+const normalizeSectorKey = (value?: string) =>
+  (value || "GERAL")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
 const sectorSuggestions = {
   GERAL: [
     {
@@ -171,8 +178,16 @@ const sectorSuggestions = {
 };
 
 const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
+  const normalizedSuggestions = Object.entries(sectorSuggestions).reduce(
+    (acc, [key, value]) => {
+      acc[normalizeSectorKey(key)] = value;
+      return acc;
+    },
+    {} as Record<string, (typeof sectorSuggestions)[keyof typeof sectorSuggestions]>
+  );
+
   const suggestions =
-    sectorSuggestions[setor as keyof typeof sectorSuggestions] ||
+    normalizedSuggestions[normalizeSectorKey(setor)] ||
     sectorSuggestions.GERAL;
 
   return (
