@@ -867,20 +867,39 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
+        # Inteiro (I) e Fora de Padrão (P): QUANTIDADE está em metros (UM='MT') —
+        # o KG real fica em QTSEGUM. LD (Y) e BAG: QUANTIDADE com UM='KG' é o peso.
+        # MT de LD/BAG vem de QTSEGUM (metros identificados na revisão).
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
-                LTRIM(RTRIM(UM))        AS unidade,
-                COALESCE(SUM(QUANTIDADE), 0) AS total
+                COALESCE(SUM(
+                    CASE LTRIM(RTRIM(QUALIDADE))
+                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
+                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
+                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        ELSE 0
+                    END
+                ), 0) AS total_kg,
+                COALESCE(SUM(
+                    CASE LTRIM(RTRIM(QUALIDADE))
+                        WHEN 'Y'   THEN COALESCE(QTSEGUM, 0)
+                        WHEN 'BAG' THEN COALESCE(QTSEGUM, 0)
+                        ELSE 0
+                    END
+                ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND COALESCE(QUANTIDADE, 0) > 0
+              AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
               {op_sql}
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
+            GROUP BY LTRIM(RTRIM(QUALIDADE))
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
 
@@ -893,9 +912,9 @@ class SQLServiceKardex:
             }
             for row in cur.fetchall():
                 qualidade = (row[0] or "").strip().upper()
-                um        = (row[1] or "").strip().upper()
-                if qualidade in resultado and um in UM_VALIDAS:
-                    resultado[qualidade][um] = Decimal(str(row[2]))
+                if qualidade in resultado:
+                    resultado[qualidade]["KG"] = Decimal(str(row[1]))
+                    resultado[qualidade]["MT"] = Decimal(str(row[2]))
             return resultado
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
