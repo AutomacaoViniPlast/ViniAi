@@ -18,7 +18,7 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu } from "lucide-react";
+import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu } from "lucide-react";
 
 interface Message {
   id: string;
@@ -53,6 +53,8 @@ const Index = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("vini-theme") !== "light");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   // Carrega perfil e conversas do banco de dados
   useEffect(() => {
@@ -225,6 +227,35 @@ const Index = () => {
       );
     } catch (err) {
       console.error("Erro ao alternar pin:", err);
+    }
+  };
+
+  const startRenameConversation = (conversation: Conversation) => {
+    setEditingConversationId(conversation.id);
+    setEditingTitle(conversation.title);
+  };
+
+  const cancelRenameConversation = () => {
+    setEditingConversationId(null);
+    setEditingTitle("");
+  };
+
+  const submitRenameConversation = async (id: string) => {
+    const trimmedTitle = editingTitle.trim();
+    if (!trimmedTitle) {
+      cancelRenameConversation();
+      return;
+    }
+
+    try {
+      await updateTitle(id, trimmedTitle);
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, title: trimmedTitle } : c))
+      );
+      cancelRenameConversation();
+    } catch (err) {
+      console.error("Erro ao renomear conversa:", err);
+      toast.error("Não foi possível atualizar o título.");
     }
   };
 
@@ -525,7 +556,24 @@ const Index = () => {
                   >
                     <div className="flex items-center gap-1 min-w-0">
                       {conv.pinned && <Pin size={10} style={{ color: C.redText, flexShrink: 0 }} />}
-                      <span className="truncate text-[13px]">{conv.title}</span>
+                      {editingConversationId === conv.id ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editingTitle}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => void submitRenameConversation(conv.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void submitRenameConversation(conv.id);
+                            if (e.key === "Escape") cancelRenameConversation();
+                          }}
+                          className="w-full bg-transparent text-[13px] outline-none"
+                          style={{ color: C.text }}
+                        />
+                      ) : (
+                        <span className="truncate text-[13px]">{conv.title}</span>
+                      )}
                     </div>
                   </button>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
@@ -538,6 +586,19 @@ const Index = () => {
                       title="Fixar"
                     >
                       <Pin size={12} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startRenameConversation(conv);
+                      }}
+                      className="p-1 rounded-xl transition-all duration-150"
+                      style={{ color: C.textMuted }}
+                      onMouseEnter={e => (e.currentTarget.style.background = C.pinHover)}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                      title="Editar título"
+                    >
+                      <Pencil size={12} />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
