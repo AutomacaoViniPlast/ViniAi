@@ -16,6 +16,9 @@ logs/
 
 # Arquivos de sessão temporária do Claude Code
 project_memory/ViniAI-Memoria/Temp/
+
+# Configurações locais do Obsidian (workspace state, não versionável)
+project_memory/ViniAI-Memoria/.obsidian/
 PLANILHA_VALIDACAO_IA.md
 image*.png
 CLAUDE.md
