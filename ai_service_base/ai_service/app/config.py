@@ -66,6 +66,15 @@ OPERADORES_REVISAO:   list[str] = SETORES["revisao"]["operadores"]
 # Todos os operadores ativos — used para filtros gerais e auto-inject
 OPERADORES_ATIVOS: list[str] = OPERADORES_EXTRUSORA + OPERADORES_REVISAO
 
+# ── Exclusões para resumo de qualidade (espelhadas do Metabase) ──────────────
+LOTES_EXCLUIDOS_QUALIDADE: list[str] = [
+    "99KEHY-2601", "99KEI1-2601", "99KEI3-2601", "99KEHS-2601", "99KEI5-2601",
+    "99KEH5-2601", "99KEHM-2601", "99KEHO-2601", "99KEH1-2601",
+]
+PRODUTOS_EXCLUIDOS_QUALIDADE: list[str] = [
+    "MSP001", "MSP002", "MSP003", "MSP004", "MSP006", "MSP007", "MSP009",
+]
+
 # ── Tipos de movimentação (coluna `origem` na view) ───────────────────────────
 ORIGENS: dict[str, str] = {
     "SD1": "Entrada",

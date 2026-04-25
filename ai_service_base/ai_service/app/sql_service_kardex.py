@@ -55,6 +55,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from app.config import LOTES_EXCLUIDOS_QUALIDADE, PRODUTOS_EXCLUIDOS_QUALIDADE
 from app.db import get_mssql_conn
 
 
@@ -871,6 +872,8 @@ class SQLServiceKardex:
         # I e P: UM='MT' → KG em QTSEGUM.
         # Y: UM='KG' → KG em QUANTIDADE.
         # '0' = BAG na V_KARDEX (TES=499, LOCAL=12, TIPO=PP) → KG em QUANTIDADE.
+        lotes_ph   = ", ".join("?" * len(LOTES_EXCLUIDOS_QUALIDADE))
+        produtos_ph = ", ".join("?" * len(PRODUTOS_EXCLUIDOS_QUALIDADE))
         query = f"""
             SELECT
                 CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
@@ -898,6 +901,8 @@ class SQLServiceKardex:
               AND LTRIM(RTRIM(TES))  IN ('010', '002', '499')
               AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
               AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
+              AND UPPER(LTRIM(RTRIM(LOTE)))    NOT IN ({lotes_ph})
+              AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT IN ({produtos_ph})
               {op_sql}
               {fil_sql}
               {rec_sql}
@@ -909,7 +914,12 @@ class SQLServiceKardex:
                     ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
                 END
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
+        params = (
+            [_parse_date(data_inicio), _parse_date(data_fim)]
+            + LOTES_EXCLUIDOS_QUALIDADE
+            + PRODUTOS_EXCLUIDOS_QUALIDADE
+            + op_p + fil_p + rec_p + ori_p + incl_p
+        )
 
         with get_mssql_conn() as conn:
             cur = conn.cursor()
