@@ -840,18 +840,17 @@ class SQLServiceKardex:
         filtro_usuarios: list[str] | None = None,
     ) -> dict[str, dict[str, Decimal]]:
         """
-        Agrega QUANTIDADE por QUALIDADE e UM, filtrando LOCAL_OP=EXTRUSAO.
+        Agrega QUANTIDADE por QUALIDADE e UM — mesma lógica de get_ld_total,
+        estendida para todas as qualidades (I, Y, P, BAG).
 
         Retorna estrutura:
           {"I": {"KG": Decimal, "MT": Decimal},
            "Y": {"KG": Decimal, "MT": Decimal},
-           "P": {"KG": Decimal, "MT": Decimal}}
+           "P": {"KG": Decimal, "MT": Decimal},
+           "BAG": {"KG": Decimal, "MT": Decimal}}
 
-        Usado pelo orchestrator para exibir o breakdown completo:
-          Inteiro (sem defeito) / LD (defeito) / Fora de Padrão.
-
-        Para todas as qualidades: KG = SUM(QUANTIDADE WHERE UM='KG'),
-        MT = SUM(QUANTIDADE WHERE UM='MT'). QTSEGUM não é usado aqui.
+        PENDENTE: confirmar coluna correta de KG para Inteiro/P/BAG —
+        se o resultado vier zerado, rodar query diagnóstica no banco.
         """
         fil_sql, fil_p = _filial_clause(filial)
         rec_sql, rec_p = _recurso_clause(recursos)
@@ -867,41 +866,20 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # Inteiro/P: KG em QTSEGUM (QUANTIDADE está em MT para esses registros).
-        # LD/BAG:    KG em QUANTIDADE WHERE UM='KG'.
-        # TES 010/002/499 excluídos — são movimentos fiscais de entrada (bonificação,
-        # compra com IPI, compra sem nota) que inflam QTSEGUM sem representar revisão.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
-                COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        ELSE 0
-                    END
-                ), 0) AS total_kg,
-                COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'Y'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'BAG' THEN COALESCE(QTSEGUM, 0)
-                        ELSE 0
-                    END
-                ), 0) AS total_mt
+                LTRIM(RTRIM(UM))        AS unidade,
+                COALESCE(SUM(QUANTIDADE), 0) AS total
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
-              AND LTRIM(RTRIM(TES)) NOT IN ('010', '002', '499')
               {op_sql}
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(QUALIDADE))
+            GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
 
@@ -914,9 +892,9 @@ class SQLServiceKardex:
             }
             for row in cur.fetchall():
                 qualidade = (row[0] or "").strip().upper()
-                if qualidade in resultado:
-                    resultado[qualidade]["KG"] = Decimal(str(row[1]))
-                    resultado[qualidade]["MT"] = Decimal(str(row[2]))
+                unidade   = (row[1] or "").strip().upper()
+                if qualidade in resultado and unidade in resultado[qualidade]:
+                    resultado[qualidade][unidade] = Decimal(str(row[2]))
             return resultado
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
