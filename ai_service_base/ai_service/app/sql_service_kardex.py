@@ -869,8 +869,8 @@ class SQLServiceKardex:
 
         # Inteiro/P: KG em QTSEGUM (QUANTIDADE está em MT para esses registros).
         # LD/BAG:    KG em QUANTIDADE WHERE UM='KG'.
-        # PENDENTE: identificar quais TES de revisão aparecem em V_KARDEX para
-        # aplicar filtro correto e evitar duplicação de QTSEGUM por múltiplos movimentos.
+        # TES 010/002/499 excluídos — são movimentos fiscais de entrada (bonificação,
+        # compra com IPI, compra sem nota) que inflam QTSEGUM sem representar revisão.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
@@ -895,6 +895,7 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
+              AND LTRIM(RTRIM(TES)) NOT IN ('010', '002', '499')
               {op_sql}
               {fil_sql}
               {rec_sql}

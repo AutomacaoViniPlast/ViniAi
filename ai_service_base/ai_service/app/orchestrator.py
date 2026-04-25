@@ -767,7 +767,6 @@ class ChatOrchestrator:
                 ini, fim,
                 operador=ir.entity_value or None,
                 origem=ir.origem,
-                filtro_usuarios=OPERADORES_REVISAO if not ir.entity_value else None,
             )
             inteiro_kg = float(resumo["I"]["KG"])
             ld_kg      = float(resumo["Y"]["KG"])
