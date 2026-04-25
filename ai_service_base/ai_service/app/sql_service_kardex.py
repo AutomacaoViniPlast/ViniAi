@@ -866,10 +866,10 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # TES=010 (BONIFICACAO) = movimento de classificação pós-revisão que vai para
-        # ARMAZEM DE VENDA — é o único TES com os valores corretos por qualidade.
-        # I e P sempre têm UM='MT', logo KG está em QTSEGUM.
-        # Y e BAG têm UM='KG', logo KG está em QUANTIDADE.
+        # Filtros espelhados do Metabase para isolar movimentos de revisão/classificação:
+        # TES IN (010,002,499) + LOCAL IN (12,10) + TIPO IN (ME,PP)
+        # I e P sempre têm UM='MT' → KG está em QTSEGUM.
+        # Y e BAG têm UM='KG' → KG está em QUANTIDADE.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
@@ -891,7 +891,9 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
-              AND LTRIM(RTRIM(TES)) = '010'
+              AND LTRIM(RTRIM(TES))  IN ('010', '002', '499')
+              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
+              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {op_sql}
               {fil_sql}
               {rec_sql}
