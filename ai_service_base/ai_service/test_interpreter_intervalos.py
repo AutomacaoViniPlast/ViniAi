@@ -23,6 +23,11 @@ def main() -> int:
             ("total_fabrica", "sql"),
         ),
         (
+            "Qual a produção total no dia 1 de abril?",
+            ("01/04/2026", "01/04/2026", "dia 01/04/2026"),
+            ("total_fabrica", "sql"),
+        ),
+        (
             "Qual a produção total dia a dia de 01/04 até 08/04",
             ("01/04/2026", "08/04/2026", "01/04/2026 até 08/04/2026"),
             ("producao_por_dia", "sql"),

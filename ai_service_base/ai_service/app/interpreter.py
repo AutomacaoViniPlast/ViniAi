@@ -46,10 +46,11 @@ MESES: dict[str, int] = {
     "novembro": 11, "nov": 11,
     "dezembro": 12, "dez": 12,
 }
+_MESES_PATTERN = "|".join(sorted(MESES, key=len, reverse=True))
 
 # ── Patterns de período compilados ────────────────────────────────────────────
 _RE_MONTH_YEAR = re.compile(
-    r"\b(" + "|".join(sorted(MESES, key=len, reverse=True)) + r")\b"
+    r"\b(" + _MESES_PATTERN + r")\b"
     r"(?:\s+de\s+|\s+)?"
     r"(20\d{2})?",
     re.IGNORECASE,
@@ -58,6 +59,17 @@ _RE_YEAR_ONLY       = re.compile(r"\b(20\d{2})\b")
 _RE_DATA_ESPECIFICA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(20\d{2})(?!\d)")          # DD/MM/YYYY
 _RE_DATA_DIA_MES    = re.compile(r"(?:no?\s+)?dia\s+(\d{1,2})/(\d{1,2})(?!/\d)", re.IGNORECASE)  # dia DD/MM
 _RE_DATA_DIA_MES_LIVRE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!/\d)")  # DD/MM sem ano
+_RE_DATA_DIA_MES_NOME = re.compile(
+    r"\b(?:no\s+dia|dia|em)\s+(\d{1,2})\s+de\s+(" + _MESES_PATTERN + r")\b"
+    r"(?:\s+(?:de\s+)?(20\d{2}))?",
+    re.IGNORECASE,
+)  # dia 1 de abril / em 1 de abril de 2026
+_RE_DATA_DIA_MES_NOME_ENDPOINT = re.compile(
+    r"\b(\d{1,2})\s+de\s+(" + _MESES_PATTERN + r")\b"
+    r"(?:\s+(?:de\s+)?(20\d{2}))?",
+    re.IGNORECASE,
+)  # usado em endpoints de intervalo: "1 de abril ate 3 de abril"
+_RE_DATA_DIA_SO = re.compile(r"\b(?:no\s+dia|dia)\s+(\d{1,2})(?!\s*/|\s+de\s+)", re.IGNORECASE)
 _RE_TOP_N           = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
 _RE_OPERATOR  = re.compile(r"\b([a-záéíóúâêîôûãõç]+\.[a-záéíóúâêîôûãõç]+)\b", re.IGNORECASE)
 _RE_PRODUTO   = re.compile(r"\b(TD2[A-Z0-9]{2,})\b", re.IGNORECASE)
@@ -164,6 +176,25 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
         except ValueError:
             pass
 
+    m_dia_nome = _RE_DATA_DIA_MES_NOME.search(s) or _RE_DATA_DIA_MES_NOME_ENDPOINT.search(s)
+    if m_dia_nome:
+        try:
+            dia = int(m_dia_nome.group(1))
+            mes = MESES[m_dia_nome.group(2).lower()]
+            ano = int(m_dia_nome.group(3)) if m_dia_nome.group(3) else today.year
+            d = date(ano, mes, dia)
+            return d.strftime("%d/%m/%Y")
+        except (KeyError, ValueError):
+            pass
+
+    m_dia_so = _RE_DATA_DIA_SO.search(s)
+    if m_dia_so:
+        try:
+            d = date(today.year, today.month, int(m_dia_so.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
     # "agosto de 2025" / "agosto 2025" / "agosto"
     m = _RE_MONTH_YEAR.search(s)
     if m:
@@ -226,9 +257,8 @@ def _try_parse_range(text: str) -> tuple[str | None, str | None, str | None] | N
 
     # ── Padrão 3: "de/desde X a Y" — "a" como separador ────────────────────
     # Só ativa quando Y começa com mês nomeado, "hoje", "ontem" ou ano (evita FP)
-    _meses_pat = "|".join(sorted(MESES, key=len, reverse=True))
     m = re.search(
-        rf"(?:de|desde)\s+(.+?)\s+a\s+({_meses_pat}|hoje|ontem|este\s+m[eê]s|este\s+ano|\d{{4}})((?:\s+.+)?)",
+        rf"(?:de|desde)\s+(.+?)\s+a\s+({_MESES_PATTERN}|hoje|ontem|este\s+m[eê]s|este\s+ano|\d{{4}})((?:\s+.+)?)",
         lowered,
     )
     if m:
@@ -341,6 +371,29 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
     if m_dia_mes_livre:
         try:
             d = date(today.year, int(m_dia_mes_livre.group(2)), int(m_dia_mes_livre.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
+    # "dia 1 de abril" / "em 1 de abril de 2026"
+    m_dia_nome = _RE_DATA_DIA_MES_NOME.search(text)
+    if m_dia_nome:
+        try:
+            dia = int(m_dia_nome.group(1))
+            mes = MESES[m_dia_nome.group(2).lower()]
+            ano = int(m_dia_nome.group(3)) if m_dia_nome.group(3) else today.year
+            d = date(ano, mes, dia)
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except (KeyError, ValueError):
+            pass
+
+    # "dia 1" / "no dia 1" (sem mes explicito -> mes atual)
+    m_dia_so = _RE_DATA_DIA_SO.search(text)
+    if m_dia_so:
+        try:
+            d = date(today.year, today.month, int(m_dia_so.group(1)))
             ds = d.strftime("%d/%m/%Y")
             return ds, ds, f"dia {ds}"
         except ValueError:
