@@ -850,8 +850,8 @@ class SQLServiceKardex:
         Usado pelo orchestrator para exibir o breakdown completo:
           Inteiro (sem defeito) / LD (defeito) / Fora de Padrão.
 
-        PENDENTE: confirmar se QUANTIDADE é a coluna correta para LD (Y) —
-        pode ser que QTSEGUM deva ser usada para Y/BAG.
+        Para todas as qualidades: KG = SUM(QUANTIDADE WHERE UM='KG'),
+        MT = SUM(QUANTIDADE WHERE UM='MT'). QTSEGUM não é usado aqui.
         """
         fil_sql, fil_p = _filial_clause(filial)
         rec_sql, rec_p = _recurso_clause(recursos)
@@ -867,29 +867,16 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # Inteiro (I) e Fora de Padrão (P): QUANTIDADE está em metros (UM='MT') —
-        # o KG real fica em QTSEGUM. LD (Y) e BAG: QUANTIDADE com UM='KG' é o peso.
-        # MT de LD/BAG vem de QTSEGUM (metros identificados na revisão).
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
                 COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        ELSE 0
-                    END
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                         THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                 ), 0) AS total_kg,
                 COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'Y'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'BAG' THEN COALESCE(QTSEGUM, 0)
-                        ELSE 0
-                    END
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                         THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
