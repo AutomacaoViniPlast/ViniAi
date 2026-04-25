@@ -65,22 +65,22 @@ const sectorSuggestions = {
     {
       icon: Factory,
       title: "Produção total por mês",
-      description: "Qual foi a produção total da fábrica em dezembro de 2025?",
+      description: "Qual o total produzido no mês atual",
     },
     {
       icon: ClipboardList,
-      title: "Valor de cada MAC",
-      description: "Qual o valor total de cada MAC em dezembro de 2025?",
+      title: "Produção de cada dia do mês",
+      description: "Qual a produção dia a dia desse mês?",
     },
     {
       icon: BarChart2,
-      title: "Produção por extrusora",
-      description: "Qual foi a produção da Extrusora 1 em dezembro de 2025?",
+      title: "Índice de qualidade",
+      description: "Qual o total por qualidade de hoje?",
     },
     {
       icon: TrendingUp,
-      title: "Produção por turno",
-      description: "Qual foi a produção por turno em dezembro de 2025?",
+      title: "Quilo por hora",
+      description: "Qual o KGH de hoje?",
     },
   ],
 
