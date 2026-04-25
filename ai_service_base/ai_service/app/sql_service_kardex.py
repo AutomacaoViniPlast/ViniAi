@@ -866,20 +866,38 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
+        # TES=010 (BONIFICACAO) = movimento de classificação pós-revisão que vai para
+        # ARMAZEM DE VENDA — é o único TES com os valores corretos por qualidade.
+        # I e P sempre têm UM='MT', logo KG está em QTSEGUM.
+        # Y e BAG têm UM='KG', logo KG está em QUANTIDADE.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
-                LTRIM(RTRIM(UM))        AS unidade,
-                COALESCE(SUM(QUANTIDADE), 0) AS total
+                COALESCE(SUM(
+                    CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
+                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
+                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        ELSE 0
+                    END
+                ), 0) AS total_kg,
+                COALESCE(SUM(
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                         THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
+              AND LTRIM(RTRIM(TES)) = '010'
               {op_sql}
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(QUALIDADE)), LTRIM(RTRIM(UM))
+            GROUP BY LTRIM(RTRIM(QUALIDADE))
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
 
@@ -887,14 +905,14 @@ class SQLServiceKardex:
             cur = conn.cursor()
             cur.execute(query, params)
             resultado: dict[str, dict[str, Decimal]] = {
-                q: {um: Decimal("0") for um in UM_VALIDAS}
+                q: {"KG": Decimal("0"), "MT": Decimal("0")}
                 for q in ("I", "Y", "P", "BAG")
             }
             for row in cur.fetchall():
                 qualidade = (row[0] or "").strip().upper()
-                unidade   = (row[1] or "").strip().upper()
-                if qualidade in resultado and unidade in resultado[qualidade]:
-                    resultado[qualidade][unidade] = Decimal(str(row[2]))
+                if qualidade in resultado:
+                    resultado[qualidade]["KG"] = Decimal(str(row[1]))
+                    resultado[qualidade]["MT"] = Decimal(str(row[2]))
             return resultado
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
