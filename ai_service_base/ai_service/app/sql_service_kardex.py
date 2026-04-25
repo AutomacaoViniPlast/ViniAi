@@ -868,18 +868,22 @@ class SQLServiceKardex:
 
         # Filtros espelhados do Metabase para isolar movimentos de revisão/classificação:
         # TES IN (010,002,499) + LOCAL IN (12,10) + TIPO IN (ME,PP)
-        # I e P sempre têm UM='MT' → KG está em QTSEGUM.
-        # Y e BAG têm UM='KG' → KG está em QUANTIDADE.
+        # I e P: UM='MT' → KG em QTSEGUM.
+        # Y: UM='KG' → KG em QUANTIDADE.
+        # '0' = BAG na V_KARDEX (TES=499, LOCAL=12, TIPO=PP) → KG em QUANTIDADE.
         query = f"""
             SELECT
-                LTRIM(RTRIM(QUALIDADE)) AS qualidade,
+                CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                    WHEN '0' THEN 'BAG'
+                    ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                END AS qualidade,
                 COALESCE(SUM(
                     CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
                         WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
                         WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
                         WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
                                              THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                        WHEN '0'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
                                              THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                         ELSE 0
                     END
@@ -890,7 +894,7 @@ class SQLServiceKardex:
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
+              AND UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P', '0')
               AND LTRIM(RTRIM(TES))  IN ('010', '002', '499')
               AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
               AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
@@ -899,7 +903,11 @@ class SQLServiceKardex:
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(QUALIDADE))
+            GROUP BY
+                CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                    WHEN '0' THEN 'BAG'
+                    ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                END
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
 
