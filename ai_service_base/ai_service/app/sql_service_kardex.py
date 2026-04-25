@@ -867,11 +867,11 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # Inteiro/P: QUANTIDADE está em MT, KG fica em QTSEGUM.
-        # LD/BAG: QUANTIDADE com UM='KG' é o peso; QTSEGUM são os metros revisados.
-        # Sem filtro de LOCAL_OP — registros de revisão não têm LOCAL_OP='EXTRUSAO'.
-        # filtro_usuarios=OPERADORES_REVISAO deve ser passado pelo caller para evitar
-        # que QTSEGUM de operadores não-revisores infle os totais de Inteiro/P.
+        # TES=499 (entrada em estoque) — conta cada bobina uma única vez, no momento
+        # em que é classificada e aceita. Sem esse filtro, registros de saída (TES=999)
+        # e outros movimentos duplicam o QTSEGUM, inflando Inteiro/P em até 9x.
+        # Inteiro/P: KG em QTSEGUM (QUANTIDADE está em MT para esses registros).
+        # LD/BAG:    KG em QUANTIDADE WHERE UM='KG'.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
@@ -896,6 +896,7 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
+              AND LTRIM(RTRIM(TES)) = '499'
               {op_sql}
               {fil_sql}
               {rec_sql}
