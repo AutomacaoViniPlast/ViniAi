@@ -86,10 +86,10 @@ QUALIDADE_MAP: dict[str, str] = {
 # TES 010: existente no banco, sem mapeamento definitivo — bloqueada.
 # PENDENTE: detalhamento completo de TES será fornecido pelo usuário.
 TES_MAP: dict[str, str] = {
-    "499": "Movimentação interna de entrada (entrada de estoque)",
-    "999": "Movimentação interna de saída",
-    "502": "Inconsistência XML — dados da nota não batem com a chave do XML",
-    # "010": "— significado pendente de mapeamento —",
+    "499": "Compra sem nota (Entrada)",
+    "999": "Venda (Saída)",
+    "502": "Venda (Saída)",
+    # "010": "Bonificação (Entrada) — bloqueada",
 }
 TES_ATIVAS: tuple[str, ...] = tuple(TES_MAP.keys())  # ("499", "999", "502")
 
@@ -867,11 +867,10 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # TES=499 (entrada em estoque) — conta cada bobina uma única vez, no momento
-        # em que é classificada e aceita. Sem esse filtro, registros de saída (TES=999)
-        # e outros movimentos duplicam o QTSEGUM, inflando Inteiro/P em até 9x.
         # Inteiro/P: KG em QTSEGUM (QUANTIDADE está em MT para esses registros).
         # LD/BAG:    KG em QUANTIDADE WHERE UM='KG'.
+        # PENDENTE: identificar quais TES de revisão aparecem em V_KARDEX para
+        # aplicar filtro correto e evitar duplicação de QTSEGUM por múltiplos movimentos.
         query = f"""
             SELECT
                 LTRIM(RTRIM(QUALIDADE)) AS qualidade,
@@ -896,7 +895,6 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
-              AND LTRIM(RTRIM(TES)) = '499'
               {op_sql}
               {fil_sql}
               {rec_sql}
