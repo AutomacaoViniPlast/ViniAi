@@ -17,29 +17,17 @@ set "FRONTEND_DIR=%RAIZ%\frontAI"
 set "SERVE_JS=%FRONTEND_DIR%\node_modules\serve\build\main.js"
 
 set "LOG_DIR=%RAIZ%\logs"
-set "NODE=C:\Program Files\nodejs\node.exe"
+set "NSSM=C:\NSSM\nssm.exe"
 
-REM ── Localizar NSSM ───────────────────────────────────────────────────────────
-set "NSSM=nssm"
-where nssm >nul 2>&1
-if errorlevel 1 (
-    if exist "C:\nssm\nssm.exe" (
-        set "NSSM=C:\nssm\nssm.exe"
-    ) else (
-        echo [ERRO] NSSM nao encontrado no PATH nem em C:\nssm\nssm.exe
-        echo Baixe em https://nssm.cc/download e coloque em C:\nssm\
-        pause
-        exit /b 1
-    )
-)
-
-REM ── Verificar Node.js ────────────────────────────────────────────────────────
-if not exist "%NODE%" (
-    echo [ERRO] Node.js nao encontrado em: %NODE%
+REM ── Localizar Node.js dinamicamente ──────────────────────────────────────────
+for /f "delims=" %%i in ('where node 2^>nul') do set "NODE=%%i"
+if not defined NODE (
+    echo [ERRO] Node.js nao encontrado no PATH.
     echo Verifique se o Node.js esta instalado corretamente.
     pause
     exit /b 1
 )
+echo [OK] Node.js encontrado em: %NODE%
 
 REM ── Verificar uvicorn (.venv) ────────────────────────────────────────────────
 if not exist "%FASTAPI_EXE%" (
