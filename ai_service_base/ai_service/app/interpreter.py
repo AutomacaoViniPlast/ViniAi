@@ -714,6 +714,15 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Perguntas de definição/conceito — nunca vão ao banco independente do termo
+    _DEFINICAO = re.compile(
+        r"o\s+que\s+[eé]\s+|o\s+que\s+significa\s+|qual\s+(?:o\s+)?significado\s+(?:de\s+|do\s+)?|"
+        r"me\s+explica\s+o\s+que\s+[eé]\s+|como\s+funciona\s+(?:o\s+|a\s+)?|"
+        r"o\s+que\s+quer\s+dizer\s+|o\s+que\s+significa\s+|para\s+que\s+serve\s+|"
+        r"qual\s+a\s+diferen[cç]a\s+entre\s+",
+        re.IGNORECASE,
+    )
+
     # Capacidades da IA — perguntas diretas sobre o que o agente sabe/faz
     _CAPACIDADES = re.compile(
         r"tipos?\s+de\s+informa[cç][aã]o|"
@@ -771,6 +780,15 @@ class RuleBasedInterpreter:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
                 confidence=0.98, reasoning="Saudação identificada.",
+            )
+
+        # ── 3.5. Perguntas de definição/conceito — sempre smalltalk ──────────
+        # Tem prioridade sobre qualquer regra SQL, mesmo que mencione LD/produção.
+        # Ex: "O que é LD?", "O que significa FP?", "Qual a diferença entre Inteiro e LD?"
+        if self._DEFINICAO.search(low):
+            return InterpretationResult(
+                intent="smalltalk", route="smalltalk",
+                confidence=0.95, reasoning="Pergunta de definição/conceito — responde via glossário.",
             )
 
         # ── 4. Conversa natural longa ─────────────────────────────────────────
