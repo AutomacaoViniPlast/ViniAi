@@ -55,7 +55,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from app.config import LOTES_EXCLUIDOS_QUALIDADE, PRODUTOS_EXCLUIDOS_QUALIDADE
+from app.config import OPERADORES_REVISAO
 from app.db import get_mssql_conn
 
 
@@ -867,27 +867,25 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # Filtros espelhados do Metabase para isolar movimentos de revisão/classificação:
-        # TES IN (010,002,499) + LOCAL IN (12,10) + TIPO IN (ME,PP)
-        # I e P: UM='MT' → KG em QTSEGUM.
-        # Y: UM='KG' → KG em QUANTIDADE.
-        # '0' = BAG na V_KARDEX (TES=499, LOCAL=12, TIPO=PP) → KG em QUANTIDADE.
-        lotes_ph   = ", ".join("?" * len(LOTES_EXCLUIDOS_QUALIDADE))
-        produtos_ph = ", ".join("?" * len(PRODUTOS_EXCLUIDOS_QUALIDADE))
+        # BAG = PRODUTO='MSP008' (independente de QUALIDADE)
+        # I=Inteiro, Y=LD, P=Fora de Padrão — via coluna QUALIDADE
+        # I e P: KG em QTSEGUM. Y e BAG: KG em QUANTIDADE quando UM='KG'.
         query = f"""
             SELECT
-                CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
-                    WHEN '0' THEN 'BAG'
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
                     ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
                 END AS qualidade,
                 COALESCE(SUM(
-                    CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
-                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN '0'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                    CASE
+                        WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
+                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'I' THEN COALESCE(QTSEGUM, 0)
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'P' THEN COALESCE(QTSEGUM, 0)
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'Y'
+                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                         ELSE 0
                     END
                 ), 0) AS total_kg,
@@ -897,27 +895,26 @@ class SQLServiceKardex:
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P', '0')
-              AND LTRIM(RTRIM(TES))  IN ('010', '002', '499')
+              AND (
+                  UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
+                  OR UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P')
+              )
+              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
               AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
               AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
-              AND UPPER(LTRIM(RTRIM(LOTE)))    NOT IN ({lotes_ph})
-              AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT IN ({produtos_ph})
               {op_sql}
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
             GROUP BY
-                CASE UPPER(LTRIM(RTRIM(QUALIDADE)))
-                    WHEN '0' THEN 'BAG'
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
                     ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
                 END
         """
         params = (
             [_parse_date(data_inicio), _parse_date(data_fim)]
-            + LOTES_EXCLUIDOS_QUALIDADE
-            + PRODUTOS_EXCLUIDOS_QUALIDADE
             + op_p + fil_p + rec_p + ori_p + incl_p
         )
 
