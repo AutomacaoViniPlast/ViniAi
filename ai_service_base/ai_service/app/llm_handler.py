@@ -171,5 +171,5 @@ class LLMHandler:
             "- *\"Top 5 de produção em 2025\"*\n"
             "- *\"Produção por turno em março\"*\n"
             "- *\"Total da fábrica este mês\"*\n\n"
-            "Se quiser saber tudo que posso fazer, é só perguntar *\"o que você consegue?\"*"
+            "Se quiser saber tudo que posso fazer, é só perguntar *\"o que você consegue fazer?\"*"
         )
