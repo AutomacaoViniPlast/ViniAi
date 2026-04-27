@@ -51,23 +51,20 @@ echo.
 echo ======================================================
 echo  [1/2] Build do Backend (TypeScript ^> JavaScript)
 echo ======================================================
-pushd "%BACKEND_DIR%"
-call npm install --silent
-if errorlevel 1 (
-    echo [ERRO] npm install falhou no Backend.
+if exist "%BACKEND_DIR%\dist\server.js" (
+    echo [OK] dist\server.js ja existe, pulando build do backend.
+) else (
+    pushd "%BACKEND_DIR%"
+    call npm run build
+    if errorlevel 1 (
+        echo [ERRO] npm run build falhou no Backend.
+        popd
+        pause
+        exit /b 1
+    )
     popd
-    pause
-    exit /b 1
+    echo [OK] Backend compilado.
 )
-call npm run build
-if errorlevel 1 (
-    echo [ERRO] npm run build falhou no Backend.
-    popd
-    pause
-    exit /b 1
-)
-popd
-echo [OK] Backend compilado.
 
 REM ═══════════════════════════════════════════════════════════════════════════════
 echo.
@@ -75,13 +72,6 @@ echo ======================================================
 echo  [2/2] Build do Frontend (Vite)
 echo ======================================================
 pushd "%FRONTEND_DIR%"
-call npm install --silent
-if errorlevel 1 (
-    echo [ERRO] npm install falhou no Frontend.
-    popd
-    pause
-    exit /b 1
-)
 call npm run build
 if errorlevel 1 (
     echo [ERRO] npm run build falhou no Frontend.
