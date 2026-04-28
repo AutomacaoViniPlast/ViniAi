@@ -192,6 +192,9 @@ class ChatOrchestrator:
         """Processa uma mensagem e retorna a resposta do agente."""
 
         is_whatsapp = payload.channel == "whatsapp"
+        # session_id usado para persistência de intents — None para WhatsApp,
+        # pois esse canal não usa o PostgreSQL N8N.
+        sid = None if is_whatsapp else payload.session_id
 
         # 1. Lê o histórico para passar ao LLM como contexto.
         #    WhatsApp usa session_id = número de telefone (não existe na tabela mensagens),
@@ -234,7 +237,7 @@ class ChatOrchestrator:
         # Caso 1: mensagem ambígua com período novo → herda intent do histórico
         # Ex: "Quero saber de janeiro!" após consulta de LD
         if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and periodo_explicito:
-            followup_ir = self._try_context_followup(recent, msg_ini, msg_fim, msg_lbl)
+            followup_ir = self._try_context_followup(recent, msg_ini, msg_fim, msg_lbl, session_id=sid)
             if followup_ir:
                 ir = followup_ir
                 print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
@@ -245,7 +248,7 @@ class ChatOrchestrator:
         elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
             recurso_novo = self.interpreter._extract_recurso(payload.message)
             if recurso_novo:
-                followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo)
+                followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo, session_id=sid)
                 if followup_ir:
                     ir = followup_ir
                     print(f"[{self.agent_name}] RAG recurso-carry (clarify): reutilizando intent '{ir.intent}' com recurso {recurso_novo}.")
@@ -259,7 +262,7 @@ class ChatOrchestrator:
             and ir.confidence < 0.75
         ):
             followup_ir = self._try_context_followup(
-                recent, msg_ini, msg_fim, msg_lbl, recursos_new=ir.recursos,
+                recent, msg_ini, msg_fim, msg_lbl, recursos_new=ir.recursos, session_id=sid,
             )
             if followup_ir:
                 ir = followup_ir
@@ -272,7 +275,7 @@ class ChatOrchestrator:
         elif ir.route == "sql" and not periodo_explicito and (
             ir.confidence < 0.87 or len(payload.message.strip().split()) <= 5
         ):
-            inherited = self._inherit_period_from_history(recent)
+            inherited = self._inherit_period_from_history(recent, session_id=sid)
             if inherited:
                 ir.data_inicio, ir.data_fim, ir.period_text = inherited
                 print(
@@ -316,6 +319,10 @@ class ChatOrchestrator:
         # ── 4e. Consulta ao banco de dados → SQL ─────────────────────────────
         answer = self._handle_sql(ir)
         self.context.append_assistant_message(payload.session_id, answer)
+        # Persiste o intent resolvido para carry-over preciso nas próximas mensagens.
+        # WhatsApp (sid=None) é ignorado pois não usa o PostgreSQL N8N.
+        if sid:
+            self.context.save_intent(sid, ir)
         return ChatProcessResponse(
             status="ok",
             answer=answer,
@@ -351,26 +358,23 @@ class ChatOrchestrator:
         fim_new: str | None,
         lbl_new: str | None,
         recursos_new: list[str] | None = None,
+        session_id: str | None = None,
     ) -> InterpretationResult | None:
         """
         RAG conversacional: quando a mensagem atual só especifica um período
-        sem intent claro, reutiliza o intent SQL da última mensagem completa
-        do histórico — combinando a entidade (operador) de clarificações curtas.
+        sem intent claro, reutiliza o intent SQL da última consulta executada.
 
-        Estratégia:
-          1. Varre o histórico em ordem reversa (mais recente primeiro).
-          2. Extrai operador de mensagens curtas (clarificações como "Ezequiel").
-          3. Busca a última mensagem "completa" (> 3 palavras) com intent SQL.
-          4. Aplica: entidade da clarificação + intent da mensagem completa + novo período.
+        Estratégia (em ordem de prioridade):
+          1. Extrai operador de mensagens curtas recentes (clarificações como "Ezequiel").
+          2. Busca o intent salvo no banco (preciso — exatamente o que foi executado).
+          3. Fallback: re-interpreta as mensagens de texto do histórico (comportamento legado).
+          4. Aplica sobreposições: entidade clarificada + período novo + recurso novo.
 
         Exemplo:
           Histórico: ["Qual foi o LD nesse mês?", "Ezequiel", "Quero saber desse mês!"]
           Resultado: intent=geracao_ld_por_operador, entity=ezequiel.nunes, período=atual
         """
         user_msgs = [t.content for t in reversed(recent) if t.role == "user"]
-
-        if not user_msgs:
-            return None
 
         # Passo 1: extrai operador de mensagens curtas (clarificações de nome)
         entity_override: str | None = None
@@ -381,31 +385,36 @@ class ChatOrchestrator:
                     entity_override = op
                     break
 
-        # Passo 2: busca a última mensagem "completa" com intent SQL claro
+        def _apply_overrides(base_ir: InterpretationResult) -> InterpretationResult:
+            if entity_override and not base_ir.entity_value:
+                base_ir.entity_value = entity_override
+            if ini_new:
+                base_ir.data_inicio = ini_new
+            if fim_new:
+                base_ir.data_fim = fim_new
+            if lbl_new:
+                base_ir.period_text = lbl_new
+            if recursos_new:
+                base_ir.recursos = recursos_new
+            base_ir.route = "sql"
+            return base_ir
+
+        # Passo 2: usa o intent salvo no banco (preciso — sem re-interpretação de texto)
+        if session_id:
+            stored_ir = self.context.get_last_intent(session_id)
+            if stored_ir and stored_ir.route == "sql":
+                stored_ir.reasoning = f"[db-carry] {stored_ir.reasoning or ''}"
+                return _apply_overrides(stored_ir)
+
+        # Passo 3: fallback — re-interpreta as mensagens de texto do histórico
         for msg in user_msgs:
             if len(msg.strip().split()) <= 3:
                 continue  # pula clarificações curtas
 
             prev_ir = self.interpreter.interpret(msg)
             if prev_ir.route == "sql" and prev_ir.confidence >= 0.55:
-                # Aplica entidade clarificada (ex: "Ezequiel" dito depois)
-                if entity_override and not prev_ir.entity_value:
-                    prev_ir.entity_value = entity_override
-
-                # Aplica novo período mantendo o restante do contexto
-                if ini_new:
-                    prev_ir.data_inicio = ini_new
-                if fim_new:
-                    prev_ir.data_fim = fim_new
-                if lbl_new:
-                    prev_ir.period_text = lbl_new
-                # Aplica recurso novo (ex: "E na extrusora 2?" atualiza de 0003 para 0007)
-                if recursos_new:
-                    prev_ir.recursos = recursos_new
-
-                prev_ir.route     = "sql"
-                prev_ir.reasoning = f"[context-carry] {prev_ir.reasoning}"
-                return prev_ir
+                prev_ir.reasoning = f"[text-carry] {prev_ir.reasoning}"
+                return _apply_overrides(prev_ir)
 
         return None
 
@@ -415,20 +424,33 @@ class ChatOrchestrator:
         self,
         recent: list[ConversationTurn],
         max_lookback: int = 6,
+        session_id: str | None = None,
     ) -> tuple[str, str, str] | None:
         """
-        Herda o período da última mensagem do usuário que continha um período explícito.
+        Herda o período da última consulta SQL executada.
 
         Usado quando a mensagem atual é uma consulta SQL clara mas sem período
         especificado — ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?".
         Nesse caso, herda 'janeiro' em vez de usar o período padrão (mês atual).
 
+        Prioridade:
+          1. Período do intent salvo no banco (preciso — o que foi realmente executado).
+          2. Fallback: escaneia texto das mensagens recentes (comportamento legado).
+
         Parâmetros:
           recent       : histórico recente (ConversationTurn)
-          max_lookback : limita quantas mensagens atrás pesquisar (padrão: 6)
+          max_lookback : limita quantas mensagens atrás pesquisar no fallback (padrão: 6)
+          session_id   : ID da sessão para buscar no banco; None pula o banco
 
         Retorna (data_inicio, data_fim, period_text) ou None se não encontrar.
         """
+        # Passo 1: usa o período do intent salvo no banco (preciso)
+        if session_id:
+            stored_ir = self.context.get_last_intent(session_id)
+            if stored_ir and stored_ir.data_inicio and stored_ir.data_fim:
+                return stored_ir.data_inicio, stored_ir.data_fim, stored_ir.period_text or ""
+
+        # Passo 2: fallback — escaneia o texto das mensagens recentes
         user_msgs = [t.content for t in reversed(recent) if t.role == "user"]
         for msg in user_msgs[:max_lookback]:
             ini, fim, lbl = _periodo_from_text(msg)
