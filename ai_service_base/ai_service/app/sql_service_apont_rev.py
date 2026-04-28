@@ -11,7 +11,7 @@ Colunas principais usadas aqui:
   QTDPROD    → metros revisados (usado para INTEIRO e FORA DE PADRÃO)
   QTDPROD2   → metros revisados (usado para LD e demais tipos)
   DATAAPONT  → data/hora do apontamento (datetimeoffset -03:00)
-  MOTPERDA   → preenchido = perda/descarte; esses registros são excluídos
+  MOTPERDA   → motivo de perda (incluído no total — perdas fazem parte da revisão)
 
 Fórmula de metros (replicada do Metabase):
   TIPO      = SUBSTRING(PRODUTO, 5, 1)
@@ -36,9 +36,6 @@ _METROS_CASE = """
         ELSE QTDPROD2
     END
 """.strip()
-
-_EXCLUIR_PERDA = "(MOTPERDA IS NULL OR LTRIM(RTRIM(MOTPERDA)) = '')"
-
 
 class SQLServiceApontRev:
     """Consultas à view V_APONT_REV_GERAL."""
@@ -77,7 +74,6 @@ class SQLServiceApontRev:
             WHERE CAST(DATAAPONT AS DATE)
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LTRIM(RTRIM(OPER_BOB)) != ''
-              AND {_EXCLUIR_PERDA}
               {filtro_op}
             GROUP BY LTRIM(RTRIM(OPER_BOB))
             ORDER BY total_metros DESC
@@ -114,7 +110,6 @@ class SQLServiceApontRev:
             WHERE CAST(DATAAPONT AS DATE)
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LOWER(LTRIM(RTRIM(OPER_BOB))) = LOWER(?)
-              AND {_EXCLUIR_PERDA}
         """
         with get_mssql_conn() as conn:
             row = conn.execute(sql, (data_inicio, data_fim, operador)).fetchone()
