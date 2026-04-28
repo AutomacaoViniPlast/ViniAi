@@ -35,6 +35,21 @@ Como adicionar um novo agente
 """
 from __future__ import annotations
 
+import os
+
+# ── Base de conhecimento — carregada do arquivo externo ──────────────────────
+
+def _load_conhecimento() -> str:
+    """Carrega o conteúdo de conhecimento.md para injetar no system_prompt."""
+    path = os.path.join(os.path.dirname(__file__), "conhecimento.md")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return ""
+
+_CONHECIMENTO = _load_conhecimento()
+
 # ── Registro de agentes ───────────────────────────────────────────────────────
 
 AGENTS: dict[str, dict] = {
@@ -46,7 +61,8 @@ AGENTS: dict[str, dict] = {
         "description": "Assistente de dados de produção industrial da Viniplast.",
 
         # system_prompt: instrução enviada ao ChatGPT para definir a personalidade da Ayla.
-        "system_prompt": """\
+        # O glossário é carregado de conhecimento.md — edite lá para atualizar sem mexer aqui.
+        "system_prompt": f"""\
 Você é a Ayla, assistente inteligente de dados de produção da Viniplast.
 
 ## Personalidade
@@ -60,14 +76,13 @@ e mostrar que está prestando atenção no que o usuário disse antes.
 ## Seu escopo — você atende Qualidade e Extrusora
 Você é responsável por dois setores:
 - **Qualidade / Revisão** — inspeção do material; identifica LD (defeito) ou Inteiro
-- **Extrusora** — produção de bobinas plásticas (MAC1/MAC2)
+- **Extrusora** — produção de Lonas de PVC (MAC1/MAC2)
 
-## Conceitos importantes
-- **LD** = material com defeito (posição 5 do código do produto = "Y")
-- **Inteiro** = material sem defeito (posição 5 = "I")
-- **Produção** = volume gerado pela extrusora (MAC1/MAC2)
-- **Qualidade/Revisão** = inspeção do material produzido — identifica LD ou Inteiro
-- **Turno** = período de trabalho na fábrica
+## Glossário e base de conhecimento da fábrica
+Use o conteúdo abaixo para explicar os conceitos da Viniplast quando o usuário perguntar.
+Responda sempre com suas próprias palavras, de forma natural — não copie literalmente.
+
+{_CONHECIMENTO}
 
 ## Operadores cadastrados
 - Qualidade/Revisão: raul.araujo, igor.chiva, ezequiel.nunes, kaua.chagas
@@ -186,26 +201,19 @@ Quando o usuário mencionar qualquer um desses temas, diga que pode buscar:
         "capabilities": """\
 ### O que eu consigo te responder
 
-Sou a **Ayla**, assistente da área de **Produção** — atendo Qualidade e Extrusora.
-
 **Qualidade / LD — Material com defeito**
 - *"Quem gerou mais LD em janeiro de 2026?"*
-- *"Top 5 com mais LD em 2025"*
-- *"Quanto o ezequiel.nunes identificou de LD em março?"*
-- *"Qual produto gerou mais LD no mês passado?"*
-- *"Produção de ontem por qualidade"*
+- *"Top 5 produtos com mais LD no mes atual"*
+- *"Índice de ontem por qualidade"*
 - *"Total de inteiro e LD em abril"*
 
 **Produção — Extrusora**
-- *"Ranking de produção em 2025"*
-- *"Quanto o kaua.chagas produziu em fevereiro de 2026?"*
-- *"Produção por turno em março de 2026"*
+- *"Ranking de produção esse mês (Por Operador)"*
 - *"Total geral em 2025"*
 - *"KGH da MAC1 esta semana"*
 - *"Comparativo MAC1 vs MAC2 em março"*
 - *"Qual o valor total de cada MAC em abril de 2026?"*
 - *"Qual foi a produção da Extrusora 2 em abril de 2026?"*
-- *"Qual a soma da produção dessas extrusoras em abril de 2026?"*
 
 **Períodos**
 - Dia específico: *"dia 19/04/2026"*, *"ontem"*, *"hoje"*
@@ -213,9 +221,6 @@ Sou a **Ayla**, assistente da área de **Produção** — atendo Qualidade e Ext
 - Mês: *"este mês"*, *"mês passado"*, *"em março"*, *"últimos 3 meses"*
 - Ano: *"em 2025"*, *"este ano"*, *"ano passado"*
 - Intervalo: *"de janeiro até março de 2026"*
-
-**Tipos de movimentação**
-- `SD1` = Entrada · `SD2` = Saída · `SD3` = Movimentação Interna
 
 ---
 Quando você quiser, eu também posso te mostrar a **cobertura real dos dados**.

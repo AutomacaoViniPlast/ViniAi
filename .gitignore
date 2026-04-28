@@ -16,6 +16,13 @@ logs/
 
 # Arquivos de sessão temporária do Claude Code
 project_memory/ViniAI-Memoria/Temp/
+
+# Vault do Obsidian — somente local, não versionado
+project_memory/
 PLANILHA_VALIDACAO_IA.md
 image*.png
 CLAUDE.md
+project_memory/ViniAI-Memoria/RunBooks/Changelog.md.md
+AULA_AUTONOMIA_DESENVOLVIMENTO_VINIAI.md
+Relatorio_TES.docx
+perguntas_checkout.txt

@@ -107,7 +107,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
       <div className="flex items-center justify-center gap-1.5 mt-2.5">
         <Sparkles size={11} style={{ color: "hsl(var(--muted-foreground) / 0.6)" }} />
         <span className="text-xs" style={{ color: "hsl(var(--muted-foreground) / 0.6)" }}>
-          Use: metrica + recorte + periodo
+          &copy; 2026 VINIPLAST. Todos os direitos reservados.
         </span>
       </div>
     </form>

@@ -1,6 +1,6 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 3.1  
+**Versão:** 3.2  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -233,18 +233,55 @@ OPENAI_MODEL=gpt-4o-mini
 
 ---
 
+## Infraestrutura de Servidores
+
+| Servidor | IP | Serviços |
+|----------|----|---------|
+| ~~Servidor antigo (comprometido)~~ | ~~192.168.1.84~~ | ~~Frontend, FastAPI~~ |
+| **Servidor atual** | **192.168.1.85** | **Todos os serviços + PostgreSQL + n8n** |
+| SQL Server METABASE | 192.168.1.83 | Dados industriais |
+
+> **Nota:** O servidor 192.168.1.84 foi comprometido (vírus, firewall desativado) em Abril/2026. Todos os serviços foram migrados para 192.168.1.85.
+
+---
+
 ## Gerenciamento de Serviços (Windows Server + NSSM)
 
-```cmd
-# Reiniciar o AI Service após atualização de código
-nssm restart ViniAI-FastAPI
+Cada serviço usa um **wrapper bat** como inicializador, necessário para garantir o diretório de trabalho correto ao rodar como serviço Windows.
 
-# Verificar status de cada serviço
-nssm status ViniAI-FastAPI
-nssm status ViniAI-Backend
-nssm status ViniAI-Frontend
+| Serviço NSSM | Bat wrapper | Porta |
+|---|---|---|
+| `ViniAI-CerebroIA` | `ai_service_base\ai_service\start_cerebro.bat` | 8000 |
+| `ViniAI-Backend` | `backend\start_backend.bat` | 4000 |
+| `ViniAI-Frontend` | `frontAI\start_frontend.bat` | 3003 |
+
+**Configuração NSSM de cada serviço:**
+
+| Campo | Valor |
+|---|---|
+| Path | `C:\Windows\System32\cmd.exe` |
+| Startup directory | pasta do serviço |
+| Arguments | `/c start_<nome>.bat` |
+
+```cmd
+# Comandos úteis
+C:\NSSM\nssm.exe restart ViniAI-CerebroIA
+C:\NSSM\nssm.exe restart ViniAI-Backend
+C:\NSSM\nssm.exe restart ViniAI-Frontend
+
+C:\NSSM\nssm.exe status ViniAI-CerebroIA
+C:\NSSM\nssm.exe status ViniAI-Backend
+C:\NSSM\nssm.exe status ViniAI-Frontend
 ```
 
-> **Localização do NSSM:** `C:\metabase\nssm.exe`  
-> **Logs do serviço:** `C:\Users\pedro.martins\Documents\ViniAi\logs\`  
-> **Conta de serviço:** configurada como `pedro.martins` na aba Log On do NSSM
+> **Localização do NSSM:** `C:\NSSM\nssm.exe`  
+> **Logs dos serviços:** `C:\Users\pedro.martins\Documents\ViniAi\logs\`  
+> **Conta de serviço:** LocalSystem
+
+### Firewall — portas liberadas na .85
+
+```cmd
+netsh advfirewall firewall add rule name="ViniAI Frontend 3003" dir=in action=allow protocol=TCP localport=3003
+netsh advfirewall firewall add rule name="ViniAI Backend 4000" dir=in action=allow protocol=TCP localport=4000
+netsh advfirewall firewall add rule name="ViniAI FastAPI 8000" dir=in action=allow protocol=TCP localport=8000
+```

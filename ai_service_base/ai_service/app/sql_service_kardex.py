@@ -55,6 +55,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from app.config import OPERADORES_REVISAO
 from app.db import get_mssql_conn
 
 
@@ -86,10 +87,10 @@ QUALIDADE_MAP: dict[str, str] = {
 # TES 010: existente no banco, sem mapeamento definitivo — bloqueada.
 # PENDENTE: detalhamento completo de TES será fornecido pelo usuário.
 TES_MAP: dict[str, str] = {
-    "499": "Movimentação interna de entrada (entrada de estoque)",
-    "999": "Movimentação interna de saída",
-    "502": "Inconsistência XML — dados da nota não batem com a chave do XML",
-    # "010": "— significado pendente de mapeamento —",
+    "499": "Compra sem nota (Entrada)",
+    "999": "Venda (Saída)",
+    "502": "Venda (Saída)",
+    # "010": "Bonificação (Entrada) — bloqueada",
 }
 TES_ATIVAS: tuple[str, ...] = tuple(TES_MAP.keys())  # ("499", "999", "502")
 
@@ -840,18 +841,17 @@ class SQLServiceKardex:
         filtro_usuarios: list[str] | None = None,
     ) -> dict[str, dict[str, Decimal]]:
         """
-        Agrega QUANTIDADE por QUALIDADE e UM, filtrando LOCAL_OP=EXTRUSAO.
+        Agrega QUANTIDADE por QUALIDADE e UM — mesma lógica de get_ld_total,
+        estendida para todas as qualidades (I, Y, P, BAG).
 
         Retorna estrutura:
           {"I": {"KG": Decimal, "MT": Decimal},
            "Y": {"KG": Decimal, "MT": Decimal},
-           "P": {"KG": Decimal, "MT": Decimal}}
+           "P": {"KG": Decimal, "MT": Decimal},
+           "BAG": {"KG": Decimal, "MT": Decimal}}
 
-        Usado pelo orchestrator para exibir o breakdown completo:
-          Inteiro (sem defeito) / LD (defeito) / Fora de Padrão.
-
-        PENDENTE: confirmar se QUANTIDADE é a coluna correta para LD (Y) —
-        pode ser que QTSEGUM deva ser usada para Y/BAG.
+        PENDENTE: confirmar coluna correta de KG para Inteiro/P/BAG —
+        se o resultado vier zerado, rodar query diagnóstica no banco.
         """
         fil_sql, fil_p = _filial_clause(filial)
         rec_sql, rec_p = _recurso_clause(recursos)
@@ -867,47 +867,65 @@ class SQLServiceKardex:
         if filtro_usuarios and not operador:
             incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
-        # Inteiro (I) e Fora de Padrão (P): QUANTIDADE está em metros (UM='MT') —
-        # o KG real fica em QTSEGUM. LD (Y) e BAG: QUANTIDADE com UM='KG' é o peso.
-        # MT de LD/BAG vem de QTSEGUM (metros identificados na revisão).
+        # BAG = PRODUTO='MSP008' (independente de QUALIDADE)
+        # I=Inteiro, Y=LD, P=Fora de Padrão — via coluna QUALIDADE
+        # I e P: KG em QTSEGUM. Y e BAG: KG em QUANTIDADE quando UM='KG'.
         query = f"""
             SELECT
-                LTRIM(RTRIM(QUALIDADE)) AS qualidade,
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
+                    ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                END AS qualidade,
                 COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'I'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'P'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'Y'   THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN 'BAG' THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                             THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                    CASE
+                        WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
+                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'I' THEN COALESCE(QTSEGUM, 0)
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'P' THEN COALESCE(QTSEGUM, 0)
+                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'Y'
+                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                         ELSE 0
                     END
                 ), 0) AS total_kg,
                 COALESCE(SUM(
-                    CASE LTRIM(RTRIM(QUALIDADE))
-                        WHEN 'Y'   THEN COALESCE(QTSEGUM, 0)
-                        WHEN 'BAG' THEN COALESCE(QTSEGUM, 0)
-                        ELSE 0
-                    END
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                         THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
-              AND LTRIM(RTRIM(QUALIDADE)) IN ('I', 'Y', 'P', 'BAG')
+              AND (
+                  UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
+                  OR (
+                      UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P')
+                      AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT LIKE 'MSP%'
+                  )
+              )
+              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
+              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
+              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {op_sql}
               {fil_sql}
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(QUALIDADE))
+            GROUP BY
+                CASE
+                    WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
+                    ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
+                END
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + op_p + fil_p + rec_p + ori_p + incl_p
+        params = (
+            [_parse_date(data_inicio), _parse_date(data_fim)]
+            + op_p + fil_p + rec_p + ori_p + incl_p
+        )
 
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
             resultado: dict[str, dict[str, Decimal]] = {
-                q: {um: Decimal("0") for um in UM_VALIDAS}
+                q: {"KG": Decimal("0"), "MT": Decimal("0")}
                 for q in ("I", "Y", "P", "BAG")
             }
             for row in cur.fetchall():

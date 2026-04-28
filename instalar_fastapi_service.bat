@@ -5,22 +5,10 @@ REM  Execute como Administrador
 REM ============================================================
 setlocal
 
-set "FASTAPI_DIR=C:\Users\Martins\Documents\ViniAi\ai_service_base\ai_service"
+set "FASTAPI_DIR=C:\Users\pedro.martins\Documents\ViniAi\ai_service_base\ai_service"
 set "UVICORN=%FASTAPI_DIR%\.venv\Scripts\uvicorn.exe"
-set "LOG_DIR=C:\Users\Martins\Documents\ViniAi\logs"
-
-REM ── Verificar NSSM ───────────────────────────────────────────────────────────
-set "NSSM=nssm"
-where nssm >nul 2>&1
-if errorlevel 1 (
-    if exist "C:\metabase\nssm\nssm.exe" (
-        set "NSSM=C:\metabase\nssm\nssm.exe"
-    ) else (
-        echo [ERRO] NSSM nao encontrado. Coloque o nssm.exe em C:\nssm\ ou no PATH.
-        pause
-        exit /b 1
-    )
-)
+set "LOG_DIR=C:\Users\pedro.martins\Documents\ViniAi\logs"
+set "NSSM=C:\NSSM\nssm.exe"
 
 REM ── Verificar uvicorn no .venv ───────────────────────────────────────────────
 if not exist "%UVICORN%" (
