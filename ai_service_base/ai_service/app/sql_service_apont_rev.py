@@ -1,16 +1,23 @@
 """
-sql_service_apont_rev.py — Queries SQL para dbo.STG_APONT_REV_GERAL.
+sql_service_apont_rev.py — Queries SQL para V_APONT_REV_GERAL.
 
-Tabela de apontamentos de revisão — registros individuais de inspeção de bobinas.
+View de apontamentos de revisão — registros individuais de inspeção de bobinas.
 Cada linha = uma bobina revisada por um operador da revisão.
 
 Colunas principais usadas aqui:
   OPER_BOB   → login do operador de revisão (ex: kaua.chagas)
-  QTDPROD    → quantidade de bobinas revisadas
-  QTDPROD2   → peso revisado em KG
+  PRODUTO    → código do produto; posição 5 define o tipo:
+                 I = INTEIRO, P = FORA DE PADRÃO, Y = LD
+  QTDPROD    → metros revisados (usado para INTEIRO e FORA DE PADRÃO)
+  QTDPROD2   → metros revisados (usado para LD e demais tipos)
   DATAAPONT  → data/hora do apontamento (datetimeoffset -03:00)
-  MOTPERDA   → código do motivo de perda (MSP008 = BAG/descarte)
-  DESCPERDA  → descrição da perda
+  MOTPERDA   → preenchido = perda/descarte; esses registros são excluídos
+
+Fórmula de metros (replicada do Metabase):
+  TIPO      = SUBSTRING(PRODUTO, 5, 1)
+  CONDIÇÃO  = I→INTEIRO, P→FORA DE PADRÃO, Y→LD, MSP008→BAG
+  METROS    = QTDPROD  se CONDIÇÃO IN (INTEIRO, FORA DE PADRÃO)
+            = QTDPROD2 caso contrário
 
 Regras SQL (SQL Server — pyodbc):
   - Parâmetros com ? (nunca %s)
@@ -21,13 +28,20 @@ Regras SQL (SQL Server — pyodbc):
 """
 from __future__ import annotations
 
-from decimal import Decimal
-
 from app.db import get_mssql_conn
+
+_METROS_CASE = """
+    CASE
+        WHEN SUBSTRING(LTRIM(RTRIM(PRODUTO)), 5, 1) IN ('I', 'P') THEN QTDPROD
+        ELSE QTDPROD2
+    END
+""".strip()
+
+_EXCLUIR_PERDA = "(MOTPERDA IS NULL OR LTRIM(RTRIM(MOTPERDA)) = '')"
 
 
 class SQLServiceApontRev:
-    """Consultas à tabela STG_APONT_REV_GERAL."""
+    """Consultas à view V_APONT_REV_GERAL."""
 
     def get_ranking_revisao(
         self,
@@ -36,26 +50,27 @@ class SQLServiceApontRev:
         top_n: int = 5,
     ) -> list[dict]:
         """
-        Retorna os operadores com mais KG revisados no período.
+        Retorna os operadores com mais metros revisados no período.
 
         Parâmetros:
           data_inicio : DD/MM/YYYY (inclusive)
           data_fim    : DD/MM/YYYY (inclusive)
           top_n       : limite de resultados (padrão: 5)
 
-        Retorna lista de dicts com: operador, total_kg, registros, posicao
+        Retorna lista de dicts com: operador, total_metros, registros, posicao
         """
         sql = f"""
             SELECT TOP {top_n}
-                LTRIM(RTRIM(OPER_BOB))  AS operador,
-                SUM(QTDPROD2)           AS total_kg,
-                COUNT(*)                AS registros
-            FROM dbo.STG_APONT_REV_GERAL
+                LTRIM(RTRIM(OPER_BOB))       AS operador,
+                SUM({_METROS_CASE})          AS total_metros,
+                COUNT(*)                     AS registros
+            FROM V_APONT_REV_GERAL
             WHERE CAST(DATAAPONT AS DATE)
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LTRIM(RTRIM(OPER_BOB)) != ''
+              AND {_EXCLUIR_PERDA}
             GROUP BY LTRIM(RTRIM(OPER_BOB))
-            ORDER BY total_kg DESC
+            ORDER BY total_metros DESC
         """
         with get_mssql_conn() as conn:
             rows = conn.execute(sql, (data_inicio, data_fim)).fetchall()
@@ -63,10 +78,10 @@ class SQLServiceApontRev:
         result = []
         for pos, row in enumerate(rows, start=1):
             result.append({
-                "posicao":   pos,
-                "operador":  row[0] or "",
-                "total_kg":  float(row[1] or 0),
-                "registros": int(row[2] or 0),
+                "posicao":       pos,
+                "operador":      row[0] or "",
+                "total_metros":  float(row[1] or 0),
+                "registros":     int(row[2] or 0),
             })
         return result
 
@@ -79,21 +94,22 @@ class SQLServiceApontRev:
         """
         Retorna total revisado por um operador específico no período.
 
-        Retorna dict com: total_kg, total_bobinas
+        Retorna dict com: total_metros, total_bobinas
         """
-        sql = """
+        sql = f"""
             SELECT
-                SUM(QTDPROD2) AS total_kg,
-                COUNT(*)      AS total_bobinas
-            FROM dbo.STG_APONT_REV_GERAL
+                SUM({_METROS_CASE}) AS total_metros,
+                COUNT(*)            AS total_bobinas
+            FROM V_APONT_REV_GERAL
             WHERE CAST(DATAAPONT AS DATE)
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LOWER(LTRIM(RTRIM(OPER_BOB))) = LOWER(?)
+              AND {_EXCLUIR_PERDA}
         """
         with get_mssql_conn() as conn:
             row = conn.execute(sql, (data_inicio, data_fim, operador)).fetchone()
 
         return {
-            "total_kg":      float(row[0] or 0) if row else 0.0,
+            "total_metros":  float(row[0] or 0) if row else 0.0,
             "total_bobinas": int(row[1] or 0) if row else 0,
         }

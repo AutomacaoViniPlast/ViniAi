@@ -62,6 +62,9 @@ def _fmt_kg(valor: float) -> str:
     """Formata um valor float para exibição em KG no padrão brasileiro."""
     return f"{valor:,.2f} KG".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def _fmt_metros(valor: float) -> str:
+    return f"{valor:,.2f} m".replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 def _fmt_quantidade(resultado: dict) -> str:
     """Formata resultado de QUANTIDADE separado por UM (retorno do KARDEX). Omite unidades zeradas."""
@@ -504,22 +507,22 @@ class ChatOrchestrator:
             if ir.entity_value:
                 # Operador específico → total individual
                 dados = self.apont_rev.get_revisao_por_operador(ir.entity_value, ini, fim)
-                if dados["total_kg"] == 0:
+                if dados["total_metros"] == 0:
                     return f"🔍 Nenhum apontamento de revisão encontrado para **{_label_op_rev(ir.entity_value)}**{periodo}."
                 return (
                     f"📋 **Revisão — {_label_op_rev(ir.entity_value)}**{periodo}\n\n"
                     f"| Métrica | Valor |\n|---------|-------|\n"
-                    f"| ⚖️ Total revisado | **{_fmt_kg(dados['total_kg'])}** |\n"
+                    f"| 📏 Total revisado | **{_fmt_metros(dados['total_metros'])}** |\n"
                     f"| 📦 Bobinas | {dados['total_bobinas']} |"
                 )
             # Sem operador → ranking
             rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n)
             if not rows:
                 return f"🔍 Nenhum apontamento de revisão encontrado{periodo}."
-            header = f"🏆 **Top {top_n} — Revisão (KG revisados)**{periodo}\n\n"
-            header += "| # | Operador | Total KG | Bobinas |\n|---|----------|----------|--------|\n"
+            header = f"🏆 **Top {top_n} — Revisão (metros revisados)**{periodo}\n\n"
+            header += "| # | Operador | Total (m) | Bobinas |\n|---|----------|-----------|--------|\n"
             linhas = "\n".join(
-                f"| {_posicao_label(r['posicao'])} | {_label_op_rev(r['operador'])} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                f"| {_posicao_label(r['posicao'])} | {_label_op_rev(r['operador'])} | **{_fmt_metros(r['total_metros'])}** | {r['registros']} |"
                 for r in rows
             )
             return header + linhas
