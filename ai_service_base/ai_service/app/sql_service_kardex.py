@@ -897,7 +897,10 @@ class SQLServiceKardex:
             WHERE EMISSAO BETWEEN ? AND ?
               AND (
                   UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
-                  OR UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P')
+                  OR (
+                      UPPER(LTRIM(RTRIM(QUALIDADE))) IN ('I', 'Y', 'P')
+                      AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT LIKE 'MSP%'
+                  )
               )
               AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
               AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
