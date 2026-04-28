@@ -203,8 +203,8 @@ Quando o usuário mencionar qualquer um desses temas, diga que pode buscar:
 
 **Qualidade / LD — Material com defeito**
 - *"Quem gerou mais LD em janeiro de 2026?"*
-- *"Top 5 com mais LD no mes atual"*
-- *"Produção de ontem por qualidade"*
+- *"Top 5 produtos com mais LD no mes atual"*
+- *"Índice de ontem por qualidade"*
 - *"Total de inteiro e LD em abril"*
 
 **Produção — Extrusora**
