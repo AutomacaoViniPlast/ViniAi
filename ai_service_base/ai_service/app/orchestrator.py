@@ -48,6 +48,10 @@ from app.interpreter import InterpretationResult, RuleBasedInterpreter, _periodo
 from app.llm_handler import LLMHandler
 from app.permissions import MENSAGEM_LGPD, verificar_permissao
 from app.schemas import ChatProcessRequest, ChatProcessResponse, ConversationTurn
+from app.sql_service_apont_rev import SQLServiceApontRev
+
+# Logins que aparecem em STG_APONT_REV_GERAL mas são gestores, não operadores.
+_GESTORES_REVISAO = {"lucas.lima", "camila.motta"}
 from app.sql_service_kardex import SQLServiceKardex
 from app.sql_service_sh6 import SQLServiceSH6, traduzir_recurso, traduzir_filial
 
@@ -181,6 +185,7 @@ class ChatOrchestrator:
         self.interpreter  = RuleBasedInterpreter()
         self.sql          = SQLServiceSH6()
         self.kardex       = SQLServiceKardex()
+        self.apont_rev    = SQLServiceApontRev()
         self.llm          = LLMHandler(
             agent_name=agent["name"],
             system_prompt=agent["system_prompt"],
@@ -489,6 +494,35 @@ class ChatOrchestrator:
         recursos  = ir.recursos  # None = ambas extrusoras (default no service)
         is_diaria = self._is_diaria(ir)
         rec_lbl   = self._recurso_label(recursos)
+
+        # ── Ranking de revisão (STG_APONT_REV_GERAL) ─────────────────────────
+        if ir.intent == "ranking_revisao":
+            def _label_op_rev(login: str) -> str:
+                sufixo = " (Gestor)" if login.lower() in _GESTORES_REVISAO else ""
+                return f"{login}{sufixo}"
+
+            if ir.entity_value:
+                # Operador específico → total individual
+                dados = self.apont_rev.get_revisao_por_operador(ir.entity_value, ini, fim)
+                if dados["total_kg"] == 0:
+                    return f"🔍 Nenhum apontamento de revisão encontrado para **{_label_op_rev(ir.entity_value)}**{periodo}."
+                return (
+                    f"📋 **Revisão — {_label_op_rev(ir.entity_value)}**{periodo}\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| ⚖️ Total revisado | **{_fmt_kg(dados['total_kg'])}** |\n"
+                    f"| 📦 Bobinas | {dados['total_bobinas']} |"
+                )
+            # Sem operador → ranking
+            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n)
+            if not rows:
+                return f"🔍 Nenhum apontamento de revisão encontrado{periodo}."
+            header = f"🏆 **Top {top_n} — Revisão (KG revisados)**{periodo}\n\n"
+            header += "| # | Operador | Total KG | Bobinas |\n|---|----------|----------|--------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {_label_op_rev(r['operador'])} | **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            return header + linhas
 
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":

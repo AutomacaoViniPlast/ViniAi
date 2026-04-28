@@ -606,6 +606,17 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Ranking de revisão — apontamentos de bobinas revisadas (STG_APONT_REV_GERAL)
+    # Distinguido do KARDEX/LD por combinar volume de revisão + contexto de ranking/produtividade.
+    _RANKING_REVISAO = re.compile(
+        r"quem\s+mais\s+revisou|ranking\s+(?:de\s+)?revis[aã]o|"
+        r"produtividade\s+(?:da\s+)?revis[aã]o|"
+        r"total\s+revisado|quanto\s+(?:foi\s+)?revisado|"
+        r"produ[cç][aã]o\s+da\s+revis[aã]o|volume\s+(?:de\s+)?revis[aã]o|"
+        r"kg\s+revisados?|kg\s+(?:da\s+)?revis[aã]o",
+        re.IGNORECASE,
+    )
+
     # Horas trabalhadas
     _HORAS = re.compile(
         r"horas?\s+trabalhadas?|total\s+de\s+horas?|quantas?\s+horas?|"
@@ -900,7 +911,21 @@ class RuleBasedInterpreter:
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
             )
 
-        # ── 10a. Comparativo entre extrusoras ────────────────────────────────
+        # ── 10a. Ranking de revisão (STG_APONT_REV_GERAL) ───────────────────
+        # Deve vir antes do comparativo/produção para não cair nos patterns genéricos.
+        if self._RANKING_REVISAO.search(low):
+            return InterpretationResult(
+                intent="ranking_revisao", route="sql",
+                metric="revisao_kg",
+                entity_type="operador" if operador else None,
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                top_n=top_n or 5,
+                confidence=0.92,
+                reasoning="Ranking de produtividade da revisão (STG_APONT_REV_GERAL).",
+            )
+
+        # ── 10b. Comparativo entre extrusoras ────────────────────────────────
         if self._COMPARATIVO.search(low) or (
             self._PRODUCAO.search(low)
             and (self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low))
@@ -921,7 +946,7 @@ class RuleBasedInterpreter:
                 reasoning="Comparativo de produção entre extrusoras.",
             )
 
-        # ── 10b. Horas trabalhadas ────────────────────────────────────────────
+        # ── 10c. Horas trabalhadas ────────────────────────────────────────────
         if self._HORAS.search(low):
             return InterpretationResult(
                 intent="horas_trabalhadas", route="sql",
