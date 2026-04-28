@@ -516,7 +516,7 @@ class ChatOrchestrator:
                     f"| 📦 Bobinas | {dados['total_bobinas']} |"
                 )
             # Sem operador → ranking
-            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n)
+            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n, operadores=OPERADORES_REVISAO)
             if not rows:
                 return f"🔍 Nenhum apontamento de revisão encontrado{periodo}."
             header = f"🏆 **Top {top_n} — Revisão (metros revisados)**{periodo}\n\n"

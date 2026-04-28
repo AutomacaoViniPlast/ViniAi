@@ -48,6 +48,7 @@ class SQLServiceApontRev:
         data_inicio: str,
         data_fim: str,
         top_n: int = 5,
+        operadores: list[str] | None = None,
     ) -> list[dict]:
         """
         Retorna os operadores com mais metros revisados no período.
@@ -56,9 +57,17 @@ class SQLServiceApontRev:
           data_inicio : DD/MM/YYYY (inclusive)
           data_fim    : DD/MM/YYYY (inclusive)
           top_n       : limite de resultados (padrão: 5)
+          operadores  : lista de logins permitidos (filtra OPER_BOB)
 
         Retorna lista de dicts com: operador, total_metros, registros, posicao
         """
+        filtro_op = ""
+        params: tuple = (data_inicio, data_fim)
+        if operadores:
+            placeholders = ", ".join("?" * len(operadores))
+            filtro_op = f"AND LOWER(LTRIM(RTRIM(OPER_BOB))) IN ({placeholders})"
+            params = (data_inicio, data_fim, *[op.lower() for op in operadores])
+
         sql = f"""
             SELECT TOP {top_n}
                 LTRIM(RTRIM(OPER_BOB))       AS operador,
@@ -69,11 +78,12 @@ class SQLServiceApontRev:
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LTRIM(RTRIM(OPER_BOB)) != ''
               AND {_EXCLUIR_PERDA}
+              {filtro_op}
             GROUP BY LTRIM(RTRIM(OPER_BOB))
             ORDER BY total_metros DESC
         """
         with get_mssql_conn() as conn:
-            rows = conn.execute(sql, (data_inicio, data_fim)).fetchall()
+            rows = conn.execute(sql, params).fetchall()
 
         result = []
         for pos, row in enumerate(rows, start=1):
