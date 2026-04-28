@@ -749,7 +749,7 @@ class ChatOrchestrator:
                 filtro_usuarios=OPERADORES_REVISAO,
             )
             if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
-                return f"🔍 Nenhum registro de LD encontrado{periodo}{rec_lbl}."
+                return f"🔍 Nenhum registro encontrado para essa solicitação{periodo}{rec_lbl}."
 
             return (
                 f"⚠️ **Total de LD**{periodo}{rec_lbl}\n\n"
@@ -775,7 +775,7 @@ class ChatOrchestrator:
             )
             if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
-                return f"🔍 Nenhum registro de LD encontrado{nome}{periodo}."
+                return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
             nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
             return (
@@ -800,7 +800,7 @@ class ChatOrchestrator:
 
             if total_kg == 0 and ld_mt == 0:
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
-                return f"🔍 Nenhum registro de produção encontrado{nome}{periodo}."
+                return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
             tipo     = "dia" if is_diaria else "mês"
             nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
