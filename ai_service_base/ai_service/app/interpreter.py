@@ -126,6 +126,16 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
     if _RE_ONTEM.search(s):
         return (today - timedelta(days=1)).strftime("%d/%m/%Y")
 
+    if _RE_SEMANA_PASS.search(s):
+        inicio = today - timedelta(days=today.weekday() + 7)
+        fim    = inicio + timedelta(days=6)
+        return inicio.strftime("%d/%m/%Y") if as_start else fim.strftime("%d/%m/%Y")
+
+    if _RE_SEMANA_ATUAL.search(s):
+        inicio = today - timedelta(days=today.weekday())
+        fim    = inicio + timedelta(days=6)
+        return inicio.strftime("%d/%m/%Y") if as_start else fim.strftime("%d/%m/%Y")
+
     if _RE_MES_ATUAL.search(s):
         if as_start:
             return today.replace(day=1).strftime("%d/%m/%Y")
@@ -269,6 +279,59 @@ def _try_parse_range(text: str) -> tuple[str | None, str | None, str | None] | N
         if ini and fim:
             return ini, fim, f"{ini_txt} a {fim_txt}"
 
+    return None
+
+
+_PATTERNS_TWO_PERIODS = [
+    # "compare X com Y" / "compare X e Y" / "compare X versus Y"
+    re.compile(r"compar[ae]\w*\s+(.+?)\s+(?:com|e|versus|vs\.?)\s+(.+)", re.IGNORECASE),
+    # "diferença de X para Y" / "diferença entre X e Y"
+    re.compile(r"diferen[cç]a\s+(?:de|entre)\s+(.+?)\s+(?:e|para|pra|a)\s+(.+)", re.IGNORECASE),
+    # "X versus Y" / "X vs Y"
+    re.compile(r"(.+?)\s+(?:versus|vs\.?)\s+(.+)", re.IGNORECASE),
+    # "cresceu/caiu/evoluiu de X para Y"
+    re.compile(
+        r"(?:cresceu|caiu|aumentou|diminuiu|evoluiu|variou)\w*\s+de\s+(.+?)\s+(?:para|pra|a)\s+(.+)",
+        re.IGNORECASE,
+    ),
+    # "como foi/ficou de X para Y"
+    re.compile(
+        r"como\s+(?:foi|ficou|andou)\s+de\s+(.+?)\s+(?:para|pra|a)\s+(.+)",
+        re.IGNORECASE,
+    ),
+]
+
+
+def _try_parse_two_periods(
+    text: str,
+) -> tuple[str, str, str, str, str, str] | None:
+    """
+    Tenta extrair dois períodos distintos de texto de comparação.
+
+    Reconhece padrões como:
+      "compare janeiro com fevereiro"
+      "diferença entre semana passada e esta semana"
+      "janeiro versus fevereiro"
+      "cresceu de março para abril"
+
+    Retorna (ini1, fim1, lbl1, ini2, fim2, lbl2) ou None se não reconhecer.
+    Usa _parse_endpoint para converter cada lado em DD/MM/YYYY.
+    """
+    lowered = text.lower()
+    for pattern in _PATTERNS_TWO_PERIODS:
+        m = pattern.search(lowered)
+        if not m:
+            continue
+        txt1 = m.group(1).strip()
+        txt2 = m.group(2).strip()
+        ini1 = _parse_endpoint(txt1, as_start=True)
+        fim1 = _parse_endpoint(txt1, as_start=False)
+        ini2 = _parse_endpoint(txt2, as_start=True)
+        fim2 = _parse_endpoint(txt2, as_start=False)
+        if ini1 and fim1 and ini2 and fim2:
+            _, _, lbl1 = _periodo_from_text(txt1)
+            _, _, lbl2 = _periodo_from_text(txt2)
+            return ini1, fim1, lbl1 or txt1.capitalize(), ini2, fim2, lbl2 or txt2.capitalize()
     return None
 
 
@@ -504,6 +567,36 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Perda de material = LD + BAG (defeitos que saem do processo)
+    _PERDA = re.compile(
+        # Termos diretos de perda
+        r"perda[s]?\s+(?:de\s+)?(?:material|produ[cç][aã]o|bobina[s]?)|"
+        r"\bperdas?\b(?!\s+de\s+tempo)|"              # "perda" genérica, exceto "perda de tempo"
+        r"material\s+(?:(?:foi|est[aá]|ficou)\s+)?(?:perdido[s]?|descartado[s]?|rejeitado[s]?|refugado[s]?)|"
+        r"quanto\s+(?:foi\s+|de\s+)?(?:material\s+)?(?:perdido|descartado|rejeitado)|quanto\s+perdemos?|"
+        r"total\s+(?:de\s+)?perda[s]?|[ií]ndice\s+(?:de\s+)?perda[s]?|taxa\s+(?:de\s+)?perda[s]?|"
+        # Descarte / rejeito / refugo
+        r"descarte[s]?\s+(?:de\s+)?material|rejeito[s]?\s+(?:de\s+)?material|"
+        r"\brejeito[s]?\b|\brefugo\b|"
+        r"material\s+(?:descartado|rejeitado|refugado)|"
+        # Desperdício
+        r"desperd[ií]cio[s]?|material\s+desperdi[cç]ado|quanto\s+desperdi[cç]amos?|"
+        # LD + BAG explícito
+        r"ld\s+(?:e|mais|com)\s+bag|bag\s+(?:e|mais|com)\s+ld|soma\s+(?:de\s+)?(?:ld|bag)|"
+        # Perda vs produção / em relação
+        r"perda\s+(?:versus?\.?|em\s+rela[cç][aã]o|comparad[ao])|"
+        r"quanto\s+(?:da\s+)?produ[cç][aã]o\s+(?:foi\s+)?perda|"
+        r"perda[s]?\s+(?:em\s+rela[cç][aã]o\s+[aà]|da|da\s+)?produ[cç][aã]o",
+        re.IGNORECASE,
+    )
+
+    # LD solicitado em metros (unidade MT) — filtra exibição para MT
+    _METROS_UNIDADE = re.compile(
+        r"\bem\s+metros?\b|\bem\s+mt\b|metros?\s+de\s+ld|quantos?\s+metros?\s+de\s+ld|"
+        r"medido\s+em\s+metros?|ld\s+em\s+metros?",
+        re.IGNORECASE,
+    )
+
     # Ações de geração/identificação (revisão)
     _GERACAO = re.compile(
         r"gera[cç][aã]o|gerou|gerada|geradas|gerou|"
@@ -536,7 +629,15 @@ class RuleBasedInterpreter:
         r"destaque|destacou|se\s+destacou|"
         r"primeiro\s+lugar|em\s+primeiro|"
         r"maior\s+volume|mais\s+identificou|mais\s+gerou|mais\s+encontrou|"
-        r"quem\s+tem\s+mais|maior\s+produtor|mais\s+revisou",
+        r"quem\s+tem\s+mais|maior\s+produtor|mais\s+revisou|"
+        # Variações de "apontou/gerou/identificou mais" — cobrem "qual usuário apontou mais LD"
+        r"mais\s+apontou|apontou\s+mais|quem\s+apontou|"
+        r"gerou\s+mais|identificou\s+mais|encontrou\s+mais|revisou\s+mais|produziu\s+mais|"
+        r"maior\s+gerador|maior\s+apontamento|maior\s+identificador|"
+        # "qual usuário/operador/pessoa que mais" — sem exigir "quem"
+        r"usu[aá]rio\s+(?:que\s+)?(?:mais|com\s+mais)|"
+        r"operador\s+(?:que\s+)?(?:mais|com\s+mais)|"
+        r"pessoa\s+(?:que\s+)?(?:mais|com\s+mais)",
         re.IGNORECASE,
     )
 
@@ -826,6 +927,40 @@ class RuleBasedInterpreter:
         origem   = self._extract_origem(text)
         recursos = self._extract_recurso(text)
 
+        # ── 4.5. Comparação entre dois períodos ──────────────────────────────
+        two_periods = _try_parse_two_periods(text)
+        if two_periods and self._COMPARA.search(low):
+            ini1, fim1, lbl1, ini2, fim2, lbl2 = two_periods
+            if self._LD.search(low):
+                comp_metric = "geracao_ld"
+            elif self._RANKING_REVISAO.search(low):
+                comp_metric = "revisao_kg"
+            else:
+                comp_metric = "producao_total"
+            return InterpretationResult(
+                intent="comparacao_periodos", route="sql",
+                metric=comp_metric,
+                data_inicio=ini1, data_fim=fim1, period_text=lbl1,
+                data_inicio2=ini2, data_fim2=fim2, period_text2=lbl2,
+                entity_value=operador,
+                recursos=recursos,
+                confidence=0.88,
+                reasoning="Comparação entre dois períodos distintos.",
+            )
+
+        # ── 4.7. Perda de material (LD + BAG) ────────────────────────────────
+        if self._PERDA.search(low) and not self._RANKING_REVISAO.search(low):
+            return InterpretationResult(
+                intent="perda_material", route="sql",
+                metric="perda_material",
+                entity_type="operador" if operador else None,
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem,
+                confidence=0.88,
+                reasoning="Perda de material (LD + BAG) do período.",
+            )
+
         # ── 5. Listar operadores de um setor ──────────────────────────────────
         if self._OPERADOR.search(low) and (self._LISTA.search(low) or self._QUEM.search(low)):
             return InterpretationResult(
@@ -894,12 +1029,13 @@ class RuleBasedInterpreter:
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem,
+                unidade_filtro="MT" if self._METROS_UNIDADE.search(low) else None,
                 confidence=0.85 if operador else 0.68,
                 reasoning="Geração de LD por operador (explícito ou autenticado).",
             )
 
         # ── 10. LD genérico sem operador — usa usuário autenticado ────────────
-        # Exemplo: "LD de abril", "quanto de LD nesse mês"
+        # Exemplo: "LD de abril", "quanto de LD nesse mês", "LD em metros de ontem"
         if self._LD.search(low):
             return InterpretationResult(
                 intent="ld_total", route="sql",
@@ -907,6 +1043,7 @@ class RuleBasedInterpreter:
                 entity_value=None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem,
+                unidade_filtro="MT" if self._METROS_UNIDADE.search(low) else None,
                 confidence=0.78,
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
             )

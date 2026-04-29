@@ -1,6 +1,6 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 3.2  
+**Versão:** 3.3  
 **Última atualização:** Abril/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -244,6 +244,17 @@ def _user_login_from_name(user_name):
 
 > **Importante**: o período padrão mudou de um intervalo fixo de 2 anos para o **mês atual dinâmico**. Isso evita que uma pergunta sem período retorne anos de dados irrelevantes.
 
+### Semanas (adicionado a `_parse_endpoint` na v3.3)
+
+`_parse_endpoint()` agora reconhece semanas como endpoint de intervalos de comparação:
+
+| Expressão | Período resolvido |
+|-----------|------------------|
+| `semana passada` | Segunda a domingo da semana anterior |
+| `esta semana` / `essa semana` | Segunda a domingo da semana atual |
+
+Permite comparações como *"compare esta semana com a semana passada"*.
+
 ### Intervalos entre períodos (v3.1 — novo)
 
 Expressões que definem um **range de meses** são resolvidas automaticamente pelo `_try_parse_range()`, com prioridade máxima na função `_periodo_from_text()`.
@@ -278,6 +289,36 @@ Expressões que definem um **range de meses** são resolvidas automaticamente pe
 
 ## 6. Intents Suportados e Variantes de Pergunta
 
+### `perda_material` — Perda de material (LD + BAG) (v3.3 — novo)
+
+Retorna LD + BAG do período, total de perda e taxa percentual sobre o total inspecionado.
+
+```
+"Qual foi a perda de material ontem?"
+"Quanto material foi descartado?"
+"Total de perdas desse mês"
+"Qual o índice de perda?"
+"Taxa de perda de março"
+"Quanto desperdiçamos essa semana?"
+"Material rejeitado / refugo"
+"LD e BAG somados de hoje"
+"Perda vs produção em janeiro"
+```
+
+### `comparacao_periodos` — Comparativo entre dois períodos (v3.3 — novo)
+
+Executa a mesma consulta em dois períodos distintos e exibe variação absoluta e percentual.
+Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
+
+```
+"Compare a produção de janeiro com fevereiro"
+"Diferença de LD entre semana passada e esta semana"
+"Janeiro versus março"
+"Cresceu de abril para maio?"
+"Como foi de março para abril?"
+"Compare o LD de fevereiro com março"
+```
+
 ### `geracao_ld_por_operador` — LD de um operador
 ```
 "Qual foi o LD do ezequiel em janeiro?"
@@ -286,6 +327,7 @@ Expressões que definem um **range de meses** são resolvidas automaticamente pe
 "Meu LD nesse mês"            ← primeira pessoa (auto-inject)
 "Quanto eu identifiquei de LD?"
 "LD em abril"                  ← usa usuário autenticado
+"Quanto LD em metros o Ezequiel identificou?"  ← filtra por unidade MT
 ```
 
 ### `ranking_usuarios_ld` — Quem gerou mais LD
@@ -296,6 +338,9 @@ Expressões que definem um **range de meses** são resolvidas automaticamente pe
 "Quem tem mais LD? Top 3"
 "Qual o líder de LD em março?"
 "Quem se destacou em LD?"
+"Qual foi o usuário que apontou mais LD ontem?"   ← antes falhava, corrigido v3.3
+"Qual operador gerou mais LD?"                    ← antes falhava, corrigido v3.3
+"Maior gerador de LD do mês?"                     ← antes falhava, corrigido v3.3
 ```
 
 ### `ranking_produtos_ld` — Produto com mais LD
@@ -362,27 +407,35 @@ Expressões que definem um **range de meses** são resolvidas automaticamente pe
 As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro:
 
 ```
- 1. tipos_informacao    — "o que a Ayla faz?" / "o que você consegue?" (padrão restrito)
- 2. periodos_disponiveis — "quais meses tem?"
- 3. smalltalk (curto)   — saudações ≤ 8 palavras (lista expandida: despedidas, variações)
- 4. smalltalk (longo)   — conversa natural  ⚠️ com guard: se a mensagem contém
-                          LD / PRODUCAO / EXPEDICAO, deixa cair para SQL rules
+ 1.  tipos_informacao     — "o que a Ayla faz?" / "o que você consegue?" (padrão restrito)
+ 2.  periodos_disponiveis — "quais meses tem?"
+ 3.  smalltalk (curto)    — saudações ≤ 8 palavras (lista expandida: despedidas, variações)
+ 4.  smalltalk (longo)    — conversa natural  ⚠️ com guard: se a mensagem contém
+                            LD / PRODUCAO / EXPEDICAO, deixa cair para SQL rules
  ── [extração de entidades: período, operador, produto, setor] ──
- 5. list_operadores     — "quais operadores da revisão?"
- 6. ranking_produtos_ld — LD + produto + qual/ranking/top
- 7. ranking_usuarios_ld — LD + ranking/top/quem
- 8. LD próprio          — LD + "meu/minha/eu identifiquei"
- 9. LD por operador     — LD + ação ou operador explícito
-10. LD genérico         — LD sem operador → usa autenticado
-11. ranking prod + quem — PRODUCAO + quem/ranking/top
-12. ranking geral       — ranking/top sem LD
-13. prod por produto    — código de produto + produção
-14. prod por turno      — palavra "turno"
-15. total fábrica       — "total", "geral", "visão geral"
-16. prod própria        — PRODUCAO + "meu/minha/eu produzi"
-17. expedição           — "expedido", "liberado", "enviado"
-18. prod por operador   — PRODUCAO ou operador explícito
-19. clarify (fallback)  — nada identificado → LLM explica
+ 4.5 comparacao_periodos  — LD/produção/revisão + dois períodos + palavra comparativa (v3.3)
+ 4.7 perda_material       — "perda", "descarte", "rejeito", "refugo", "desperdício", LD+BAG (v3.3)
+ 5.  list_operadores      — "quais operadores da revisão?"
+ 6.  ranking_produtos_ld  — LD + produto + qual/ranking/top
+ 7.  ranking_usuarios_ld  — LD + ranking/top/quem/apontou mais/gerou mais/operador que mais (v3.3+)
+ 8.  LD próprio           — LD + "meu/minha/eu identifiquei"
+ 9.  LD por operador      — LD + ação ou operador explícito (+ unidade_filtro MT se "em metros")
+10.  LD genérico          — LD sem operador → usa autenticado (+ unidade_filtro MT se "em metros")
+10a. ranking_revisao      — "quem mais revisou", "ranking de revisão"
+10b. comparativo_extrusoras — produção + extrusora + comparação
+10c. horas_trabalhadas    — "horas trabalhadas", "tempo de produção"
+11.  metros_por_minuto    — "metros por minuto", "m/min"
+11b. kgh                  — "KGH", "KG por hora"
+12.  ranking prod + quem  — PRODUCAO + quem/ranking/top
+13.  ranking geral        — ranking/top sem LD
+14.  prod por produto     — código de produto + produção
+15.  prod por turno       — palavra "turno"
+15b. producao_por_dia     — produção + "dia a dia" + intervalo
+16.  total fábrica        — "total", "geral", "visão geral"
+17.  prod própria         — PRODUCAO + "meu/minha/eu produzi"
+18.  expedição            — "expedido", "liberado", "enviado"
+19.  prod por operador    — PRODUCAO ou operador explícito
+20.  clarify (fallback)   — nada identificado → LLM explica
 ```
 
 ### Guard da regra 4 (smalltalk_longa)
@@ -546,19 +599,27 @@ FastAPI (ai_service)
 | `_SMALLTALK_LONGA` interceptava consultas de dados como *"me fale sobre o LD de janeiro"* | Guard adicionado à regra 4: não ativa se `_LD / _PRODUCAO / _EXPEDICAO` presentes |
 | `_CAPACIDADES` muito ampla (`ajuda`, `pode me dizer`) capturava perguntas erradas | Padrão restrito a consultas explícitas sobre capacidades da Ayla |
 | Saudações como "até logo", "bom fds", variações com "Ayla" não eram reconhecidas | `_SMALLTALK` expandido com despedidas e variantes de nome |
-| `boa[!.]*$` no regex causava conflito com `\b` no fechamento do grupo | Corrigido para `boa\b` |
+
+### Corrigido na v3.3
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| "Qual usuário **apontou** mais LD?" caía em `ld_total` (total, não ranking) | `_RANKING` expandido com `apontou mais`, `gerou mais`, `identificou mais`, `operador que mais`, `usuário que mais` |
+| "Qual **operador** gerou mais LD?" — "qual" não casa com `_QUEM` (`\bquem\b`) | `_RANKING` cobre agora `operador que mais` e `gerou mais`, sem depender de "quem" |
+| "LD em **metros**" retornava KG sem aviso | Novo campo `unidade_filtro` em `InterpretationResult`; se MT=0 no período, informa explicitamente e mostra KG |
+| Sem resposta para "perda de material" / "material descartado" / "desperdício" | Novo intent `perda_material` (LD+BAG): total de perda + taxa percentual sobre inspecionado |
+| Sem suporte a comparação entre dois períodos | Novo intent `comparacao_periodos` via `_try_parse_two_periods()` — variação absoluta e % |
+| `_parse_endpoint` não resolvia semanas como endpoint de comparação | `_RE_SEMANA_PASS` e `_RE_SEMANA_ATUAL` adicionados a `_parse_endpoint` |
 
 ### Próximos passos sugeridos
 
-1. **Persistir intent resolvido no banco**: salvar o último `InterpretationResult` resolvido por `session_id` para o carry-over ser 100% preciso, sem re-interpretação.
+1. **Substituição do interpretador por LLM fine-tuned**: o `RuleBasedInterpreter` pode ser substituído por uma chamada estruturada ao Claude/GPT com function calling, mantendo a mesma interface `InterpretationResult`. As regras atuais servem como exemplos de treinamento.
 
-2. **Comparação entre períodos**: novo intent `comparacao_periodos` + query SQL com dois ranges de data.
+2. **Suporte a material I (Inteiro)**: quando a extrusora começar a ter operadores cadastrados, adicionar intent `producao_inteiro` e filtro `SUBSTRING(produto, 5, 1) = 'I'`.
 
-3. **Substituição do interpretador por LLM fine-tuned**: o `RuleBasedInterpreter` pode ser substituído por uma chamada estruturada ao Claude/GPT com function calling, mantendo a mesma interface `InterpretationResult`. As regras atuais servem como exemplos de treinamento.
+3. **Ranking de perda por operador**: `perda_material` hoje retorna total; um ranking "quem gerou mais perda (LD+BAG)?" exigiria query groupada por operador no `get_resumo_qualidade`.
 
-4. **Suporte a material I (Inteiro)**: quando a extrusora começar a ter operadores cadastrados, adicionar intent `producao_inteiro` e filtro `SUBSTRING(produto, 5, 1) = 'I'`.
-
-5. **Feedback loop**: registrar no banco quais intents foram `[context-carry]` e quais tiveram `confidence < 0.6` para identificar os padrões que mais falham.
+4. **Feedback loop**: registrar no banco quais intents foram `[context-carry]` e quais tiveram `confidence < 0.6` para identificar os padrões que mais falham.
 
 ---
 

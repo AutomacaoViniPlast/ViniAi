@@ -498,6 +498,48 @@ class ChatOrchestrator:
         is_diaria = self._is_diaria(ir)
         rec_lbl   = self._recurso_label(recursos)
 
+        # ── Perda de material (LD + BAG) ──────────────────────────────────────
+        if ir.intent == "perda_material":
+            resumo = self.kardex.get_resumo_qualidade(
+                ini, fim,
+                operador=ir.entity_value or None,
+                origem=ir.origem,
+                filtro_usuarios=OPERADORES_REVISAO if not ir.entity_value else None,
+            )
+            ld_kg      = float(resumo["Y"]["KG"])
+            bag_kg     = float(resumo["BAG"]["KG"])
+            inteiro_kg = float(resumo["I"]["KG"])
+            fp_kg      = float(resumo["P"]["KG"])
+            perda      = ld_kg + bag_kg
+            total_insp = inteiro_kg + ld_kg + fp_kg + bag_kg
+
+            if total_insp == 0:
+                return f"🔍 Nenhum dado de qualidade encontrado{periodo}."
+
+            pct   = (perda / total_insp) * 100
+            tipo  = "dia" if is_diaria else "mês"
+            nome  = f" — {ir.entity_value}" if ir.entity_value else ""
+            header = (
+                f"🗑️ **Perda de material{nome}**\n"
+                f"📅 Período ({tipo}){periodo}\n\n"
+                "| Tipo | Total |\n|------|-------|\n"
+            )
+            linhas = []
+            if ld_kg > 0:
+                linhas.append(f"| ⚠️ LD (defeito) | **{_fmt_kg(ld_kg)}** |")
+            if bag_kg > 0:
+                linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
+            linhas.append(f"| **🗑️ Total Perda** | **{_fmt_kg(perda)}** |")
+            rodape = (
+                f"\n\n📦 Total inspecionado: {_fmt_kg(total_insp)}\n"
+                f"📊 Taxa de perda: **{pct:.1f}%**"
+            )
+            return header + "\n".join(linhas) + rodape
+
+        # ── Comparação entre dois períodos ────────────────────────────────────
+        if ir.intent == "comparacao_periodos":
+            return self._handle_comparacao_periodos(ir)
+
         # ── Ranking de revisão (STG_APONT_REV_GERAL) ─────────────────────────
         if ir.intent == "ranking_revisao":
             def _label_op_rev(login: str) -> str:
@@ -788,6 +830,17 @@ class ChatOrchestrator:
             if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
                 return f"🔍 Nenhum registro encontrado para essa solicitação{periodo}{rec_lbl}."
 
+            if ir.unidade_filtro == "MT":
+                mt_val = float(total_ld.get("MT", 0))
+                if mt_val == 0:
+                    kg_val = float(total_ld.get("KG", 0))
+                    return (
+                        f"🔍 Não há registros de LD em metros para este período{periodo}.\n\n"
+                        f"O total em KG foi **{_fmt_kg(kg_val)}**."
+                    )
+                fmt_mt = f"{mt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                return f"⚠️ **Total de LD em metros**{periodo}{rec_lbl}\n\n**{fmt_mt} MT**"
+
             return (
                 f"⚠️ **Total de LD**{periodo}{rec_lbl}\n\n"
                 f"**{_fmt_quantidade(total_ld)}**"
@@ -815,6 +868,22 @@ class ChatOrchestrator:
                 return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
             nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
+
+            if ir.unidade_filtro == "MT":
+                mt_val = float(total_ld.get("MT", 0))
+                if mt_val == 0:
+                    kg_val = float(total_ld.get("KG", 0))
+                    return (
+                        f"🔍 Não há registros de LD em metros para **{ir.entity_value}**{periodo}.\n\n"
+                        f"O total em KG foi **{_fmt_kg(kg_val)}**."
+                    )
+                fmt_mt = f"{mt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                return (
+                    f"⚠️ **LD em metros{nome_str}**\n"
+                    f"📅 Período{periodo}\n\n"
+                    f"**{fmt_mt} MT**"
+                )
+
             return (
                 f"⚠️ **LD identificado{nome_str}**\n"
                 f"📅 Período{periodo}\n\n"
@@ -898,6 +967,78 @@ class ChatOrchestrator:
             return header + linhas
 
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
+
+    # ── Comparação entre dois períodos ───────────────────────────────────────
+
+    def _handle_comparacao_periodos(self, ir: InterpretationResult) -> str:
+        """
+        Executa a mesma consulta em dois períodos distintos e exibe a variação.
+
+        Suporta métricas: producao_total, geracao_ld, revisao_kg.
+        Se entity_value estiver definido, filtra pelo operador.
+        """
+        ini1, fim1, lbl1 = ir.data_inicio, ir.data_fim, ir.period_text or ir.data_inicio
+        ini2, fim2, lbl2 = ir.data_inicio2, ir.data_fim2, ir.period_text2 or ir.data_inicio2
+
+        if not (ini1 and fim1 and ini2 and fim2):
+            return (
+                "Não consegui identificar os dois períodos para comparação.\n\n"
+                "Tente: _\"compare a produção de janeiro com fevereiro\"_ "
+                "ou _\"diferença de LD desta semana com a semana passada\"_."
+            )
+
+        rec_lbl = self._recurso_label(ir.recursos)
+
+        if ir.metric == "geracao_ld":
+            if ir.entity_value:
+                d1 = self.kardex.get_ld_por_operador(ir.entity_value, ini1, fim1, origem=ir.origem)
+                d2 = self.kardex.get_ld_por_operador(ir.entity_value, ini2, fim2, origem=ir.origem)
+                titulo = f"⚠️ **LD — {ir.entity_value}**: {lbl1} vs {lbl2}"
+            else:
+                d1 = self.kardex.get_ld_total(ini1, fim1, origem=ir.origem, filtro_usuarios=OPERADORES_REVISAO)
+                d2 = self.kardex.get_ld_total(ini2, fim2, origem=ir.origem, filtro_usuarios=OPERADORES_REVISAO)
+                titulo = f"⚠️ **Comparativo de LD**: {lbl1} vs {lbl2}"
+            v1 = float(d1.get("KG", 0))
+            v2 = float(d2.get("KG", 0))
+            fmt = _fmt_kg
+
+        elif ir.metric == "revisao_kg":
+            rows1 = self.apont_rev.get_ranking_revisao(ini1, fim1, top_n=200, operadores=OPERADORES_REVISAO)
+            rows2 = self.apont_rev.get_ranking_revisao(ini2, fim2, top_n=200, operadores=OPERADORES_REVISAO)
+            v1 = sum(r["total_metros"] for r in rows1)
+            v2 = sum(r["total_metros"] for r in rows2)
+            titulo = f"📋 **Comparativo de Revisão**: {lbl1} vs {lbl2}"
+            fmt = _fmt_metros
+
+        else:  # producao_total
+            v1 = float(self.sql.get_producao_total(ini1, fim1, recursos=ir.recursos))
+            v2 = float(self.sql.get_producao_total(ini2, fim2, recursos=ir.recursos))
+            titulo = f"⚙️ **Comparativo de Produção**: {lbl1} vs {lbl2}"
+            fmt = _fmt_kg
+
+        # Calcula variação
+        if v1 > 0:
+            variacao = ((v2 - v1) / v1) * 100
+            diff = abs(v2 - v1)
+            sinal = "+" if variacao >= 0 else ""
+            if v2 > v1:
+                tendencia = f"↗️ Aumento de **{fmt(diff)}** ({sinal}{variacao:.1f}%)"
+            elif v2 < v1:
+                tendencia = f"↘️ Queda de **{fmt(diff)}** ({variacao:.1f}%)"
+            else:
+                tendencia = "→ Sem variação entre os períodos"
+        elif v2 > 0:
+            tendencia = f"↗️ {lbl2} saiu do zero — sem dados comparáveis em {lbl1}"
+        else:
+            tendencia = "→ Sem dados em ambos os períodos"
+
+        return (
+            f"{titulo}{rec_lbl}\n\n"
+            f"| Período | Total |\n|---------|-------|\n"
+            f"| {lbl1} | **{fmt(v1)}** |\n"
+            f"| {lbl2} | **{fmt(v2)}** |\n\n"
+            f"{tendencia}"
+        )
 
     # ── Helper de resposta ────────────────────────────────────────────────────
 

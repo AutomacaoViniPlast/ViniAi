@@ -68,6 +68,10 @@ class InterpretationResult(BaseModel):
     setor: str | None = None             # "expedicao" | "revisao" | "producao"
     origem: str | None = None            # "SD1" | "SD2" | "SD3"
     recursos: list[str] | None = None    # ["0003"] | ["0007"] | ["0003","0007"] — extrusoras
+    data_inicio2: str | None = None      # DD/MM/YYYY — segundo período (comparação entre períodos)
+    data_fim2: str | None = None         # DD/MM/YYYY — segundo período (comparação entre períodos)
+    period_text2: str | None = None      # ex: "fevereiro de 2026" — segundo período
+    unidade_filtro: str | None = None    # "MT" | "KG" | None — filtra unidade de medida na resposta
     confidence: float = 0.0              # confiança da interpretação (0.0–1.0)
     reasoning: str | None = None         # explicação textual da decisão
 
