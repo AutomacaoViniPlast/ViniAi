@@ -18,7 +18,7 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu } from "lucide-react";
+import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown } from "lucide-react";
 
 interface Message {
   id: string;
@@ -257,6 +257,45 @@ const Index = () => {
       console.error("Erro ao renomear conversa:", err);
       toast.error("Não foi possível atualizar o título.");
     }
+  };
+
+  const exportConversation = async (conv: Conversation) => {
+    let messages = conv.messages;
+
+    if (!conv.messagesLoaded) {
+      try {
+        const msgs = await getMessages(conv.id);
+        messages = msgs.map((m) => ({ id: m.id, content: m.conteudo, role: m.role }));
+      } catch {
+        toast.error("Erro ao carregar mensagens para exportação.");
+        return;
+      }
+    }
+
+    const exportData = {
+      conversa: conv.title,
+      exportado_em: new Date().toLocaleString("pt-BR"),
+      usuario: userProfile?.nome || "Usuário",
+      setor: userProfile?.setor || "GERAL",
+      total_mensagens: messages.length,
+      mensagens: messages.map((m) => ({
+        papel: m.role === "user" ? "usuario" : "assistente",
+        conteudo: m.content,
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = conv.title.replace(/[^\w\s\-àáâãéêíóôõúüçÀÁÂÃÉÊÍÓÔÕÚÜÇ]/g, "").trim().slice(0, 50);
+    a.download = `conversa_${safeName || conv.id}_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success("Conversa exportada com sucesso!");
   };
 
   // Envia a mensagem do usuário e processa a resposta da IA
@@ -599,6 +638,16 @@ const Index = () => {
                       title="Editar título"
                     >
                       <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void exportConversation(conv); }}
+                      className="p-1 rounded-xl transition-all duration-150"
+                      style={{ color: C.textMuted }}
+                      onMouseEnter={e => (e.currentTarget.style.background = C.pinHover)}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                      title="Exportar conversa"
+                    >
+                      <FileDown size={12} />
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
