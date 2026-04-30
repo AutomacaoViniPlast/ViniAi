@@ -103,7 +103,6 @@ class SQLServiceApontRev:
                 MONTH(CAST(DATAAPONT AS DATE)) AS mes
             FROM V_APONT_REV_GERAL
             WHERE DATAAPONT IS NOT NULL
-              AND LTRIM(RTRIM(OPER_BOB)) != ''
             GROUP BY
                 YEAR(CAST(DATAAPONT AS DATE)),
                 MONTH(CAST(DATAAPONT AS DATE))
