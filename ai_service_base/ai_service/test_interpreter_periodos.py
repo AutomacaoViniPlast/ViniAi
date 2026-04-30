@@ -14,6 +14,8 @@ def main() -> int:
     cases = [
         ("Quais meses voce tem dados de producao?", "periodos_disponiveis", "producao"),
         ("Quais meses voce tem dados de qualidade?", "periodos_disponiveis", "qualidade"),
+        ("Quais meses voce tem dados de revisao?", "periodos_disponiveis", "revisao"),
+        ("Quais periodos disponiveis de revisão?", "periodos_disponiveis", "revisao"),
         ("Quais meses voce tem dados?", "periodos_disponiveis", None),
     ]
 

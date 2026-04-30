@@ -91,6 +91,33 @@ class SQLServiceApontRev:
             })
         return result
 
+    def get_periodos_disponiveis(self) -> list[dict]:
+        """
+        Retorna os períodos (ano/mês) com dados em V_APONT_REV_GERAL.
+
+        Retorna lista de dicts com: ano, mes, registros
+        """
+        sql = """
+            SELECT
+                YEAR(CAST(DATAAPONT AS DATE))  AS ano,
+                MONTH(CAST(DATAAPONT AS DATE)) AS mes,
+                COUNT(*)                       AS registros
+            FROM V_APONT_REV_GERAL
+            WHERE DATAAPONT IS NOT NULL
+              AND LTRIM(RTRIM(OPER_BOB)) != ''
+            GROUP BY
+                YEAR(CAST(DATAAPONT AS DATE)),
+                MONTH(CAST(DATAAPONT AS DATE))
+            ORDER BY ano, mes
+        """
+        with get_mssql_conn() as conn:
+            rows = conn.execute(sql).fetchall()
+
+        return [
+            {"ano": int(row[0]), "mes": int(row[1]), "registros": int(row[2])}
+            for row in rows
+        ]
+
     def get_revisao_por_operador(
         self,
         operador: str,

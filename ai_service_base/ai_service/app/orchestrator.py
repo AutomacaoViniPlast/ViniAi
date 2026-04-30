@@ -784,7 +784,8 @@ class ChatOrchestrator:
         if ir.intent == "periodos_disponiveis":
             periodos_sh6 = self.sql.get_periodos_disponiveis(recursos=recursos)
             periodos_kardex = self.kardex.get_periodos_disponiveis()
-            if not periodos_sh6 and not periodos_kardex:
+            periodos_revisao = self.apont_rev.get_periodos_disponiveis()
+            if not periodos_sh6 and not periodos_kardex and not periodos_revisao:
                 return "🔍 Não encontrei períodos disponíveis nas bases consultadas."
 
             if ir.metric == "producao":
@@ -802,16 +803,25 @@ class ChatOrchestrator:
                     return "🔍 Não encontrei períodos disponíveis para qualidade na base KARDEX."
                 ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
                 return (
-                    "🗓️ **Tenho estes períodos disponíveis para qualidade / revisão (KARDEX):**\n\n"
+                    "🗓️ **Tenho estes períodos disponíveis para qualidade (KARDEX):**\n\n"
                     f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
                     f"{_fmt_periodos_disponiveis(periodos_kardex)}"
                 )
 
-            ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
-            ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
+            if ir.metric == "revisao":
+                if not periodos_revisao:
+                    return "🔍 Não encontrei períodos disponíveis para revisão na base V_APONT_REV_GERAL."
+                ini_rev, fim_rev = _extremos_periodos(periodos_revisao)
+                return (
+                    "🗓️ **Tenho estes períodos disponíveis para revisão (V_APONT_REV_GERAL):**\n\n"
+                    f"Cobertura: **{ini_rev}** até **{fim_rev}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_revisao)}"
+                )
+
             partes = ["🗓️ **Tenho estes períodos disponíveis nas bases que eu consulto:**"]
 
             if periodos_sh6:
+                ini_sh6, fim_sh6 = _extremos_periodos(periodos_sh6)
                 partes.append(
                     "### Extrusora / Produção (SH6)\n"
                     f"Cobertura: **{ini_sh6}** até **{fim_sh6}**\n\n"
@@ -819,15 +829,24 @@ class ChatOrchestrator:
                 )
 
             if periodos_kardex:
+                ini_kx, fim_kx = _extremos_periodos(periodos_kardex)
                 partes.append(
-                    "### Qualidade / Revisão (KARDEX)\n"
+                    "### Qualidade (KARDEX)\n"
                     f"Cobertura: **{ini_kx}** até **{fim_kx}**\n\n"
                     f"{_fmt_periodos_disponiveis(periodos_kardex)}"
                 )
 
+            if periodos_revisao:
+                ini_rev, fim_rev = _extremos_periodos(periodos_revisao)
+                partes.append(
+                    "### Revisão (V_APONT_REV_GERAL)\n"
+                    f"Cobertura: **{ini_rev}** até **{fim_rev}**\n\n"
+                    f"{_fmt_periodos_disponiveis(periodos_revisao)}"
+                )
+
             partes.append(
                 "Se você quiser, eu também posso te responder isso focando só em "
-                "**produção**, **qualidade**, **LD** ou **extrusora**."
+                "**produção**, **qualidade**, **revisão**, **LD** ou **extrusora**."
             )
             return "\n\n".join(partes)
 

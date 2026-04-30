@@ -753,6 +753,8 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    _REVISAO = re.compile(r"revis[aã]o", re.IGNORECASE)
+
     # Horas trabalhadas
     _HORAS = re.compile(
         r"horas?\s+trabalhadas?|total\s+de\s+horas?|quantas?\s+horas?|"
@@ -934,6 +936,8 @@ class RuleBasedInterpreter:
             metric = None
             if self._LD.search(low) or "qualidade" in low:
                 metric = "qualidade"
+            elif self._REVISAO.search(low):
+                metric = "revisao"
             elif self._PRODUCAO.search(low) or self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low):
                 metric = "producao"
             return InterpretationResult(
