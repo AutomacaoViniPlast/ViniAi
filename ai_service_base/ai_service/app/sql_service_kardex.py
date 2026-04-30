@@ -955,6 +955,12 @@ class SQLServiceKardex:
         loc_sql, loc_p = _local_op_clause()
         ori_sql, ori_p = _origem_clause(origem)
 
+        # PENDÊNCIA: validar se os códigos abaixo devem ser incluídos futuramente.
+        # Por ora excluídos pois representam movimentações auxiliares, não produção real:
+        #   MSP003 = AMARRADO, MSP004 = A PICOTAR, MSP006 = BORRA, MTL015 = TECIDO 1100 2X2
+        _excluidos = ("MSP003", "MSP004", "MSP006", "MTL015")
+        _excl_ph   = ", ".join(["?"] * len(_excluidos))
+
         query = f"""
             SELECT TOP {limite}
                 LTRIM(RTRIM(PRODUTO))        AS produto,
@@ -965,13 +971,14 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND UPPER(LTRIM(RTRIM(UM))) = 'KG'
+              AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT IN ({_excl_ph})
               {fil_sql}
               {loc_sql}
               {ori_sql}
             GROUP BY LTRIM(RTRIM(PRODUTO))
             ORDER BY total_kg DESC
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + ori_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + list(_excluidos) + fil_p + loc_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
