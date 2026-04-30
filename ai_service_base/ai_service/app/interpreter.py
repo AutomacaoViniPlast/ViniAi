@@ -911,6 +911,7 @@ class RuleBasedInterpreter:
     # Períodos disponíveis no banco
     _PERIODOS = re.compile(
         r"quais?\s+m[eê]ses?|quais?\s+anos?|per[ií]odos?\s+dispon[ií]veis?|"
+        r"quais?\s+per[ií]odos?|que\s+per[ií]odos?|"
         r"desde\s+quando|at[eé]\s+quando|qual\s+(?:o\s+)?per[ií]odo|"
         r"quais?\s+dados?\s+(?:tem|tenho|temos|dispon[ií]veis?)|"
         r"de\s+quando\s+[aà]\s+quando|quais\s+datas|"

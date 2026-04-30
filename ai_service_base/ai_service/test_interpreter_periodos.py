@@ -17,6 +17,8 @@ def main() -> int:
         ("Quais meses voce tem dados de revisao?", "periodos_disponiveis", "revisao"),
         ("Quais periodos disponiveis de revisão?", "periodos_disponiveis", "revisao"),
         ("Quais meses voce tem dados?", "periodos_disponiveis", None),
+        ("Quais periodos voce tem dados", "periodos_disponiveis", None),
+        ("Que periodos voce tem?", "periodos_disponiveis", None),
     ]
 
     failed = False
