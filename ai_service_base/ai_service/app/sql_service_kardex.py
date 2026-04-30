@@ -448,6 +448,9 @@ class SQLServiceKardex:
         """
         Soma de QUANTIDADE para QUALIDADE='Y' (LD) por UM.
         PENDENTE: confirmar se registros de LD podem ter UM=MT na prática.
+        PENDÊNCIA (Bug 13): raul.ribeiro pode não aparecer quando o campo USUARIO
+        usa formato diferente (ex: "RAUL" sem sobrenome). Investigar normalização
+        do campo USUARIO na V_KARDEX antes de corrigir.
         """
         fil_sql, fil_p = _filial_clause(filial)
         ori_sql, ori_p = _origem_clause(origem)

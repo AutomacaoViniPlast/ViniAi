@@ -291,7 +291,16 @@ class ChatOrchestrator:
                     f"'{inherited[2]}' herdado do histórico (conf={ir.confidence:.2f})."
                 )
 
-        # ── 4c. Conversação natural → LLM ────────────────────────────────────
+        # ── 4c. Expedição — resposta fixa (funcionalidade não implementada) ────
+        if ir.intent == "expedicao_nao_implementada":
+            answer = (
+                "Ainda não desenvolvemos nenhuma função que aborde a Expedição. "
+                "Entre em contato com o departamento de Tecnologia e Inovação."
+            )
+            self.context.append_assistant_message(payload.session_id, answer)
+            return self._ok(answer, ir)
+
+        # ── 4d. Conversação natural → LLM ────────────────────────────────────
         if ir.route in ("smalltalk", "clarify"):
             user_context = {"name": user_name, "setor": user_setor, "cargo": user_cargo}
             print(f"[{self.agent_name}] user_context recebido: {user_context}")
@@ -307,7 +316,7 @@ class ChatOrchestrator:
             resp.debug["user_context_received"] = user_context
             return resp
 
-        # ── 4d. Auto-inject: quando intent é de operador mas nenhum foi ───────
+        # ── 4e. Auto-inject: quando intent é de operador mas nenhum foi ───────
         #        extraído do texto, usa o próprio usuário autenticado.
         #        Só injeta se o setor do usuário bate com o intent.
         if (
@@ -725,6 +734,8 @@ class ChatOrchestrator:
             )
 
         # ── Produção por turno (KARDEX) ──────────────────────────────────────────
+        # PENDÊNCIA: alguns turnos retornam valores negativos no KARDEX. Investigar
+        # origem dos registros com QTDPROD negativo antes de exibir ao usuário.
         if ir.intent == "producao_por_turno":
             rows = self.kardex.get_producao_por_turno(ini, fim, recursos=recursos)
             if not rows:

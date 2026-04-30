@@ -70,6 +70,11 @@ _RE_DATA_DIA_MES_NOME_ENDPOINT = re.compile(
     re.IGNORECASE,
 )  # usado em endpoints de intervalo: "1 de abril ate 3 de abril"
 _RE_DATA_DIA_SO = re.compile(r"\b(?:no\s+dia|dia)\s+(\d{1,2})(?!\s*/|\s+de\s+)", re.IGNORECASE)
+# "dia 20 do mes passado" / "dia 5 do mes anterior" — extrai dia num mês relativo
+_RE_DATA_DIA_MES_RELATIVO = re.compile(
+    r"\b(?:no\s+dia|dia)\s+(\d{1,2})\s+do\s+m[eê]s\s+(?:passado|anterior)",
+    re.IGNORECASE,
+)
 _RE_TOP_N           = re.compile(r"\btop\s*(\d+)\b", re.IGNORECASE)
 _RE_OPERATOR  = re.compile(r"\b([a-záéíóúâêîôûãõç]+\.[a-záéíóúâêîôûãõç]+)\b", re.IGNORECASE)
 _RE_PRODUTO   = re.compile(r"\b(TD2[A-Z0-9]{2,})\b", re.IGNORECASE)
@@ -195,6 +200,16 @@ def _parse_endpoint(text: str, as_start: bool) -> str | None:
             d = date(ano, mes, dia)
             return d.strftime("%d/%m/%Y")
         except (KeyError, ValueError):
+            pass
+
+    # "dia 20 do mes passado" — antes do DIA_SO genérico
+    m_dia_mes_rel = _RE_DATA_DIA_MES_RELATIVO.search(s)
+    if m_dia_mes_rel:
+        primeiro = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        try:
+            d = date(primeiro.year, primeiro.month, int(m_dia_mes_rel.group(1)))
+            return d.strftime("%d/%m/%Y")
+        except ValueError:
             pass
 
     m_dia_so = _RE_DATA_DIA_SO.search(s)
@@ -452,6 +467,17 @@ def _periodo_from_text(text: str) -> tuple[str | None, str | None, str | None]:
         except (KeyError, ValueError):
             pass
 
+    # "dia 20 do mes passado" / "dia 5 do mes anterior" — antes do DIA_SO genérico
+    m_dia_mes_rel = _RE_DATA_DIA_MES_RELATIVO.search(text)
+    if m_dia_mes_rel:
+        primeiro = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        try:
+            d = date(primeiro.year, primeiro.month, int(m_dia_mes_rel.group(1)))
+            ds = d.strftime("%d/%m/%Y")
+            return ds, ds, f"dia {ds}"
+        except ValueError:
+            pass
+
     # "dia 1" / "no dia 1" (sem mes explicito -> mes atual)
     m_dia_so = _RE_DATA_DIA_SO.search(text)
     if m_dia_so:
@@ -637,7 +663,9 @@ class RuleBasedInterpreter:
         # "qual usuário/operador/pessoa que mais" — sem exigir "quem"
         r"usu[aá]rio\s+(?:que\s+)?(?:mais|com\s+mais)|"
         r"operador\s+(?:que\s+)?(?:mais|com\s+mais)|"
-        r"pessoa\s+(?:que\s+)?(?:mais|com\s+mais)",
+        r"pessoa\s+(?:que\s+)?(?:mais|com\s+mais)|"
+        # "por operador" — "produção por operador", "KGH por operador"
+        r"por\s+operador|individual(?:mente)?",
         re.IGNORECASE,
     )
 
@@ -660,7 +688,8 @@ class RuleBasedInterpreter:
     )
 
     _DIA_A_DIA = re.compile(
-        r"dia\s+a\s+dia|cada\s+dia|por\s+dia",
+        r"dia\s+a\s+dia|cada\s+dia|por\s+dia|diariamente|di[aá]rio|"
+        r"m[eê]s\s+a\s+m[eê]s",
         re.IGNORECASE,
     )
 
@@ -682,6 +711,7 @@ class RuleBasedInterpreter:
     # Extrusora / recurso específico
     _EXTRUSORA = re.compile(
         r"extrusora\s*([12])|mac\s*([12])|m[aá]quina\s*([12])|"
+        r"max\s*([12])|"  # typo comum de MAC
         r"\b0003\b|\b0007\b",
         re.IGNORECASE,
     )
@@ -714,7 +744,10 @@ class RuleBasedInterpreter:
         r"produtividade\s+(?:da\s+)?revis[aã]o|"
         r"total\s+revisado|quanto\s+(?:foi\s+)?revisado|"
         r"produ[cç][aã]o\s+da\s+revis[aã]o|volume\s+(?:de\s+)?revis[aã]o|"
-        r"kg\s+revisados?|kg\s+(?:da\s+)?revis[aã]o",
+        r"kg\s+revisados?|kg\s+(?:da\s+)?revis[aã]o|"
+        r"metros?\s+revisados?|mais\s+metros?\s+(?:na\s+)?revis[aã]o|"
+        r"metros?\s+(?:na\s+|de\s+|da\s+)?revis[aã]o|revis[aã]o\s+(?:em\s+)?metros?|"
+        r"mais\s+revisou|mais\s+revis[aã]o|quem\s+mais\s+revis",
         re.IGNORECASE,
     )
 
@@ -792,6 +825,9 @@ class RuleBasedInterpreter:
     # Conversa natural — perguntas e comentários que devem ir ao LLM
     _SMALLTALK_LONGA = re.compile(
         r"(como\s+voc[eê]\s+est[aá]|como\s+vai\s+voc[eê]|"
+        r"quem\s+[eé]\s+voc[eê]|como\s+voc[eê]\s+se\s+chama|qual\s+(?:[eé]\s+)?seu\s+nome|"
+        r"quem\s+sou\s+eu|qual\s+(?:[eé]\s+)?meu\s+(?:nome|setor|cargo)|"
+        r"com\s+quem\s+estou\s+(?:falando|conversando)|"
         r"o\s+que\s+[eé]\s+ld|me\s+conta\s+sobre|"
         r"me\s+explica|conta\s+pra\s+mim|"
         r"quero\s+entender|n[aã]o\s+entendi|"
@@ -962,7 +998,10 @@ class RuleBasedInterpreter:
             )
 
         # ── 5. Listar operadores de um setor ──────────────────────────────────
-        if self._OPERADOR.search(low) and (self._LISTA.search(low) or self._QUEM.search(low)):
+        if (self._OPERADOR.search(low)
+                and (self._LISTA.search(low) or self._QUEM.search(low))
+                and not self._LD.search(low)
+                and not self._RANKING.search(low)):
             return InterpretationResult(
                 intent="list_operadores_revisao", route="sql",
                 metric="operadores_revisao",
@@ -1062,7 +1101,42 @@ class RuleBasedInterpreter:
                 reasoning="Ranking de produtividade da revisão (STG_APONT_REV_GERAL).",
             )
 
-        # ── 10b. Comparativo entre extrusoras ────────────────────────────────
+        # ── 10b. Metros por minuto ────────────────────────────────────────────
+        # Antes do comparativo — evita que "m/min da extrusora 2" caia em comparativo_extrusoras
+        if self._METROS_MIN.search(low):
+            return InterpretationResult(
+                intent="metros_por_minuto", route="sql",
+                metric="metros_por_minuto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de metros por minuto.",
+            )
+
+        # ── 10c. KGH — KG por hora ────────────────────────────────────────────
+        # Antes do comparativo — evita que "KGH da extrusora 1" caia em comparativo_extrusoras
+        if self._KGH.search(low):
+            return InterpretationResult(
+                intent="kgh", route="sql",
+                metric="kgh",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.95,
+                reasoning="Consulta de KG por hora.",
+            )
+
+        # ── 10d. Horas trabalhadas ────────────────────────────────────────────
+        if self._HORAS.search(low):
+            return InterpretationResult(
+                intent="horas_trabalhadas", route="sql",
+                metric="horas_trabalhadas",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.93,
+                reasoning="Consulta de horas trabalhadas por extrusora.",
+            )
+
+        # ── 10e. Comparativo entre extrusoras ────────────────────────────────
         if self._COMPARATIVO.search(low) or (
             self._PRODUCAO.search(low)
             and (self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low))
@@ -1081,39 +1155,6 @@ class RuleBasedInterpreter:
                 recursos=comp_recursos,
                 confidence=0.92,
                 reasoning="Comparativo de produção entre extrusoras.",
-            )
-
-        # ── 10c. Horas trabalhadas ────────────────────────────────────────────
-        if self._HORAS.search(low):
-            return InterpretationResult(
-                intent="horas_trabalhadas", route="sql",
-                metric="horas_trabalhadas",
-                data_inicio=ini, data_fim=fim, period_text=lbl,
-                recursos=recursos,
-                confidence=0.93,
-                reasoning="Consulta de horas trabalhadas por extrusora.",
-            )
-
-        # ── 11a. Metros por minuto ────────────────────────────────────────────
-        if self._METROS_MIN.search(low):
-            return InterpretationResult(
-                intent="metros_por_minuto", route="sql",
-                metric="metros_por_minuto",
-                data_inicio=ini, data_fim=fim, period_text=lbl,
-                recursos=recursos,
-                confidence=0.95,
-                reasoning="Consulta de metros por minuto.",
-            )
-
-        # ── 11b. KGH — KG por hora ────────────────────────────────────────────
-        if self._KGH.search(low):
-            return InterpretationResult(
-                intent="kgh", route="sql",
-                metric="kgh",
-                data_inicio=ini, data_fim=fim, period_text=lbl,
-                recursos=recursos,
-                confidence=0.95,
-                reasoning="Consulta de KG por hora.",
             )
 
         # ── 11. Ranking de PRODUÇÃO com quem/qual/top ─────────────────────────
@@ -1167,15 +1208,16 @@ class RuleBasedInterpreter:
                 reasoning="Produção agrupada por turno.",
             )
 
-        # ── 15. Total geral da fábrica ────────────────────────────────────────
-        if self._PRODUCAO.search(low) and self._DIA_A_DIA.search(low) and data_inicio and data_fim:
+        # ── 15. Produção dia a dia ────────────────────────────────────────────
+        # Sem exigir _PRODUCAO — "total de cada dia", "mês a mês" também ativam
+        if self._DIA_A_DIA.search(low):
             return InterpretationResult(
                 intent="producao_por_dia", route="sql",
                 metric="producao_total", entity_type="dia",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem, recursos=recursos,
                 confidence=0.91,
-                reasoning="Producao dia a dia em intervalo.",
+                reasoning="Producao dia a dia.",
             )
 
         if self._TOTAL.search(low) and not operador:
@@ -1200,16 +1242,12 @@ class RuleBasedInterpreter:
                 reasoning="Produção do próprio usuário autenticado (primeira pessoa).",
             )
 
-        # ── 17. Expedição por operador ou período ─────────────────────────────
+        # ── 17. Expedição — não implementada ─────────────────────────────────
         if self._EXPEDICAO.search(low):
             return InterpretationResult(
-                intent="producao_por_operador", route="sql",
-                metric="producao_total", entity_type="operador",
-                entity_value=operador,
-                data_inicio=ini, data_fim=fim, period_text=lbl,
-                setor="expedicao", origem=origem, recursos=recursos,
-                confidence=0.83,
-                reasoning="Consulta de expedição.",
+                intent="expedicao_nao_implementada", route="smalltalk",
+                confidence=0.90,
+                reasoning="Consulta de expedição — funcionalidade ainda não disponível.",
             )
 
         # ── 18. Produção por operador específico ──────────────────────────────
@@ -1291,11 +1329,11 @@ class RuleBasedInterpreter:
         Retorna lista de códigos ou None (padrão = ambas extrusoras no service).
         """
         low = text.lower()
-        # Extrusora 1 / MAC1 / Máquina 1
-        if re.search(r"extrusora\s*1|mac\s*1|m[aá]quina\s*1|\b0003\b", low):
+        # Extrusora 1 / MAC1 / Máquina 1 / MAX1 (typo)
+        if re.search(r"extrusora\s*1|mac\s*1|m[aá]quina\s*1|max\s*1|\b0003\b", low):
             return ["0003"]
-        # Extrusora 2 / MAC2 / Máquina 2
-        if re.search(r"extrusora\s*2|mac\s*2|m[aá]quina\s*2|\b0007\b", low):
+        # Extrusora 2 / MAC2 / Máquina 2 / MAX2 (typo)
+        if re.search(r"extrusora\s*2|mac\s*2|m[aá]quina\s*2|max\s*2|\b0007\b", low):
             return ["0007"]
         # Revisão explícita (recursos de revisão)
         if re.search(r"revis[aã]o", low) and not re.search(r"produ[cç][aã]o|extrusora", low):
