@@ -977,6 +977,40 @@ class ChatOrchestrator:
             )
             return header + linhas
 
+        # ── Produção agrupada por produto (todos, sem filtro qualidade) ──────────
+        if ir.intent == "producao_agrupada_por_produto":
+            top_n = ir.top_n or 20
+            rows = self.kardex.get_producao_por_produto(
+                ini, fim, limite=top_n, origem=ir.origem,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de produção por produto encontrado{periodo}."
+            header = f"📦 **Produção por produto**{periodo}\n\n"
+            header += "| # | Produto | Descrição | Total KG | Registros |\n|---|---------|-----------|----------|----------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['produto']} | {r['descricao'] or '-'} "
+                f"| **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            return header + linhas
+
+        # ── Produção agrupada por família de produto ──────────────────────────────
+        if ir.intent == "producao_por_familia":
+            top_n = ir.top_n or 10
+            rows = self.kardex.get_producao_por_familia(
+                ini, fim, limite=top_n, origem=ir.origem,
+            )
+            if not rows:
+                return f"🔍 Nenhum dado de produção por família encontrado{periodo}."
+            header = f"🏷️ **Produção por família de produto**{periodo}\n\n"
+            header += "| # | Família | Total KG | Registros |\n|---|---------|----------|----------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['familia']} "
+                f"| **{_fmt_kg(r['total_kg'])}** | {r['registros']} |"
+                for r in rows
+            )
+            return header + linhas
+
         return "Solicitação recebida, mas ainda não há tratativa para este tipo de consulta."
 
     # ── Comparação entre dois períodos ───────────────────────────────────────

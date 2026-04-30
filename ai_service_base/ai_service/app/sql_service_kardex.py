@@ -938,6 +938,102 @@ class SQLServiceKardex:
                     resultado[qualidade]["MT"] = Decimal(str(row[2]))
             return resultado
 
+    # ── Produção agrupada por produto (todos, sem filtro qualidade) ─────────
+    def get_producao_por_produto(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        limite: int = 20,
+        filial: str | None = None,
+        origem: str | None = None,
+    ) -> list[dict]:
+        """
+        Soma QUANTIDADE (UM=KG) agrupada por PRODUTO, sem filtro de qualidade.
+        Retorna todos os produtos ordenados por total desc.
+        """
+        fil_sql, fil_p = _filial_clause(filial)
+        loc_sql, loc_p = _local_op_clause()
+        ori_sql, ori_p = _origem_clause(origem)
+
+        query = f"""
+            SELECT TOP {limite}
+                LTRIM(RTRIM(PRODUTO))        AS produto,
+                MAX(LTRIM(RTRIM(DESCRICAO))) AS descricao,
+                MAX(LTRIM(RTRIM(FAMILIA)))   AS familia,
+                SUM(QUANTIDADE)              AS total_kg,
+                COUNT(*)                     AS registros
+            FROM dbo.V_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND UPPER(LTRIM(RTRIM(UM))) = 'KG'
+              {fil_sql}
+              {loc_sql}
+              {ori_sql}
+            GROUP BY LTRIM(RTRIM(PRODUTO))
+            ORDER BY total_kg DESC
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + ori_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {
+                    "posicao":    i + 1,
+                    "produto":    r[0] or "",
+                    "descricao":  r[1] or "",
+                    "familia":    r[2] or "",
+                    "total_kg":   float(r[3]) if r[3] else 0.0,
+                    "registros":  int(r[4]),
+                }
+                for i, r in enumerate(cur.fetchall())
+            ]
+
+    # ── Produção agrupada por família (3 primeiros chars do produto) ─────────
+    def get_producao_por_familia(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        limite: int = 10,
+        filial: str | None = None,
+        origem: str | None = None,
+    ) -> list[dict]:
+        """
+        Soma QUANTIDADE (UM=KG) agrupada por FAMILIA (3 primeiros chars de PRODUTO).
+        Retorna top N famílias ordenadas por total desc.
+        """
+        fil_sql, fil_p = _filial_clause(filial)
+        loc_sql, loc_p = _local_op_clause()
+        ori_sql, ori_p = _origem_clause(origem)
+
+        query = f"""
+            SELECT TOP {limite}
+                UPPER(LTRIM(RTRIM(FAMILIA))) AS familia,
+                SUM(QUANTIDADE)              AS total_kg,
+                COUNT(*)                     AS registros
+            FROM dbo.V_KARDEX
+            WHERE EMISSAO BETWEEN ? AND ?
+              AND UPPER(LTRIM(RTRIM(UM))) = 'KG'
+              AND LTRIM(RTRIM(FAMILIA)) IS NOT NULL
+              AND LTRIM(RTRIM(FAMILIA)) <> ''
+              {fil_sql}
+              {loc_sql}
+              {ori_sql}
+            GROUP BY UPPER(LTRIM(RTRIM(FAMILIA)))
+            ORDER BY total_kg DESC
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + loc_p + ori_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            return [
+                {
+                    "posicao":   i + 1,
+                    "familia":   r[0] or "",
+                    "total_kg":  float(r[1]) if r[1] else 0.0,
+                    "registros": int(r[2]),
+                }
+                for i, r in enumerate(cur.fetchall())
+            ]
+
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
     def get_periodos_disponiveis(
         self,

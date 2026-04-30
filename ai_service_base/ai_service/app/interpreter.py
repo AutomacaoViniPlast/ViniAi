@@ -94,7 +94,8 @@ _RE_MES_PASS     = re.compile(r"m[eê]s\s+passado|m[eê]s\s+anterior", re.IGNORE
 _RE_MES_ATUAL    = re.compile(
     r"este\s+m[eê]s|m[eê]s\s+atual|nesse\s+m[eê]s|neste\s+m[eê]s|"
     r"desse\s+m[eê]s|deste\s+m[eê]s|esse\s+m[eê]s|m[eê]s\s+corrente|"
-    r"no\s+m[eê]s\s+atual",
+    r"no\s+m[eê]s\s+atual|"
+    r"do\s+m[eê]s(?!\s+(?:passado|anterior))",  # "do mes" sem qualificador = mês atual
     re.IGNORECASE,
 )
 _RE_ANO_PASS     = re.compile(r"ano\s+passado|ano\s+anterior", re.IGNORECASE)
@@ -717,8 +718,9 @@ class RuleBasedInterpreter:
     )
 
     # Referência genérica às máquinas de extrusão, mesmo sem número explícito
+    # Inclui typos: "extrusara" (a↔o trocados), "extrusoras"
     _EXTRUSORA_REFERENCIA = re.compile(
-        r"\bextrusora(?:s)?\b|\bmacs?\b|\bm[aá]quinas?\b",
+        r"\bextrus[oa]r[ao]s?\b|\bmacs?\b|\bm[aá]quinas?\b",
         re.IGNORECASE,
     )
 
@@ -852,6 +854,23 @@ class RuleBasedInterpreter:
         r"me\s+d[aá]\s+uma\s+ideia|me\s+orienta|me\s+indica|"
         r"como\s+eu\s+fa[cç]o\s+para|o\s+que\s+eu\s+devo\s+perguntar|"
         r"como\s+eu\s+consulto|como\s+posso\s+ver|como\s+vejo)",
+        re.IGNORECASE,
+    )
+
+    # Produção agrupada por produto (todos os produtos, sem filtro qualidade)
+    _AGRUP_PRODUTO = re.compile(
+        r"por\s+produto|total\s+por\s+produto|agrupado\s+(?:por\s+)?produto|"
+        r"separad[ao]\s+(?:por\s+)?produto|desempenho\s+por\s+produto|"
+        r"cada\s+produto|produto\s+(?:a\s+)?produto|"
+        r"total\s+(?:de\s+)?cada\s+produto|quanto\s+(?:de\s+)?cada\s+produto",
+        re.IGNORECASE,
+    )
+
+    # Produção por família (3 primeiros chars do código do produto)
+    _FAMILIA_PRODUTO = re.compile(
+        r"fam[ií]lia\s+(?:de\s+)?produto|por\s+fam[ií]lia|total\s+por\s+fam[ií]lia|"
+        r"agrupado\s+(?:por\s+)?fam[ií]lia|cada\s+fam[ií]lia|"
+        r"fam[ií]lia\s+de\s+produ[cç][aã]o",
         re.IGNORECASE,
     )
 
@@ -1137,10 +1156,11 @@ class RuleBasedInterpreter:
             )
 
         # ── 10e. Comparativo entre extrusoras ────────────────────────────────
+        # Guard _OPERADOR: "qual operador mais produziu nas extrusoras" → ranking, não comparativo
         if self._COMPARATIVO.search(low) or (
             self._PRODUCAO.search(low)
             and (self._EXTRUSORA.search(low) or self._EXTRUSORA_REFERENCIA.search(low))
-            and not self._QUEM.search(low) and not self._RANKING.search(low)
+            and not self._QUEM.search(low) and not self._OPERADOR.search(low)
             and not operador
         ):
             # Quando há palavra de comparação explícita (ex: "MAC1 e 2", "MAC1 vs MAC2"),
@@ -1182,6 +1202,30 @@ class RuleBasedInterpreter:
                 setor=setor, origem=origem, recursos=recursos,
                 confidence=0.82,
                 reasoning="Ranking geral de produção.",
+            )
+
+        # ── 12.5. Produção agrupada por família de produto (top N) ───────────
+        if self._FAMILIA_PRODUTO.search(low):
+            return InterpretationResult(
+                intent="producao_por_familia", route="sql",
+                metric="producao_total", entity_type="familia",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                top_n=top_n or 10,
+                origem=origem,
+                confidence=0.91,
+                reasoning="Produção agrupada por família de produto (3 primeiros chars).",
+            )
+
+        # ── 12.6. Produção agrupada por produto (todos, sem filtro qualidade) ─
+        if self._AGRUP_PRODUTO.search(low):
+            return InterpretationResult(
+                intent="producao_agrupada_por_produto", route="sql",
+                metric="producao_total", entity_type="produto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                top_n=top_n or 20,
+                origem=origem,
+                confidence=0.90,
+                reasoning="Produção total agrupada por produto (sem filtro qualidade).",
             )
 
         # ── 13. Produção por produto específico ───────────────────────────────
