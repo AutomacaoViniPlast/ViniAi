@@ -1043,28 +1043,18 @@ class SQLServiceKardex:
             ]
 
     # ── Períodos disponíveis no banco ─────────────────────────────────────────
-    def get_periodos_disponiveis(
-        self,
-        filial: str | None = None,
-        filtro_usuarios: list[str] | None = None,
-    ) -> list[dict]:
+    def get_periodos_disponiveis(self) -> list[dict]:
         """Retorna anos e meses com registros agrupados por ano."""
-        fil_sql, fil_p = _filial_clause(filial)
-        incl_sql, incl_p = _incluir_clause(filtro_usuarios)
-
-        query = f"""
-            SELECT YEAR(EMISSAO) AS ano, MONTH(EMISSAO) AS mes, COUNT(*) AS registros
-            FROM dbo.V_KARDEX
+        query = """
+            SELECT YEAR(EMISSAO) AS ano, MONTH(EMISSAO) AS mes
+            FROM dbo.V_KARDEX WITH (NOLOCK)
             WHERE EMISSAO IS NOT NULL
-              {fil_sql}
-              {incl_sql}
             GROUP BY YEAR(EMISSAO), MONTH(EMISSAO)
             ORDER BY ano, mes
         """
-        params = fil_p + incl_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
-            cur.execute(query, params)
+            cur.execute(query)
             anos: dict[int, list[int]] = {}
             for r in cur.fetchall():
                 ano, mes = int(r[0]), int(r[1])
