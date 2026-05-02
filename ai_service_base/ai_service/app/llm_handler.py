@@ -114,6 +114,49 @@ class LLMHandler:
             print(f"[{self._agent_name}] Erro na chamada à API: {exc}")
             return self._fallback(intent)
 
+    def normalize_message(self, text: str) -> str:
+        """
+        Corrige erros de digitação e abreviações informais antes da classificação por regex.
+        Retorna o texto original se o LLM estiver desativado ou ocorrer erro.
+        """
+        if not self._enabled:
+            return text
+
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=200,
+                temperature=0,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você é um normalizador de texto em português. "
+                            "Sua ÚNICA função é corrigir erros de digitação e abreviações informais.\n\n"
+                            "Regras estritas:\n"
+                            "- Corrija erros ortográficos: \"oje\"→\"hoje\", \"onti\"→\"ontem\", "
+                            "\"extruzara\"→\"extrusora\", \"prodçao\"→\"produção\", \"qto\"→\"quanto\"\n"
+                            "- Expanda abreviações de mês quando ambíguas: "
+                            "\"jan\" pode ficar como está (o sistema entende), "
+                            "mas \"fev\" ambíguo → \"fevereiro\"\n"
+                            "- NÃO altere o significado nem a estrutura da frase\n"
+                            "- NÃO adicione, remova ou reordene informações\n"
+                            "- Preserve nomes próprios (pessoas, produtos, códigos) exatamente como estão\n"
+                            "- Retorne SOMENTE o texto corrigido, sem explicações adicionais"
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+            )
+            normalized = response.choices[0].message.content.strip()
+            if normalized != text:
+                print(f"[Normalizer] '{text}' → '{normalized}'")
+            return normalized
+
+        except Exception as exc:
+            print(f"[Normalizer] Erro: {exc} — usando texto original.")
+            return text
+
     # ── Internos ──────────────────────────────────────────────────────────────
 
     @staticmethod

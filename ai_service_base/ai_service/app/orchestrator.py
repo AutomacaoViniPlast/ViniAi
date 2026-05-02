@@ -220,10 +220,13 @@ class ChatOrchestrator:
         user_setor = payload.user_setor or payload.metadata.get("setor")    or payload.metadata.get("user_setor")
         user_cargo = payload.user_cargo or payload.metadata.get("cargo")    or payload.metadata.get("user_cargo")
 
-        # 3. Interpreta a intenção da mensagem
-        ir = self.interpreter.interpret(payload.message)
+        # 3. Normaliza a mensagem (corrige typos/abreviações) antes da classificação por regex
+        normalized_message = self.llm.normalize_message(payload.message)
 
-        # 4. Verifica permissão LGPD
+        # 4. Interpreta a intenção da mensagem normalizada
+        ir = self.interpreter.interpret(normalized_message)
+
+        # 5. Verifica permissão LGPD
         if not verificar_permissao(user_setor, self.agent_id, ir.intent):
             self.context.append_assistant_message(payload.session_id, MENSAGEM_LGPD)
             return self._ok(MENSAGEM_LGPD, ir)
@@ -238,8 +241,8 @@ class ChatOrchestrator:
             return self._ok(answer, ir)
 
         # ── 4b. RAG Conversacional — context carry-over ───────────────────────
-        # Extrai período explícito da mensagem atual (None se não mencionado)
-        msg_ini, msg_fim, msg_lbl = _periodo_from_text(payload.message)
+        # Extrai período explícito da mensagem normalizada (None se não mencionado)
+        msg_ini, msg_fim, msg_lbl = _periodo_from_text(normalized_message)
         periodo_explicito = bool(msg_ini or msg_fim)
 
         # Caso 1: mensagem ambígua com período novo → herda intent do histórico
@@ -254,7 +257,7 @@ class ChatOrchestrator:
         # Ex: "E da MAC2?" após "Produção da MAC1 e 2 ontem?" — sem período, mas menciona recurso
         # Sem este caso, o LLM responde com valor inventado baseado no histórico (alucinação)
         elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
-            recurso_novo = self.interpreter._extract_recurso(payload.message)
+            recurso_novo = self.interpreter._extract_recurso(normalized_message)
             if recurso_novo:
                 followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo, session_id=sid)
                 if followup_ir:
@@ -314,6 +317,7 @@ class ChatOrchestrator:
             requires_clarification = ir.route == "clarify"
             resp = self._ok(answer, ir, requires_clarification=requires_clarification)
             resp.debug["user_context_received"] = user_context
+            resp.debug["normalized_message"] = normalized_message if normalized_message != payload.message else None
             return resp
 
         # ── 4e. Auto-inject: quando intent é de operador mas nenhum foi ───────
@@ -358,11 +362,12 @@ class ChatOrchestrator:
                 "top_n":        ir.top_n,
                 "setor":        ir.setor,
                 "origem":       ir.origem,
-                "history_size":      len(recent),
-                "reasoning":         ir.reasoning,
-                "user_setor":        user_setor,
-                "user_name":         user_name,
-                "periodo_explicito": periodo_explicito,
+                "history_size":       len(recent),
+                "reasoning":          ir.reasoning,
+                "user_setor":         user_setor,
+                "user_name":          user_name,
+                "periodo_explicito":  periodo_explicito,
+                "normalized_message": normalized_message if normalized_message != payload.message else None,
             },
         )
 
