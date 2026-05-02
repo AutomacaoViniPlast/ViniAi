@@ -1,7 +1,7 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 3.3  
-**Última atualização:** Abril/2026  
+**Versão:** 3.4  
+**Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
 ---
@@ -384,13 +384,48 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 "Quanto foi produzido no total?"
 ```
 
+### `producao_agrupada_por_produto` — Produção por produto (v3.4 — novo)
+
+Agrupa total de KG por código de produto (somente bobinas — `LEN(PRODUTO) >= 12`).
+
+```
+"Produção por produto em março"
+"Total separado por produto nesse mês"
+"Quanto cada produto foi produzido?"
+"Desempenho por produto em abril"
+```
+
+### `producao_por_familia` — Produção por família de produto (v3.4 — novo)
+
+Agrupa por família = primeiros 3 caracteres do código do produto. Top 10 por padrão.
+
+```
+"Produção por família esse mês"
+"Quanto cada família de produto foi produzida?"
+"Total por família em 2026"
+```
+
 ### `periodos_disponiveis` — Cobertura temporal
+
+Consulta as 3 bases e exibe seções separadas. Filtro de métrica opcional.
+
 ```
 "Quais meses você tem dados?"
+"Quais períodos você tem dados?"
 "Histórico disponível"
 "Desde quando tem dados?"
 "Até que data tenho informação?"
+"Quais meses de revisão?"       ← exibe só a seção de revisão
+"Quais períodos de produção?"   ← exibe só a seção SH6
+"Quais meses de qualidade?"     ← exibe só a seção KARDEX
 ```
+
+**Fontes consultadas:**
+| Seção | Fonte | Métrica filtrável |
+|-------|-------|------------------|
+| Extrusora / Produção (SH6) | `dbo.STG_PROD_SH6_VPLONAS` | `producao` |
+| Qualidade (KARDEX) | `dbo.V_KARDEX` | `qualidade` |
+| Revisão (V_APONT_REV_GERAL) | `dbo.V_APONT_REV_GERAL` | `revisao` |
 
 ### `list_operadores_revisao` — Lista de operadores
 ```
@@ -407,35 +442,37 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro:
 
 ```
- 1.  tipos_informacao     — "o que a Ayla faz?" / "o que você consegue?" (padrão restrito)
- 2.  periodos_disponiveis — "quais meses tem?"
- 3.  smalltalk (curto)    — saudações ≤ 8 palavras (lista expandida: despedidas, variações)
- 4.  smalltalk (longo)    — conversa natural  ⚠️ com guard: se a mensagem contém
-                            LD / PRODUCAO / EXPEDICAO, deixa cair para SQL rules
+ 1.  tipos_informacao          — "o que a Ayla faz?" / "o que você consegue?" (padrão restrito)
+ 2.  periodos_disponiveis      — "quais meses tem?", "quais períodos?" (3 fontes: SH6, KARDEX, Revisão)
+ 3.  smalltalk (curto)         — saudações ≤ 8 palavras (lista expandida: despedidas, variações)
+ 4.  smalltalk (longo)         — conversa natural  ⚠️ com guard: se a mensagem contém
+                                 LD / PRODUCAO / EXPEDICAO, deixa cair para SQL rules
  ── [extração de entidades: período, operador, produto, setor] ──
- 4.5 comparacao_periodos  — LD/produção/revisão + dois períodos + palavra comparativa (v3.3)
- 4.7 perda_material       — "perda", "descarte", "rejeito", "refugo", "desperdício", LD+BAG (v3.3)
- 5.  list_operadores      — "quais operadores da revisão?"
- 6.  ranking_produtos_ld  — LD + produto + qual/ranking/top
- 7.  ranking_usuarios_ld  — LD + ranking/top/quem/apontou mais/gerou mais/operador que mais (v3.3+)
- 8.  LD próprio           — LD + "meu/minha/eu identifiquei"
- 9.  LD por operador      — LD + ação ou operador explícito (+ unidade_filtro MT se "em metros")
-10.  LD genérico          — LD sem operador → usa autenticado (+ unidade_filtro MT se "em metros")
-10a. ranking_revisao      — "quem mais revisou", "ranking de revisão"
-10b. comparativo_extrusoras — produção + extrusora + comparação
-10c. horas_trabalhadas    — "horas trabalhadas", "tempo de produção"
-11.  metros_por_minuto    — "metros por minuto", "m/min"
-11b. kgh                  — "KGH", "KG por hora"
-12.  ranking prod + quem  — PRODUCAO + quem/ranking/top
-13.  ranking geral        — ranking/top sem LD
-14.  prod por produto     — código de produto + produção
-15.  prod por turno       — palavra "turno"
-15b. producao_por_dia     — produção + "dia a dia" + intervalo
-16.  total fábrica        — "total", "geral", "visão geral"
-17.  prod própria         — PRODUCAO + "meu/minha/eu produzi"
-18.  expedição            — "expedido", "liberado", "enviado"
-19.  prod por operador    — PRODUCAO ou operador explícito
-20.  clarify (fallback)   — nada identificado → LLM explica
+ 4.5 comparacao_periodos       — LD/produção/revisão + dois períodos + palavra comparativa (v3.3)
+ 4.7 perda_material            — "perda", "descarte", "rejeito", "refugo", "desperdício", LD+BAG (v3.3)
+ 5.  list_operadores           — "quais operadores da revisão?" (guard: sem LD, sem ranking)
+ 6.  ranking_produtos_ld       — LD + produto + qual/ranking/top
+ 7.  ranking_usuarios_ld       — LD + ranking/top/quem/apontou mais/gerou mais/operador que mais (v3.3+)
+ 8.  LD próprio                — LD + "meu/minha/eu identifiquei"
+ 9.  LD por operador           — LD + ação ou operador explícito (+ unidade_filtro MT se "em metros")
+10.  LD genérico               — LD sem operador → usa autenticado (+ unidade_filtro MT se "em metros")
+10a. ranking_revisao           — "quem mais revisou", "ranking de revisão", "metros revisados"
+10b. metros_por_minuto         — "metros por minuto", "m/min" (v3.4: antes era 11)
+10c. kgh                       — "KGH", "KG por hora" (v3.4: antes era 11b)
+10d. horas_trabalhadas         — "horas trabalhadas", "tempo de produção" (v3.4: antes era 10c)
+10e. comparativo_extrusoras    — produção + extrusora + comparação (v3.4: guard trocado para sem operador)
+11.  ranking prod + quem       — PRODUCAO + quem/ranking/top/operador
+12.  ranking geral             — ranking/top sem LD
+12.5 producao_por_familia      — "família de produto", "por família" (v3.4 — novo)
+12.6 producao_agrupada_produto — "por produto", "separado por produto" (v3.4 — novo)
+13.  prod por produto          — código de produto + produção
+14.  prod por turno            — palavra "turno"
+15.  producao_por_dia          — "dia a dia", "por dia", "diariamente" (v3.4: sem exigir _PRODUCAO)
+16.  total fábrica             — "total", "geral", "visão geral"
+17.  prod própria              — PRODUCAO + "meu/minha/eu produzi"
+18.  expedição                 — retorna mensagem fixa (não implementado) — sem chamar LLM (v3.4)
+19.  prod por operador         — PRODUCAO ou operador explícito
+20.  clarify (fallback)        — nada identificado → LLM explica
 ```
 
 ### Guard da regra 4 (smalltalk_longa)
@@ -571,9 +608,10 @@ FastAPI (ai_service)
 |-----------|---------|-----------|
 | RAG carry-over usa re-interpretação (não persiste o intent resolvido) | Pode errar em conversas complexas | Média |
 | `_extract_operator` aceita logins desconhecidos sem validação | Pode fazer query sem resultados | Baixa |
-| Sem suporte a "comparação entre períodos" | "Janeiro vs Fevereiro" não funciona | Alta |
 | Período padrão = mês atual (pode surpreender quem quer período amplo) | Query retorna só o mês corrente | Baixa |
 | Period-inherit pode herdar período antigo se usuário mudou de assunto | Poucos casos — confiança < 0.87 mitiga | Baixa |
+| `get_resumo_qualidade`: BAG=0 e Inteiro ~1.400 KG a mais vs Metabase | Divergência em diagnose de qualidade | Alta (pendente investigação) |
+| Produção por turno pode retornar valores negativos | Bug de sign em query de turno | Média (PENDÊNCIA comentada no código) |
 
 ### Corrigido na v3.0
 
@@ -611,6 +649,23 @@ FastAPI (ai_service)
 | Sem suporte a comparação entre dois períodos | Novo intent `comparacao_periodos` via `_try_parse_two_periods()` — variação absoluta e % |
 | `_parse_endpoint` não resolvia semanas como endpoint de comparação | `_RE_SEMANA_PASS` e `_RE_SEMANA_ATUAL` adicionados a `_parse_endpoint` |
 
+### Corrigido na v3.4
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| "KGH da extrusora 2" e "metros/min" caíam em `comparativo_extrusoras` | Cascade reordenado: `metros_min` (10b) → `kgh` (10c) antes de `comparativo_extrusoras` (10e) |
+| "Qual extrusora que mais produziu?" não roteava para `comparativo_extrusoras` | Guard do step 10e trocado: agora bloqueia `not self._OPERADOR` em vez de `not self._RANKING` |
+| "extrusara" (typo) não batia em `_EXTRUSORA_REFERENCIA` | Regex generalizado para `extrus[oa]r[ao]s?` cobrindo transposições de vogal |
+| "dia 20 do mês passado" resolvia como dia 20 do mês atual | Novo `_RE_DATA_DIA_MES_RELATIVO` verificado antes de `_RE_DATA_DIA_SO` |
+| "total do mes" não resolvia para mês atual | `do\s+m[eê]s` adicionado a `_RE_MES_ATUAL` com negative lookahead para "passado/anterior" |
+| "total de cada dia" não roteava para `producao_por_dia` | Remoção do requisito `_PRODUCAO` no step 15 — `_DIA_A_DIA` sozinho é suficiente |
+| Expedição chamava o LLM e retornava resposta genérica | Intent `expedicao_nao_implementada` interceptado antes do LLM com mensagem fixa |
+| Sem consulta de produção agrupada por produto (bobinas) | Novo intent `producao_agrupada_por_produto` + `get_producao_por_produto()` com `LEN(PRODUTO) >= 12` |
+| Sem consulta por família de produto (3 primeiros chars) | Novo intent `producao_por_familia` + `get_producao_por_familia()` com `FAMILIA = LEFT(PRODUTO, 3)` |
+| `periodos_disponiveis` misturava KARDEX (qualidade) e V_APONT_REV_GERAL (revisão) | Separado em 3 seções: SH6, KARDEX e Revisão; novo `get_periodos_disponiveis()` em `sql_service_apont_rev` |
+| "quais periodos voce tem dados" não batia no regex e caía no LLM (que alucinava) | `_PERIODOS` expandido com `quais?\s+per[ií]odos?` e `que\s+per[ií]odos?` |
+| KARDEX sumia nas chamadas repetidas a `periodos_disponiveis` | `WITH (NOLOCK)` adicionado; filtro `FILIAL` removido da query de períodos (scan sem índice em 1.19M linhas causava bloqueio) |
+
 ### Próximos passos sugeridos
 
 1. **Substituição do interpretador por LLM fine-tuned**: o `RuleBasedInterpreter` pode ser substituído por uma chamada estruturada ao Claude/GPT com function calling, mantendo a mesma interface `InterpretationResult`. As regras atuais servem como exemplos de treinamento.
@@ -627,9 +682,11 @@ FastAPI (ai_service)
 
 | Arquivo | Responsabilidade |
 |---------|-----------------|
-| `app/interpreter.py` | Parsing de períodos, regex de intent, 22 regras de classificação |
+| `app/interpreter.py` | Parsing de períodos, regex de intent, 22+ regras de classificação |
 | `app/orchestrator.py` | RAG carry-over, auto-inject de operador, roteamento SQL/LLM |
 | `app/context_manager.py` | Leitura do histórico do banco N8N (somente leitura) |
-| `app/sql_service.py` | Queries SQL — fonte dos dados |
+| `app/sql_service_sh6.py` | Queries SQL — STG_PROD_SH6_VPLONAS (produção, KGH, horas, extrusoras) |
+| `app/sql_service_kardex.py` | Queries SQL — V_KARDEX (qualidade, LD, produto, família, períodos) |
+| `app/sql_service_apont_rev.py` | Queries SQL — V_APONT_REV_GERAL (revisão em metros, ranking revisão) |
 | `app/config.py` | Operadores cadastrados — fonte da verdade |
 | `app/agents.py` | System prompt da Ayla + capabilities |

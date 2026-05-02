@@ -1,7 +1,7 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 3.2  
-**Última atualização:** Abril/2026  
+**Versão:** 3.4  
+**Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
 ---
@@ -110,30 +110,34 @@ ai_service_base/ai_service/
 │   ├── config.py           → setores, operadores e origens (FONTE DA VERDADE)
 │   ├── context_manager.py  → leitura do histórico de conversa no banco N8N (somente leitura)
 │   ├── db.py               → conexões: get_mssql_conn() SQL Server + get_n8n_conn() PostgreSQL N8N
-│   ├── interpreter.py      → classificação de intenção por 19 regras regex + parsing de períodos
-│   ├── llm_handler.py      → integração com ChatGPT (OpenAI API) — injeta data atual no prompt
-│   ├── orchestrator.py     → orquestrador principal: RAG, period-inherit, auto-inject, roteamento
-│   ├── permissions.py      → controle de acesso por departamento + mensagem LGPD formal
-│   ├── schemas.py          → modelos Pydantic (ChatProcessRequest, ChatProcessResponse, etc.)
-│   └── sql_service.py      → queries SQL contra dbo.STG_KARDEX no SQL Server (produção, LD, rankings)
-├── .env                    → variáveis de ambiente (NÃO versionar)
-├── requirements.txt        → dependências Python
-└── test_llm.py             → testes do LLMHandler e do interpretador
+│   ├── interpreter.py           → classificação de intenção por 22+ regras regex + parsing de períodos
+│   ├── llm_handler.py           → integração com ChatGPT (OpenAI API) — injeta data atual no prompt
+│   ├── orchestrator.py          → orquestrador principal: RAG, period-inherit, auto-inject, roteamento
+│   ├── permissions.py           → controle de acesso por departamento + mensagem LGPD formal
+│   ├── schemas.py               → modelos Pydantic (ChatProcessRequest, ChatProcessResponse, etc.)
+│   ├── sql_service_sh6.py       → queries SQL — dbo.STG_PROD_SH6_VPLONAS (produção, KGH, horas)
+│   ├── sql_service_kardex.py    → queries SQL — dbo.V_KARDEX (qualidade, LD, produto, família)
+│   └── sql_service_apont_rev.py → queries SQL — dbo.V_APONT_REV_GERAL (revisão em metros)
+├── .env                         → variáveis de ambiente (NÃO versionar)
+├── requirements.txt             → dependências Python
+└── test_interpreter_*.py        → testes do interpretador por domínio (kardex, sh6, periodos, etc.)
 ```
 
 ### Regra de importações (anti-circular)
 
 ```
-config          → sem dependências internas
-db              → sem dependências internas
-sql_service     → importa db (get_mssql_conn)
-interpreter     → importa config, schemas
-permissions     → sem dependências internas
-agents          → sem dependências internas
-context_manager → importa db (get_n8n_conn), schemas
-llm_handler     → importa schemas
-orchestrator    → importa tudo acima + context_manager + llm_handler
-main            → importa orchestrator, schemas
+config                → sem dependências internas
+db                    → sem dependências internas
+sql_service_sh6       → importa db (get_mssql_conn)
+sql_service_kardex    → importa db (get_mssql_conn)
+sql_service_apont_rev → importa db (get_mssql_conn)
+interpreter           → importa config, schemas
+permissions           → sem dependências internas
+agents                → sem dependências internas
+context_manager       → importa db (get_n8n_conn), schemas
+llm_handler           → importa schemas
+orchestrator          → importa tudo acima + context_manager + llm_handler
+main                  → importa orchestrator, schemas
 ```
 
 ---
@@ -196,11 +200,27 @@ Tabela de movimentação interna da empresa (produção de bobinas). Contém tip
 | LOCAL_OP | varchar(2) | Local de operação |
 | MOT_PERDA / DESC_MOTIVO | varchar | Motivo de perda |
 
-### dbo.STG_APONT_REV_GERAL — apontamentos de revisão geral
+### dbo.V_APONT_REV_GERAL — apontamentos de revisão (view)
 
-**Pendente de mapeamento completo.** Tabela identificada no banco METABASE, provavelmente relacionada a apontamentos do setor de Revisão. Colunas e regras de negócio a serem documentadas após análise direta da tabela.
+View de apontamentos do setor de Revisão. Cada linha representa uma bobina revisada por um operador.
 
-> Atualizar esta seção assim que as colunas forem identificadas.
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| OPER_BOB | varchar | Login do operador de revisão (ex: kaua.chagas) |
+| PRODUTO | varchar | Código do produto; posição 5: I=Inteiro, P=Fora de Padrão, Y=LD |
+| QTDPROD | float | Metros revisados — usado para INTEIRO e FORA DE PADRÃO |
+| QTDPROD2 | float | Metros revisados — usado para LD e demais tipos |
+| DATAAPONT | datetimeoffset | Data/hora do apontamento (fuso -03:00) |
+| MOTPERDA | varchar | Motivo de perda (incluído no total de revisão) |
+
+**Fórmula de metros** (replicada do Metabase):
+```
+METROS = QTDPROD   se SUBSTRING(PRODUTO, 5, 1) IN ('I', 'P')
+       = QTDPROD2  caso contrário
+```
+
+**Filtro de data:** `CAST(DATAAPONT AS DATE) BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)`  
+**Operadores válidos:** filtrar por `LOWER(LTRIM(RTRIM(OPER_BOB)))` — logins definidos em `config.py` (OPERADORES_REVISAO).
 
 ---
 
