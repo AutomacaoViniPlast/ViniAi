@@ -7,6 +7,14 @@ import logoVini from "../image/logoviniai2.png";
 const SETORES = ["PRODUCAO","GERAL"];
 const NIVEIS = ["usuario", "ADMIN"];
 
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return "A senha deve ter pelo menos 8 caracteres.";
+  if (!/[A-Z]/.test(password)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(password)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/\d/.test(password)) return "A senha deve conter pelo menos um número.";
+  return null;
+}
+
 const emptyForm = { nome: "", email: "", password: "", setor: "GERAL", nivel_acesso: "USER" };
 
 const Admin = () => {
@@ -70,9 +78,12 @@ const Admin = () => {
       setFormError("Nome e email são obrigatórios.");
       return;
     }
-    if (modal === "create" && form.password.length < 6) {
-      setFormError("Senha deve ter pelo menos 6 caracteres.");
-      return;
+    if (modal === "create") {
+      const pwError = validatePassword(form.password);
+      if (pwError) { setFormError(pwError); return; }
+    } else if (form.password.length > 0) {
+      const pwError = validatePassword(form.password);
+      if (pwError) { setFormError(pwError); return; }
     }
 
     setSaving(true);
@@ -86,7 +97,7 @@ const Admin = () => {
           setor: form.setor,
           nivel_acesso: form.nivel_acesso,
         };
-        if (form.password.length >= 6) payload.password = form.password;
+        if (form.password.length > 0) payload.password = form.password;
         const updated = await updateUser(editing.id, payload);
         setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
       }

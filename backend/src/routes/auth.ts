@@ -2,9 +2,42 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 import { pool } from "../db";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { sendPasswordResetEmail } from "../services/mailer";
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: "Muitas tentativas de login. Aguarde 15 minutos e tente novamente." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { message: "Muitas tentativas de cadastro. Aguarde 1 hora e tente novamente." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const forgotLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: "Muitas solicitações de redefinição. Aguarde 15 minutos e tente novamente." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return "A senha deve ter pelo menos 8 caracteres.";
+  if (!/[A-Z]/.test(password)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(password)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/\d/.test(password)) return "A senha deve conter pelo menos um número.";
+  return null;
+}
 
 // Garante que a tabela de tokens existe na primeira inicialização
 pool.query(`
@@ -30,7 +63,7 @@ function getJwtSecret(): string {
   return secret;
 }
 
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   try {
     const { nome, email, password, setor } = req.body;
 
@@ -39,6 +72,9 @@ router.post("/register", async (req, res) => {
         message: "Nome, email e senha são obrigatórios",
       });
     }
+
+    const pwError = validatePassword(String(password));
+    if (pwError) return res.status(400).json({ message: pwError });
 
     const emailNormalizado = String(email).trim().toLowerCase();
 
@@ -86,7 +122,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   try {
     console.log("[LOGIN] Requisição recebida");
 
@@ -218,7 +254,7 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", forgotLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -271,9 +307,8 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).json({ message: "Token e nova senha são obrigatórios" });
     }
 
-    if (String(password).length < 6) {
-      return res.status(400).json({ message: "A senha deve ter pelo menos 6 caracteres" });
-    }
+    const pwError = validatePassword(String(password));
+    if (pwError) return res.status(400).json({ message: pwError });
 
     const result = await pool.query(
       `SELECT t.id, t.user_id, t.expires_at, t.used

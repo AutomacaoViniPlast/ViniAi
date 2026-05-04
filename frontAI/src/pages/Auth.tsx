@@ -5,6 +5,14 @@ import logoVini from "../image/logoviniai2.png";
 
 type Mode = "login" | "register" | "forgot_password";
 
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return "A senha deve ter pelo menos 8 caracteres.";
+  if (!/[A-Z]/.test(password)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(password)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/\d/.test(password)) return "A senha deve conter pelo menos um número.";
+  return null;
+}
+
 const Auth = () => {
   const [mode, setMode] = useState<Mode>("login");
   const [nome, setNome] = useState("");
@@ -34,6 +42,13 @@ const Auth = () => {
       if (mode === "register") {
         if (!nome.trim()) {
           setMessage("Por favor, informe seu nome.");
+          setLoading(false);
+          return;
+        }
+
+        const pwError = validatePassword(password);
+        if (pwError) {
+          setMessage(pwError);
           setLoading(false);
           return;
         }

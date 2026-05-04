@@ -4,6 +4,14 @@ import { Eye, EyeOff } from "lucide-react";
 import { resetPassword } from "../services/auth";
 import logoVini from "../image/logoviniai2.png";
 
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return "A senha deve ter pelo menos 8 caracteres.";
+  if (!/[A-Z]/.test(password)) return "A senha deve conter pelo menos uma letra maiúscula.";
+  if (!/[a-z]/.test(password)) return "A senha deve conter pelo menos uma letra minúscula.";
+  if (!/\d/.test(password)) return "A senha deve conter pelo menos um número.";
+  return null;
+}
+
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -27,8 +35,9 @@ const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setMessage("A senha deve ter pelo menos 6 caracteres.");
+    const pwError = validatePassword(password);
+    if (pwError) {
+      setMessage(pwError);
       return;
     }
 

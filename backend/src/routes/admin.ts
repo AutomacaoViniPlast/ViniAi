@@ -78,7 +78,7 @@ router.patch("/users/:id", async (req, res) => {
     if (setor !== undefined) { fields.push(`setor = $${idx++}`); values.push(String(setor)); }
     if (nivel_acesso !== undefined) { fields.push(`nivel_acesso = $${idx++}`); values.push(String(nivel_acesso)); }
     if (ativo !== undefined) { fields.push(`ativo = $${idx++}`); values.push(Boolean(ativo)); }
-    if (password !== undefined && String(password).length >= 6) {
+    if (password !== undefined && String(password).length >= 8) {
       const senha_hash = await bcrypt.hash(String(password), 10);
       fields.push(`senha_hash = $${idx++}`);
       values.push(senha_hash);
