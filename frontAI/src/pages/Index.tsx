@@ -39,6 +39,7 @@ interface Conversation {
 interface UserProfile {
   nome: string;
   setor: string;
+  nivel_acesso?: string;
 }
 
 const Index = () => {
@@ -64,6 +65,7 @@ const Index = () => {
     setUserProfile({
       nome: user?.nome || "Usuário",
       setor: user?.setor || "GERAL",
+      nivel_acesso: user?.nivel_acesso,
     });
 
     async function init() {
