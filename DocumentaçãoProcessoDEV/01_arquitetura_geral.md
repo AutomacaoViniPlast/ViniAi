@@ -117,7 +117,7 @@ ai_service_base/ai_service/
 │   ├── schemas.py               → modelos Pydantic (ChatProcessRequest, ChatProcessResponse, etc.)
 │   ├── sql_service_sh6.py       → queries SQL — dbo.STG_PROD_SH6_VPLONAS (produção, KGH, horas)
 │   ├── sql_service_kardex.py    → queries SQL — dbo.V_KARDEX (qualidade, LD, produto, família)
-│   └── sql_service_apont_rev.py → queries SQL — dbo.V_APONT_REV_GERAL (revisão em metros)
+│   └── sql_service_apont_rev.py → queries SQL — dbo.V_APONT_REV_GERAL (revisão em metros + ranking de produção extrusora)
 ├── .env                         → variáveis de ambiente (NÃO versionar)
 ├── requirements.txt             → dependências Python
 └── test_interpreter_*.py        → testes do interpretador por domínio (kardex, sh6, periodos, etc.)
@@ -200,27 +200,34 @@ Tabela de movimentação interna da empresa (produção de bobinas). Contém tip
 | LOCAL_OP | varchar(2) | Local de operação |
 | MOT_PERDA / DESC_MOTIVO | varchar | Motivo de perda |
 
-### dbo.V_APONT_REV_GERAL — apontamentos de revisão (view)
+### dbo.V_APONT_REV_GERAL — apontamentos de revisão e produção extrusora (view)
 
-View de apontamentos do setor de Revisão. Cada linha representa uma bobina revisada por um operador.
+View usada por dois contextos distintos: revisão de bobinas e ranking de produção da extrusora.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| OPER_BOB | varchar | Login do operador de revisão (ex: kaua.chagas) |
+| OPER_BOB | varchar | Login do operador de **revisão** (ex: kaua.chagas) |
+| OPER_MP | varchar | Login do operador de **extrusora/produção** (ex: aramis.leal) |
 | PRODUTO | varchar | Código do produto; posição 5: I=Inteiro, P=Fora de Padrão, Y=LD |
-| QTDPROD | float | Metros revisados — usado para INTEIRO e FORA DE PADRÃO |
-| QTDPROD2 | float | Metros revisados — usado para LD e demais tipos |
+| QTDPROD | float | Metros — principal para produção extrusora e revisão INTEIRO/FP |
+| QTDPROD2 | float | Metros — usado para revisão LD e demais tipos |
 | DATAAPONT | datetimeoffset | Data/hora do apontamento (fuso -03:00) |
 | MOTPERDA | varchar | Motivo de perda (incluído no total de revisão) |
 
-**Fórmula de metros** (replicada do Metabase):
+**Fórmula de metros — Revisão** (replicada do Metabase, usa CASE por tipo de produto):
 ```
 METROS = QTDPROD   se SUBSTRING(PRODUTO, 5, 1) IN ('I', 'P')
        = QTDPROD2  caso contrário
 ```
 
+**Fórmula de metros — Produção Extrusora** (todos os registros usam QTDPROD):
+```
+METROS = COALESCE(QTDPROD, 0)
+```
+
 **Filtro de data:** `CAST(DATAAPONT AS DATE) BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)`  
-**Operadores válidos:** filtrar por `LOWER(LTRIM(RTRIM(OPER_BOB)))` — logins definidos em `config.py` (OPERADORES_REVISAO).
+**Revisão:** filtrar por `LOWER(LTRIM(RTRIM(OPER_BOB)))` — logins definidos em `config.py` (OPERADORES_REVISAO).  
+**Produção extrusora:** filtrar por `LOWER(LTRIM(RTRIM(OPER_MP)))` — sem whitelist, retorna todos com registro.
 
 ---
 

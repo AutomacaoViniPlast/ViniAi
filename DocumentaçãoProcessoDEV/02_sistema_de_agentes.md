@@ -1,7 +1,7 @@
 # ViniAI — Sistema de Agentes
 
-**Versão:** 1.5  
-**Última atualização:** Abril/2026
+**Versão:** 1.6  
+**Última atualização:** Maio/2026
 
 ---
 
@@ -78,14 +78,12 @@ A Ayla é a assistente de **toda a área de Produção**. Ela atende os seguinte
 
 | Sub-setor | Setor (config.py) | Operadores |
 |-----------|-------------------|-----------|
-| Qualidade/Revisão | `revisao` | raul.araujo, igor.chiva, ezequiel.nunes |
+| Qualidade/Revisão | `revisao` | raul.ribeiro, kaua.chagas, ezequiel.nunes, igor.chiva |
 | Expedição | `expedicao` | john.moraes, rafael.paiva, andre.prado, richard.santos, arilson.aguiar |
-| Extrusora/Produção | `producao` | *(em cadastramento — lista vazia no config.py)* |
+| Extrusora/Produção | `extrusora` | celio.divino, aramis.leal, valdenrique.silva, andreson.reis, ednilson.soares, nobrega.valter, gilmar.santos |
 
-**`OPERADORES_ATIVOS`** (escopo padrão de consultas sem setor explícito):
-`ezequiel.nunes`, `raul.araujo`, `kaua.chagas`, `igor.chiva`
-
-> **Nota:** `kaua.chagas` está em `OPERADORES_ATIVOS` mas ainda não foi adicionado ao setor `producao` em `SETORES`. Para incluí-lo completamente, adicionar `"kaua.chagas"` na lista `operadores` do setor `producao` em `config.py`.
+**`OPERADORES_ATIVOS`** (união de extrusora + revisão — escopo padrão de consultas):
+extrusora + revisão = celio.divino, aramis.leal, valdenrique.silva, andreson.reis, ednilson.soares, nobrega.valter, gilmar.santos, raul.ribeiro, kaua.chagas, ezequiel.nunes, igor.chiva
 
 ### Conversa Natural (v1.4)
 Para mensagens que não são consultas de dados, a Ayla usa o **ChatGPT (gpt-4o-mini)**:

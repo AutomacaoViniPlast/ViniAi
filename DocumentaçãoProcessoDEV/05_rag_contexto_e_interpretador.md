@@ -369,6 +369,9 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 "Quem se destacou na produção?"
 ```
 
+> **Fonte:** `dbo.V_APONT_REV_GERAL` via `get_ranking_producao_extrusora()` — coluna `OPER_MP`, métrica `COALESCE(QTDPROD, 0)` em metros.  
+> **Default top_n:** 50 (sem whitelist de operadores — retorna todos com registro no período).
+
 ### `producao_por_turno` — Por turno
 ```
 "Produção por turno em março"
@@ -687,6 +690,6 @@ FastAPI (ai_service)
 | `app/context_manager.py` | Leitura do histórico do banco N8N (somente leitura) |
 | `app/sql_service_sh6.py` | Queries SQL — STG_PROD_SH6_VPLONAS (produção, KGH, horas, extrusoras) |
 | `app/sql_service_kardex.py` | Queries SQL — V_KARDEX (qualidade, LD, produto, família, períodos) |
-| `app/sql_service_apont_rev.py` | Queries SQL — V_APONT_REV_GERAL (revisão em metros, ranking revisão) |
+| `app/sql_service_apont_rev.py` | Queries SQL — V_APONT_REV_GERAL (revisão em metros via OPER_BOB + ranking produção extrusora via OPER_MP) |
 | `app/config.py` | Operadores cadastrados — fonte da verdade |
 | `app/agents.py` | System prompt da Ayla + capabilities |
