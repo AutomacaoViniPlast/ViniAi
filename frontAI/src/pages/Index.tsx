@@ -18,7 +18,8 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown } from "lucide-react";
+import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -41,6 +42,7 @@ interface UserProfile {
 }
 
 const Index = () => {
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
@@ -713,6 +715,25 @@ const Index = () => {
                 {isDark ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
               </button>
             </div>
+          )}
+
+          {userProfile?.nivel_acesso === "ADMIN" && (
+            <button
+              onClick={() => navigate("/admin")}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
+              style={{ color: C.textMuted }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+                (e.currentTarget as HTMLButtonElement).style.color = C.text;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
+              }}
+            >
+              <ShieldCheck size={16} strokeWidth={1.8} />
+              {!isSidebarCollapsed && <span>Painel Admin</span>}
+            </button>
           )}
 
           <button
