@@ -1,8 +1,22 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { pool } from "../db";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { sendPasswordResetEmail } from "../services/mailer";
+
+// Garante que a tabela de tokens existe na primeira inicialização
+pool.query(`
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES usuarios(id),
+    token      VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`).catch((err) => console.error("[AUTH] Erro ao criar tabela password_reset_tokens:", err));
 
 const router = Router();
 
@@ -201,6 +215,97 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
       message: "Erro interno ao buscar usuário",
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email é obrigatório" });
+    }
+
+    const emailNormalizado = String(email).trim().toLowerCase();
+
+    const result = await pool.query(
+      "SELECT id, nome FROM usuarios WHERE email = $1 AND ativo = true LIMIT 1",
+      [emailNormalizado]
+    );
+
+    // Resposta genérica para não revelar se o e-mail existe
+    if (result.rows.length === 0) {
+      return res.json({ message: "Se o e-mail estiver cadastrado, você receberá as instruções em breve." });
+    }
+
+    const user = result.rows[0];
+
+    // Invalida tokens anteriores do mesmo usuário
+    await pool.query(
+      "UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false",
+      [user.id]
+    );
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    await pool.query(
+      "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, token, expiresAt]
+    );
+
+    await sendPasswordResetEmail(emailNormalizado, user.nome, token);
+
+    return res.json({ message: "Se o e-mail estiver cadastrado, você receberá as instruções em breve." });
+  } catch (error) {
+    console.error("Erro no forgot-password:", error);
+    return res.status(500).json({ message: "Erro interno ao processar solicitação" });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: "Token e nova senha são obrigatórios" });
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).json({ message: "A senha deve ter pelo menos 6 caracteres" });
+    }
+
+    const result = await pool.query(
+      `SELECT t.id, t.user_id, t.expires_at, t.used
+       FROM password_reset_tokens t
+       WHERE t.token = $1
+       LIMIT 1`,
+      [String(token).trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: "Link inválido ou expirado" });
+    }
+
+    const tokenRow = result.rows[0];
+
+    if (tokenRow.used) {
+      return res.status(400).json({ message: "Este link já foi utilizado" });
+    }
+
+    if (new Date() > new Date(tokenRow.expires_at)) {
+      return res.status(400).json({ message: "Link expirado. Solicite um novo." });
+    }
+
+    const senha_hash = await bcrypt.hash(String(password), 10);
+
+    await pool.query("UPDATE usuarios SET senha_hash = $1 WHERE id = $2", [senha_hash, tokenRow.user_id]);
+    await pool.query("UPDATE password_reset_tokens SET used = true WHERE id = $1", [tokenRow.id]);
+
+    return res.json({ message: "Senha redefinida com sucesso" });
+  } catch (error) {
+    console.error("Erro no reset-password:", error);
+    return res.status(500).json({ message: "Erro interno ao redefinir senha" });
   }
 });
 

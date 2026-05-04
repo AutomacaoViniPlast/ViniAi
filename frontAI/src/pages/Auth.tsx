@@ -1,9 +1,9 @@
 import { FormEvent, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { signIn, signUp } from "../services/auth";
+import { signIn, signUp, requestPasswordReset } from "../services/auth";
 import logoVini from "../image/logoviniai2.png";
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "forgot_password";
 
 const Auth = () => {
   const [mode, setMode] = useState<Mode>("login");
@@ -15,6 +15,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
 
   const hasError = message.length > 0;
+
+  const [resetSent, setResetSent] = useState(false);
 
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -40,6 +42,11 @@ const Auth = () => {
         if (data.token) {
           window.location.href = "/";
         }
+      }
+
+      if (mode === "forgot_password") {
+        await requestPasswordReset(email);
+        setResetSent(true);
       }
     } catch (err) {
       const error = err as Error;
@@ -90,97 +97,108 @@ const Auth = () => {
 
             <div className="mb-8 space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {mode === "login" ? "Acesse sua conta" : "Crie sua conta"}
+                {mode === "login" ? "Acesse sua conta" : mode === "register" ? "Crie sua conta" : "Redefinir senha"}
               </h1>
               <p className="text-base text-muted-foreground">
                 {mode === "login"
                   ? "Continue sua conversa com a IA da ViniAI."
-                  : "Configure seu acesso para iniciar novas conversas."}
+                  : mode === "register"
+                  ? "Configure seu acesso para iniciar novas conversas."
+                  : "Informe seu e-mail e enviaremos o link de redefinição."}
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} noValidate>
-              <div className="space-y-5">
-                {mode === "register" && (
-                  <input
-                    type="text"
-                    placeholder="Seu nome"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError
-                        ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]"
-                        : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"
-                      }`}
-                  />
-                )}
-
-                <input
-                  type="email"
-                  placeholder="Email corporativo"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError
-                      ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]"
-                      : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"
-                    }`}
-                />
-
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full rounded-xl border bg-input px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError
-                        ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]"
-                        : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"
-                      }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
+            {mode === "forgot_password" && resetSent ? (
+              <div className="text-center space-y-4">
+                <p className="text-base text-muted-foreground">
+                  Se o e-mail estiver cadastrado, você receberá as instruções em breve.
+                </p>
+                <button
+                  onClick={() => { setMode("login"); setResetSent(false); setEmail(""); }}
+                  className="font-medium text-foreground transition-colors hover:text-primary"
+                >
+                  Voltar ao login
+                </button>
               </div>
+            ) : (
+              <>
+                <form onSubmit={handleSubmit} noValidate>
+                  <div className="space-y-5">
+                    {mode === "register" && (
+                      <input
+                        type="text"
+                        placeholder="Seu nome"
+                        value={nome}
+                        onChange={(e) => setNome(e.target.value)}
+                        className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
+                      />
+                    )}
 
-              {message && <p className="mt-5 text-center text-base text-red-500 animate-fade-in">{message}</p>}
+                    <input
+                      type="email"
+                      placeholder="Email corporativo"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
+                    />
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 hover:shadow-[0_10px_24px_hsl(var(--primary)/0.35)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
-              </button>
-            </form>
+                    {mode !== "forgot_password" && (
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Senha"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className={`w-full rounded-xl border bg-input px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-            <div className="mt-6 text-center text-base text-muted-foreground">
-              {mode === "login" ? (
-                <p>
-                  Nao tem conta?
+                  {message && <p className="mt-5 text-center text-base text-red-500 animate-fade-in">{message}</p>}
+
                   <button
-                    onClick={() => setMode("register")}
-                    className="ml-1 font-medium text-foreground transition-colors hover:text-primary"
+                    type="submit"
+                    disabled={loading}
+                    className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 hover:shadow-[0_10px_24px_hsl(var(--primary)/0.35)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Criar conta
+                    {loading ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Enviar link"}
                   </button>
-                </p>
-              ) : (
-                <p>
-                  Ja possui conta?
-                  <button
-                    onClick={() => setMode("login")}
-                    className="ml-1 font-medium text-foreground transition-colors hover:text-primary"
-                  >
-                    Voltar ao login
-                  </button>
-                </p>
-              )}
-            </div>
+                </form>
+
+                <div className="mt-6 text-center text-base text-muted-foreground">
+                  {mode === "login" ? (
+                    <div className="space-y-2">
+                      <p>
+                        Nao tem conta?
+                        <button onClick={() => setMode("register")} className="ml-1 font-medium text-foreground transition-colors hover:text-primary">
+                          Criar conta
+                        </button>
+                      </p>
+                      <p>
+                        <button onClick={() => { setMode("forgot_password"); setMessage(""); }} className="font-medium text-foreground transition-colors hover:text-primary">
+                          Esqueci minha senha
+                        </button>
+                      </p>
+                    </div>
+                  ) : (
+                    <p>
+                      <button onClick={() => { setMode("login"); setMessage(""); }} className="font-medium text-foreground transition-colors hover:text-primary">
+                        Voltar ao login
+                      </button>
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </section>
       </div>
