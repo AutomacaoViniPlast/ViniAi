@@ -37,6 +37,9 @@ _METROS_CASE = """
     END
 """.strip()
 
+# Para extrusora: soma QTDPROD + QTDPROD2 — ambas as colunas têm metros preenchidos
+_METROS_PRODUCAO = "COALESCE(QTDPROD, 0) + COALESCE(QTDPROD2, 0)"
+
 class SQLServiceApontRev:
     """Consultas à view V_APONT_REV_GERAL."""
 
@@ -61,7 +64,7 @@ class SQLServiceApontRev:
         sql = f"""
             SELECT TOP {top_n}
                 LTRIM(RTRIM(OPER_MP))        AS operador,
-                SUM({_METROS_CASE})          AS total_metros,
+                SUM({_METROS_PRODUCAO})      AS total_metros,
                 COUNT(*)                     AS registros
             FROM V_APONT_REV_GERAL
             WHERE CAST(DATAAPONT AS DATE)
