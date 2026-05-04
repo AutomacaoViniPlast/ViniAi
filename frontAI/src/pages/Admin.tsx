@@ -4,8 +4,8 @@ import { Plus, Pencil, ChevronLeft, Check, X } from "lucide-react";
 import { listUsers, createUser, updateUser, type AdminUser } from "../services/admin";
 import logoVini from "../image/logoviniai2.png";
 
-const SETORES = ["extrusora", "revisao", "GERAL"];
-const NIVEIS = ["USER", "ADMIN"];
+const SETORES = ["PRODUCAO","GERAL"];
+const NIVEIS = ["usuario", "ADMIN"];
 
 const emptyForm = { nome: "", email: "", password: "", setor: "GERAL", nivel_acesso: "USER" };
 
