@@ -305,3 +305,18 @@ netsh advfirewall firewall add rule name="ViniAI Frontend 3003" dir=in action=al
 netsh advfirewall firewall add rule name="ViniAI Backend 4000" dir=in action=allow protocol=TCP localport=4000
 netsh advfirewall firewall add rule name="ViniAI FastAPI 8000" dir=in action=allow protocol=TCP localport=8000
 ```
+
+---
+
+## Integração WhatsApp (Meta)
+
+O ViniAI suporta acesso via WhatsApp além do frontend web.
+
+| Item | Referência |
+|------|-----------|
+| **Gerenciar perfil do número** | Meta Business Suite |
+| **API e configurações técnicas** | Facebook Developers (developers.facebook.com) |
+| **Provedor da API** | Meta (WhatsApp Business Platform) |
+
+- **Perfil do número** (nome, foto, descrição): gerenciado pelo **Meta Business Suite**
+- **Webhook, token, configurações de API**: gerenciados no portal **Facebook Developers**
