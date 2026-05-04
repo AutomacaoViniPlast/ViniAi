@@ -9,7 +9,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
-import { getUser } from "./lib/storage";
+import { getUser, isTokenValid, clearSession } from "./lib/storage";
 
 const queryClient = new QueryClient();
 
@@ -18,13 +18,18 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("token");
-  return token ? <>{children}</> : <Navigate to="/auth" replace />;
+  if (!isTokenValid()) {
+    clearSession();
+    return <Navigate to="/auth" replace />;
+  }
+  return <>{children}</>;
 };
 
 const AdminRoute = ({ children }: ProtectedRouteProps) => {
-  const token = localStorage.getItem("token");
-  if (!token) return <Navigate to="/auth" replace />;
+  if (!isTokenValid()) {
+    clearSession();
+    return <Navigate to="/auth" replace />;
+  }
   const user = getUser();
   if (user?.nivel_acesso !== "ADMIN") return <Navigate to="/" replace />;
   return <>{children}</>;

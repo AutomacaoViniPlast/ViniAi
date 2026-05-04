@@ -24,6 +24,16 @@ export async function apiFetch<T = any>(
     data = await response.text();
   }
 
+  if (response.status === 401) {
+    const onAuthPage = window.location.pathname.startsWith("/auth") || window.location.pathname.startsWith("/reset-password");
+    if (!onAuthPage) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/auth";
+      return null as T;
+    }
+  }
+
   if (!response.ok) {
     throw new Error(data?.message || data || "Erro na requisição");
   }
