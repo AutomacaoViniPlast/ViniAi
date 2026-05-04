@@ -621,7 +621,7 @@ class ChatOrchestrator:
 
         # ── Ranking de produção por operador (V_APONT_REV_GERAL) ────────────────
         if ir.intent == "ranking_producao_geral":
-            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n)
+            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n, operadores=OPERADORES_EXTRUSORA)
             if not rows:
                 return f"🔍 Nenhum dado encontrado{periodo}."
             header = f"🏆 **Top {top_n} — Produção**{periodo}\n\n"
