@@ -27,14 +27,14 @@ if (missingEnv.length > 0) {
 
 const app = express();
 
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3003,http://192.168.1.85:3003,http://viniai.viniplast.local:3003")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3001",
-      "http://localhost:3003",
-      "http://192.168.1.85:3003",
-      "http://viniai.viniplast.local:3003",
-    ],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
