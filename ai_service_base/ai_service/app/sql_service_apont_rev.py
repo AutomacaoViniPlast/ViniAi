@@ -47,7 +47,7 @@ class SQLServiceApontRev:
         self,
         data_inicio: str,
         data_fim: str,
-        top_n: int = 5,
+        top_n: int = 10,
         operadores: list[str] | None = None,
     ) -> list[dict]:
         """
