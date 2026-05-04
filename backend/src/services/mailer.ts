@@ -41,7 +41,7 @@ export async function sendPasswordResetEmail(
             Redefinir senha
           </a>
         </p>
-        <p style="color:#888;font-size:13px">Este link expira em <strong>1 hora</strong>.<br>
+        <p style="color:#888;font-size:13px">Este link expira em <strong>10 minutos</strong>.<br>
         Se você não solicitou a redefinição, ignore este e-mail.</p>
       </div>
     `,
