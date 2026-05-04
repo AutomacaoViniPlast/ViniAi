@@ -40,6 +40,50 @@ _METROS_CASE = """
 class SQLServiceApontRev:
     """Consultas à view V_APONT_REV_GERAL."""
 
+    def get_ranking_producao_extrusora(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        top_n: int = 5,
+        operadores: list[str] | None = None,
+    ) -> list[dict]:
+        """
+        Retorna os operadores de extrusora com mais metros produzidos no período.
+        Usa OPER_MP (operador de máquina/produção), diferente de OPER_BOB (revisão).
+        """
+        filtro_op = ""
+        params: tuple = (data_inicio, data_fim)
+        if operadores:
+            placeholders = ", ".join("?" * len(operadores))
+            filtro_op = f"AND LOWER(LTRIM(RTRIM(OPER_MP))) IN ({placeholders})"
+            params = (data_inicio, data_fim, *[op.lower() for op in operadores])
+
+        sql = f"""
+            SELECT TOP {top_n}
+                LTRIM(RTRIM(OPER_MP))        AS operador,
+                SUM({_METROS_CASE})          AS total_metros,
+                COUNT(*)                     AS registros
+            FROM V_APONT_REV_GERAL
+            WHERE CAST(DATAAPONT AS DATE)
+                  BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
+              AND LTRIM(RTRIM(OPER_MP)) != ''
+              {filtro_op}
+            GROUP BY LTRIM(RTRIM(OPER_MP))
+            ORDER BY total_metros DESC
+        """
+        with get_mssql_conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+
+        return [
+            {
+                "posicao":      pos,
+                "operador":     row[0] or "",
+                "total_metros": float(row[1] or 0),
+                "registros":    int(row[2] or 0),
+            }
+            for pos, row in enumerate(rows, start=1)
+        ]
+
     def get_ranking_revisao(
         self,
         data_inicio: str,
