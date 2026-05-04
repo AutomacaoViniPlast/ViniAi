@@ -37,8 +37,8 @@ _METROS_CASE = """
     END
 """.strip()
 
-# Para extrusora: soma QTDPROD + QTDPROD2 — ambas as colunas têm metros preenchidos
-_METROS_PRODUCAO = "COALESCE(QTDPROD, 0) + COALESCE(QTDPROD2, 0)"
+# Para extrusora: metros sempre em QTDPROD (diferente da revisão que usa CASE por tipo)
+_METROS_PRODUCAO = "COALESCE(QTDPROD, 0)"
 
 class SQLServiceApontRev:
     """Consultas à view V_APONT_REV_GERAL."""
