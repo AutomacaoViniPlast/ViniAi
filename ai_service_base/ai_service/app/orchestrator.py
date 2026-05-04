@@ -619,15 +619,15 @@ class ChatOrchestrator:
                 f"| ⚙️ Total geral | **{_fmt_kg(float(total))}** |"
             )
 
-        # ── Ranking de produção por operador (SH6) ────────────────────────────
+        # ── Ranking de produção por operador (V_APONT_REV_GERAL) ────────────────
         if ir.intent == "ranking_producao_geral":
-            rows = self.sql.get_ranking_producao(ini, fim, top_n, recursos=recursos, is_diaria=is_diaria)
+            rows = self.apont_rev.get_ranking_revisao(ini, fim, top_n)
             if not rows:
-                return f"🔍 Nenhum dado encontrado{periodo}{rec_lbl}."
-            header = f"🏆 **Top {top_n} — Produção**{periodo}{rec_lbl}\n\n"
-            header += "| # | Operador | Total |\n|---|----------|-------|\n"
+                return f"🔍 Nenhum dado encontrado{periodo}."
+            header = f"🏆 **Top {top_n} — Produção**{periodo}\n\n"
+            header += "| # | Operador | Total (m) |\n|---|----------|-----------|\n"
             linhas = "\n".join(
-                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_kg(r['total_kg'])}** |"
+                f"| {_posicao_label(r['posicao'])} | {r['operador']} | **{_fmt_metros(r['total_metros'])}** |"
                 for r in rows
             )
             return header + linhas
