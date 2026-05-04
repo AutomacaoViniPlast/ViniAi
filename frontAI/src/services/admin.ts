@@ -7,7 +7,6 @@ export interface AdminUser {
   setor: string;
   nivel_acesso: string;
   ativo: boolean;
-  criado_em: string;
 }
 
 export async function listUsers(): Promise<AdminUser[]> {

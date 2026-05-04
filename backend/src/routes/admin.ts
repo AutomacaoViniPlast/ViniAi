@@ -11,7 +11,7 @@ router.use(adminMiddleware);
 router.get("/users", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, nome, email, setor, nivel_acesso, ativo, criado_em
+      `SELECT id, nome, email, setor, nivel_acesso, ativo
        FROM usuarios
        ORDER BY ativo DESC, nome ASC`
     );
@@ -47,7 +47,7 @@ router.post("/users", async (req, res) => {
     const result = await pool.query(
       `INSERT INTO usuarios (nome, email, senha_hash, setor, nivel_acesso, ativo)
        VALUES ($1, $2, $3, $4, $5, true)
-       RETURNING id, nome, email, setor, nivel_acesso, ativo, criado_em`,
+       RETURNING id, nome, email, setor, nivel_acesso, ativo`,
       [
         String(nome).trim(),
         emailNormalizado,
@@ -91,7 +91,7 @@ router.patch("/users/:id", async (req, res) => {
     values.push(Number(id));
     const result = await pool.query(
       `UPDATE usuarios SET ${fields.join(", ")} WHERE id = $${idx}
-       RETURNING id, nome, email, setor, nivel_acesso, ativo, criado_em`,
+       RETURNING id, nome, email, setor, nivel_acesso, ativo`,
       values
     );
 
