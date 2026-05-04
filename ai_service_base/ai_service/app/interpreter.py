@@ -674,10 +674,10 @@ class RuleBasedInterpreter:
 
     # Produto específico
     _PRODUTO = re.compile(
-        r"\bprodutos?\b|\bmateriais?\b|\breferencia\b|\breferência\b|"
+        r"\bprodutos?\b|\bmaterial(?:is)?\b|\breferencia\b|\breferência\b|"
         r"\bcódigo\b|\bcodigo\b|"
         r"qual\s+produtos?|qual\s+material|que\s+produtos?|que\s+material|"
-        r"produtos?\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
+        r"produtos?\s+(?:com\s+)?mais|material(?:is)?\s+(?:com\s+)?mais",
         re.IGNORECASE,
     )
 
@@ -1297,6 +1297,25 @@ class RuleBasedInterpreter:
                 intent="expedicao_nao_implementada", route="smalltalk",
                 confidence=0.90,
                 reasoning="Consulta de expedição — funcionalidade ainda não disponível.",
+            )
+
+        # ── 17b. Produção sem quem/ranking/operador → total da fábrica ──────────
+        # "Qual a produção de hoje?" sem qualificador de ranking ou operador.
+        # Confidence alta (0.85) evita que o orchestrator substitua pelo contexto anterior.
+        if (self._PRODUCAO.search(low)
+                and not self._QUEM.search(low)
+                and not self._RANKING.search(low)
+                and not self._TOP.search(low)
+                and not self._PROPRIO.search(low)
+                and not operador):
+            return InterpretationResult(
+                intent="producao_por_operador", route="sql",
+                metric="producao_total", entity_type="operador",
+                entity_value=None,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem, recursos=recursos,
+                confidence=0.85,
+                reasoning="Produção sem qualificador de ranking ou operador → total da fábrica.",
             )
 
         # ── 18. Produção por operador específico ──────────────────────────────
