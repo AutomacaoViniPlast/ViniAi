@@ -1191,7 +1191,7 @@ class RuleBasedInterpreter:
                 intent="ranking_producao_geral", route="sql",
                 metric="producao_total", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                top_n=top_n or 50,
+                top_n=top_n or 10,
                 setor=setor, origem=origem, recursos=recursos,
                 confidence=0.86,
                 reasoning="Ranking geral de produção por operador.",
