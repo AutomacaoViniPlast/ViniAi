@@ -11,10 +11,11 @@ CORS configurado para aceitar requisições dos domínios do frontend (React).
 Para adicionar novos domínios, edite a lista `allow_origins` abaixo.
 """
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.orchestrator import ChatOrchestrator
 from app.schemas import ChatProcessRequest, ChatProcessResponse
+from typing import Optional
 
 app = FastAPI(
     title="VINIAI AI Service",
@@ -35,11 +36,19 @@ app.add_middleware(
 orchestrator = ChatOrchestrator()
 
 
+def _verify_api_key(x_api_key: Optional[str] = Header(None)) -> None:
+    expected = os.getenv("AI_API_KEY")
+    if not expected:
+        raise HTTPException(status_code=500, detail="AI_API_KEY não configurada no servidor")
+    if x_api_key != expected:
+        raise HTTPException(status_code=401, detail="Não autorizado")
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/v1/chat/process", response_model=ChatProcessResponse)
+@app.post("/v1/chat/process", response_model=ChatProcessResponse, dependencies=[Depends(_verify_api_key)])
 def process_chat(payload: ChatProcessRequest) -> ChatProcessResponse:
     return orchestrator.process(payload)
