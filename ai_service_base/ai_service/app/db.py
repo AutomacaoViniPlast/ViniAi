@@ -57,6 +57,7 @@ def get_mssql_conn():
     Uso: with get_mssql_conn() as conn: ...
     """
     conn = pyodbc.connect(_MSSQL_CONN_STR, timeout=15)
+    conn.timeout = 30  # timeout por query (SQL_ATTR_QUERY_TIMEOUT)
     try:
         yield conn
     finally:
