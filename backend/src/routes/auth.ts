@@ -39,7 +39,6 @@ function validatePassword(password: string): string | null {
   return null;
 }
 
-// Garante que a tabela de tokens existe na primeira inicialização
 pool.query(`
   CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id         SERIAL PRIMARY KEY,
@@ -50,6 +49,10 @@ pool.query(`
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
 `).catch((err) => console.error("[AUTH] Erro ao criar tabela password_reset_tokens:", err));
+
+pool.query(`
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN NOT NULL DEFAULT FALSE
+`).catch((err) => console.error("[AUTH] Erro ao adicionar coluna force_password_change:", err));
 
 const router = Router();
 
@@ -139,7 +142,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     console.log("[LOGIN] JWT carregado?", !!process.env.JWT_SECRET);
 
     const result = await pool.query(
-      `SELECT id, nome, email, senha_hash, setor, nivel_acesso, ativo
+      `SELECT id, nome, email, senha_hash, setor, nivel_acesso, ativo, force_password_change
        FROM usuarios
        WHERE email = $1
        LIMIT 1`,
@@ -201,6 +204,7 @@ router.post("/login", loginLimiter, async (req, res) => {
         email: user.email,
         setor: user.setor,
         nivel_acesso: user.nivel_acesso,
+        force_password_change: user.force_password_change,
       },
     });
   } catch (error) {
@@ -251,6 +255,49 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
       message: "Erro interno ao buscar usuário",
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+});
+
+router.post("/change-password", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Não autenticado" });
+
+    const { new_password } = req.body;
+    if (!new_password) return res.status(400).json({ message: "Nova senha é obrigatória" });
+
+    const pwError = validatePassword(String(new_password));
+    if (pwError) return res.status(400).json({ message: pwError });
+
+    const senha_hash = await bcrypt.hash(String(new_password), 10);
+
+    const result = await pool.query(
+      `UPDATE usuarios
+       SET senha_hash = $1, force_password_change = false
+       WHERE id = $2
+       RETURNING id, nome, email, setor, nivel_acesso`,
+      [senha_hash, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    const user = result.rows[0];
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, nome: user.nome, setor: user.setor, nivel_acesso: user.nivel_acesso },
+      getJwtSecret(),
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      token,
+      user: { ...user, force_password_change: false },
+    });
+  } catch (error) {
+    console.error("Erro no change-password:", error);
+    return res.status(500).json({ message: "Erro interno ao alterar senha" });
   }
 });
 

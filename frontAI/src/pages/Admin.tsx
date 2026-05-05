@@ -15,7 +15,7 @@ function validatePassword(password: string): string | null {
   return null;
 }
 
-const emptyForm = { nome: "", email: "", password: "", setor: "GERAL", nivel_acesso: "USER" };
+const emptyForm = { nome: "", email: "", password: "", setor: "GERAL", nivel_acesso: "USER", force_password_change: false };
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -89,7 +89,14 @@ const Admin = () => {
     setSaving(true);
     try {
       if (modal === "create") {
-        const created = await createUser(form);
+        const created = await createUser({
+          nome: form.nome,
+          email: form.email,
+          password: form.password,
+          setor: form.setor,
+          nivel_acesso: form.nivel_acesso,
+          force_password_change: form.force_password_change,
+        });
         setUsers((prev) => [created, ...prev]);
       } else if (editing) {
         const payload: Parameters<typeof updateUser>[1] = {
@@ -264,6 +271,18 @@ const Admin = () => {
                   placeholder={modal === "create" ? "Mínimo 6 caracteres" : "••••••"}
                 />
               </div>
+
+              {modal === "create" && (
+                <label className="flex items-center gap-3 cursor-pointer select-none rounded-xl border border-border px-4 py-3 transition-colors hover:bg-muted/40">
+                  <input
+                    type="checkbox"
+                    checked={form.force_password_change}
+                    onChange={(e) => setForm((f) => ({ ...f, force_password_change: e.target.checked }))}
+                    className="h-4 w-4 rounded accent-primary"
+                  />
+                  <span className="text-sm">Exigir troca de senha no primeiro acesso</span>
+                </label>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">

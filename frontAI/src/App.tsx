@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
+import ChangePassword from "./pages/ChangePassword";
 import { getUser, isTokenValid, clearSession } from "./lib/storage";
 
 const queryClient = new QueryClient();
@@ -21,6 +22,10 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   if (!isTokenValid()) {
     clearSession();
     return <Navigate to="/auth" replace />;
+  }
+  const user = getUser();
+  if (user?.force_password_change) {
+    return <Navigate to="/change-password" replace />;
   }
   return <>{children}</>;
 };
@@ -40,6 +45,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/change-password" element={<ChangePassword />} />
       <Route
         path="/"
         element={

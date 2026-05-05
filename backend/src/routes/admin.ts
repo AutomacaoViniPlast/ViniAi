@@ -25,7 +25,7 @@ router.get("/users", async (_req, res) => {
 // POST /admin/users — cria novo usuário
 router.post("/users", async (req, res) => {
   try {
-    const { nome, email, password, setor, nivel_acesso } = req.body;
+    const { nome, email, password, setor, nivel_acesso, force_password_change } = req.body;
 
     if (!nome || !email || !password) {
       return res.status(400).json({ message: "Nome, email e senha são obrigatórios" });
@@ -43,17 +43,19 @@ router.post("/users", async (req, res) => {
     }
 
     const senha_hash = await bcrypt.hash(String(password), 10);
+    const forcarTroca = Boolean(force_password_change);
 
     const result = await pool.query(
-      `INSERT INTO usuarios (nome, email, senha_hash, setor, nivel_acesso, ativo)
-       VALUES ($1, $2, $3, $4, $5, true)
-       RETURNING id, nome, email, setor, nivel_acesso, ativo`,
+      `INSERT INTO usuarios (nome, email, senha_hash, setor, nivel_acesso, ativo, force_password_change)
+       VALUES ($1, $2, $3, $4, $5, true, $6)
+       RETURNING id, nome, email, setor, nivel_acesso, ativo, force_password_change`,
       [
         String(nome).trim(),
         emailNormalizado,
         senha_hash,
         setor || "GERAL",
         nivel_acesso || "USER",
+        forcarTroca,
       ]
     );
 

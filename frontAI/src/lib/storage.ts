@@ -4,6 +4,7 @@ export type SessionUser = {
   email: string;
   setor: string;
   nivel_acesso?: string;
+  force_password_change?: boolean;
 };
 
 export type SessionData = {

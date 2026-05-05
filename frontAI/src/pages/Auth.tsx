@@ -35,7 +35,7 @@ const Auth = () => {
       if (mode === "login") {
         const data = await signIn(email, password);
         if (data.token) {
-          window.location.href = "/";
+          window.location.href = data.user.force_password_change ? "/change-password" : "/";
         }
       }
 

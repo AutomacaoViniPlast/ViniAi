@@ -7,6 +7,7 @@ export interface AdminUser {
   setor: string;
   nivel_acesso: string;
   ativo: boolean;
+  force_password_change?: boolean;
 }
 
 export async function listUsers(): Promise<AdminUser[]> {
@@ -19,6 +20,7 @@ export async function createUser(data: {
   password: string;
   setor: string;
   nivel_acesso: string;
+  force_password_change?: boolean;
 }): Promise<AdminUser> {
   return apiFetch<AdminUser>("/admin/users", {
     method: "POST",
