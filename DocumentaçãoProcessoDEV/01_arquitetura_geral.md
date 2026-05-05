@@ -1,6 +1,6 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 3.4  
+**Versão:** 3.5  
 **Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -22,26 +22,36 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
           │                             │
           ▼                             ▼
 ┌─────────────────┐          ┌──────────────────────┐
-│  Backend Node.js │          │   FastAPI (Python)    │
-│   porta 4000     │          │      porta 8000       │
-│                  │          │                       │
-│  - Autenticação  │          │  - Agentes de IA      │
-│  - JWT           │◄────────►│  - Interpretação      │
-│  - Histórico     │          │  - SQL / ChatGPT      │
-│  - Conversas     │          │  - Controle de acesso │
-└────────┬─────────┘          └──────────┬────────────┘
-         │                               │
-         │ PostgreSQL (N8N)              │ SQL Server (METABASE)
-         ▼                               ▼
-┌────────────────┐             ┌──────────────────────┐
-│   Banco N8N    │             │  SQL Server METABASE  │
-│ 192.168.1.85   │             │   192.168.1.83        │
-│   porta 5432   │             │   porta 50172         │
-│                │             │                       │
-│ Histórico de   │             │ Dados industriais     │
-│ conversas e    │             │ STG_KARDEX (principal)│
-│ mensagens      │             │ STG_PROD_SH6          │
-└────────────────┘             │ STG_PROD_SD3          │
+│  Backend Node.js │          │   n8n (automação)    │
+│   porta 4000     │          │   porta 5678         │
+│                  │          │                      │
+│  - Autenticação  │          │  - Webhook de chat   │
+│  - JWT           │          │  - Orquestra fluxo   │
+│  - Histórico     │          │  - Salva msgs N8N    │
+│  - Conversas     │          └──────────┬───────────┘
+└────────┬─────────┘                     │ POST /v1/chat/process
+         │                               │ Header: X-API-Key
+         │ PostgreSQL (N8N)              ▼
+         ▼                    ┌──────────────────────┐
+┌────────────────┐            │   FastAPI (Python)   │
+│   Banco N8N    │            │      porta 8000      │
+│ 192.168.1.85   │◄───────────│                      │
+│   porta 5432   │            │  - Agentes de IA     │
+│                │            │  - Interpretação     │
+│ Histórico de   │            │  - SQL / ChatGPT     │
+│ conversas e    │            │  - Requer X-API-Key  │
+│ mensagens      │            └──────────┬───────────┘
+└────────────────┘                       │ SQL Server (METABASE)
+                                         ▼
+                               ┌──────────────────────┐
+                               │  SQL Server METABASE  │
+                               │   192.168.1.83        │
+                               │   porta 50172         │
+                               │                       │
+                               │ Dados industriais     │
+                               │ STG_KARDEX (principal)│
+                               │ STG_PROD_SH6          │
+                               │ STG_PROD_SD3          │
                                │ STG_APONT_REV_GERAL   │
                                └──────────────────────┘
 ```
@@ -78,12 +88,15 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
 
 ```
 1. Usuário digita mensagem no frontend
-2. Backend Node.js (porta 4000) salva a mensagem do usuário no banco N8N (PostgreSQL)
-3. Frontend envia POST /v1/chat/process diretamente ao FastAPI (porta 8000)
-   → payload inclui: message, session_id, user_id, user_name, user_setor, user_cargo
+2. Frontend envia POST para o webhook do n8n (VITE_N8N_WEBHOOK_URL)
+   → payload inclui: chatInput, sessionId, userId, userEmail, userName, setor
+3. n8n:
+   a. Salva a mensagem do usuário no banco N8N (PostgreSQL)
+   b. Chama POST /v1/chat/process no FastAPI (porta 8000)
+      → Header obrigatório: X-API-Key (validado pelo FastAPI via env var AI_API_KEY)
 4. FastAPI (Orchestrator):
    a. Lê últimas 16 mensagens da conversa no banco N8N — PostgreSQL (context_manager)
-   b. Interpreta a intenção (RuleBasedInterpreter — 19 regras, sem custo de LLM)
+   b. Interpreta a intenção (RuleBasedInterpreter — 22+ regras, sem custo de LLM)
    c. Verifica permissão LGPD (permissions.py)
       → Se negado: retorna mensagem formal de LGPD
    d. RAG Conversacional:
@@ -92,9 +105,8 @@ O sistema é dividido em três serviços independentes que se comunicam entre si
    e. Auto-inject: intent de operador + entity_value=None → injeta login do usuário logado
    f. Roteia:
       → Conversa natural (smalltalk/clarify) → ChatGPT com data atual injetada no prompt
-      → Consulta de dados (sql) → SQLService → SQL Server METABASE (STG_KARDEX)
-5. Resposta formatada retorna ao frontend
-6. Backend Node.js salva a resposta do assistente no banco N8N (histórico)
+      → Consulta de dados (sql) → SQLService → SQL Server METABASE (timeout 30s por query)
+5. Resposta formatada retorna ao n8n → n8n salva no banco N8N e devolve ao frontend
 ```
 
 ---
@@ -254,6 +266,37 @@ N8N_DB_PASSWORD=...
 # ChatGPT / OpenAI
 OPENAI_API_KEY=sk-proj-...
 OPENAI_MODEL=gpt-4o-mini
+
+# CORS — origens permitidas (separadas por vírgula)
+ALLOWED_ORIGINS=http://192.168.1.85:3003,http://viniai.viniplast.local:3003
+
+# Autenticação interna — exigida em /v1/chat/process (chamada pelo n8n)
+AI_API_KEY=...
+```
+
+Arquivo: `backend/.env`
+
+```env
+# Banco PostgreSQL (autenticação e conversas)
+DB_HOST=192.168.1.85
+DB_PORT=5432
+DB_NAME=N8N
+DB_USER=postgres
+DB_PASSWORD=...
+PORT=4000
+JWT_SECRET=...
+
+# SMTP — redefinição de senha
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+SMTP_FROM=...
+FRONTEND_URL=http://viniai.viniplast.local:3003
+
+# CORS — origens permitidas (separadas por vírgula)
+# Incluir localhost para desenvolvimento local
+CORS_ORIGINS=http://192.168.1.85:3003,http://viniai.viniplast.local:3003,http://localhost:3001,http://localhost:3003
 ```
 
 **Dependências adicionais no servidor:** ODBC Driver 17 for SQL Server deve estar instalado no Windows.

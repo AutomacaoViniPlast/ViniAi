@@ -1,7 +1,7 @@
 # ViniAI — Controle de Acesso e LGPD
 
-**Versão:** 1.3  
-**Última atualização:** Abril/2026  
+**Versão:** 1.5  
+**Última atualização:** Maio/2026  
 **Base legal:** Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD)
 
 ---
@@ -137,3 +137,51 @@ Variável: `_AGENTES_POR_DEPARTAMENTO`
 Texto exibido ao usuário quando o acesso é negado. Baseado na LGPD — Art. 6º, incisos I, III, V e VII.
 
 Personalize em `permissions.py` → variável `MENSAGEM_LGPD` com o texto oficial da política de privacidade da Viniplast.
+
+---
+
+## Sistema de Autenticação de Usuários (Backend Node.js)
+
+### Fluxo de login
+
+```
+POST /auth/login
+  → valida email + senha (bcrypt)
+  → retorna JWT (7 dias) + flag force_password_change
+  → se force_password_change = true → frontend redireciona para /change-password
+```
+
+### Criação de usuários (painel admin)
+
+O admin cria usuários via painel em `/admin`. Campos disponíveis:
+- Nome, email, senha temporária, setor, nível de acesso
+- **Exigir troca de senha no primeiro acesso** — se ativado, o usuário é obrigado a redefinir a senha antes de entrar no sistema
+
+```
+POST /admin/users  { ..., force_password_change: true }
+  → usuário criado com flag ativo
+  → no próximo login, frontend bloqueia navegação até troca ser feita
+  → POST /auth/change-password → zera flag + emite novo token
+```
+
+### Proteções implementadas
+
+| Proteção | Implementação |
+|----------|--------------|
+| Rate limiting login | 10 tentativas / 15 min (`express-rate-limit`) |
+| Rate limiting registro | 10 tentativas / 1 hora |
+| Rate limiting forgot-password | 5 tentativas / 15 min |
+| Token de reset de senha | SHA-256 gravado no banco — token bruto só no email |
+| Validade do token de reset | 10 minutos, uso único |
+| JWT | HS256, 7 dias, validado com decode local no frontend |
+| Troca de senha obrigatória | Flag `force_password_change` no banco + bloqueio no frontend |
+| AI Service | `X-API-Key` obrigatório em `/v1/chat/process` (validado via env var `AI_API_KEY`) |
+
+### Requisitos de senha
+
+- Mínimo 8 caracteres
+- Ao menos 1 letra maiúscula
+- Ao menos 1 letra minúscula
+- Ao menos 1 número
+
+Validação aplicada no registro, no reset e na troca obrigatória (`validatePassword()` em `auth.ts`).

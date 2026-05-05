@@ -669,6 +669,12 @@ FastAPI (ai_service)
 | "quais periodos voce tem dados" não batia no regex e caía no LLM (que alucinava) | `_PERIODOS` expandido com `quais?\s+per[ií]odos?` e `que\s+per[ií]odos?` |
 | KARDEX sumia nas chamadas repetidas a `periodos_disponiveis` | `WITH (NOLOCK)` adicionado; filtro `FILIAL` removido da query de períodos (scan sem índice em 1.19M linhas causava bloqueio) |
 
+### Corrigido em Maio/2026
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| "Qual o **material** que mais gerou LD?" caía em ranking de operador | `_PRODUTO`: `\bmateriais?\b` substituído por `\bmaterial(?:is)?\b` — agora casa singular e plural |
+
 ### Próximos passos sugeridos
 
 1. **Substituição do interpretador por LLM fine-tuned**: o `RuleBasedInterpreter` pode ser substituído por uma chamada estruturada ao Claude/GPT com function calling, mantendo a mesma interface `InterpretationResult`. As regras atuais servem como exemplos de treinamento.
