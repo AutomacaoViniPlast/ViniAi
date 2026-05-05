@@ -330,11 +330,12 @@ router.post("/forgot-password", forgotLimiter, async (req, res) => {
     );
 
     const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
 
     await pool.query(
       "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
-      [user.id, token, expiresAt]
+      [user.id, tokenHash, expiresAt]
     );
 
     await sendPasswordResetEmail(emailNormalizado, user.nome, token);
@@ -357,12 +358,14 @@ router.post("/reset-password", async (req, res) => {
     const pwError = validatePassword(String(password));
     if (pwError) return res.status(400).json({ message: pwError });
 
+    const tokenHash = crypto.createHash("sha256").update(String(token).trim()).digest("hex");
+
     const result = await pool.query(
       `SELECT t.id, t.user_id, t.expires_at, t.used
        FROM password_reset_tokens t
        WHERE t.token = $1
        LIMIT 1`,
-      [String(token).trim()]
+      [tokenHash]
     );
 
     if (result.rows.length === 0) {
