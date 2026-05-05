@@ -674,7 +674,7 @@ class RuleBasedInterpreter:
 
     # Produto específico
     _PRODUTO = re.compile(
-        r"\bprodutos?\b|\bmateriais?\b|\breferencia\b|\breferência\b|"
+        r"\bprodutos?\b|\bmaterial(?:is)?\b|\breferencia\b|\breferência\b|"
         r"\bcódigo\b|\bcodigo\b|"
         r"qual\s+produtos?|qual\s+material|que\s+produtos?|que\s+material|"
         r"produtos?\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
