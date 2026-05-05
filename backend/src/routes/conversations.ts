@@ -27,7 +27,8 @@ router.get("/", async (req: AuthRequest, res) => {
          ) AS ultima_mensagem
        FROM conversas c
        WHERE c.usuario_id = $1
-       ORDER BY c.pinned DESC, c.atualizado_em DESC`,
+       ORDER BY c.pinned DESC, c.atualizado_em DESC
+       LIMIT 50`,
       [userId]
     );
 
