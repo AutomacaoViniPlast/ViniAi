@@ -41,10 +41,10 @@ export async function resetPassword(token: string, password: string) {
   });
 }
 
-export async function changePassword(new_password: string) {
+export async function changePassword(new_password: string, current_password?: string) {
   const data = await apiFetch<SessionData>("/auth/change-password", {
     method: "POST",
-    body: JSON.stringify({ new_password }),
+    body: JSON.stringify({ new_password, current_password }),
   });
   saveSession(data);
   return data;

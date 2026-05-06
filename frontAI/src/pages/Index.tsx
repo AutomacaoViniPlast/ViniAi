@@ -18,8 +18,9 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
+import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck, KeyRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import ChangePasswordModal from "../components/ChangePasswordModal";
 
 interface Message {
   id: string;
@@ -58,6 +59,7 @@ const Index = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   // Carrega perfil e conversas do banco de dados
   useEffect(() => {
@@ -739,6 +741,23 @@ const Index = () => {
           )}
 
           <button
+            onClick={() => setShowChangePassword(true)}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
+            style={{ color: C.textMuted }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+              (e.currentTarget as HTMLButtonElement).style.color = C.text;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
+            }}
+          >
+            <KeyRound size={16} strokeWidth={1.8} />
+            {!isSidebarCollapsed && <span>Alterar senha</span>}
+          </button>
+
+          <button
             onClick={handleLogout}
             className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
             style={{ color: C.redText }}
@@ -806,6 +825,10 @@ const Index = () => {
           </div>
         </div>
       </main>
+
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 };

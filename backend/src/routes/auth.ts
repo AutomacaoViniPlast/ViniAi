@@ -263,11 +263,25 @@ router.post("/change-password", authMiddleware, async (req: AuthRequest, res) =>
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Não autenticado" });
 
-    const { new_password } = req.body;
+    const { new_password, current_password } = req.body;
     if (!new_password) return res.status(400).json({ message: "Nova senha é obrigatória" });
 
     const pwError = validatePassword(String(new_password));
     if (pwError) return res.status(400).json({ message: pwError });
+
+    const userResult = await pool.query(
+      `SELECT senha_hash, force_password_change FROM usuarios WHERE id = $1 LIMIT 1`,
+      [userId]
+    );
+    if (userResult.rows.length === 0) return res.status(404).json({ message: "Usuário não encontrado" });
+
+    const { senha_hash: hashAtual, force_password_change } = userResult.rows[0];
+
+    if (!force_password_change) {
+      if (!current_password) return res.status(400).json({ message: "Senha atual é obrigatória" });
+      const senhaValida = await bcrypt.compare(String(current_password), hashAtual);
+      if (!senhaValida) return res.status(401).json({ message: "Senha atual incorreta" });
+    }
 
     const senha_hash = await bcrypt.hash(String(new_password), 10);
 
