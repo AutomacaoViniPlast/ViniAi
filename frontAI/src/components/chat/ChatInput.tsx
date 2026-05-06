@@ -39,12 +39,12 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   return (
     <form onSubmit={handleSubmit}>
       <div
-        className="rounded-3xl overflow-hidden transition-all duration-200"
+        className="rounded-3xl overflow-hidden outline-none"
         style={{
           background: "hsl(var(--input))",
-          border: focused
-            ? "1px solid hsl(var(--primary) / 0.5)"
-            : "1px solid hsl(var(--border))",
+          border: focused ? "1px solid hsl(var(--primary) / 0.5)" : "1px solid transparent",
+          boxShadow: "none",
+          transition: "border 0.2s ease, background 0.2s ease",
         }}
       >
         <div className="flex items-end gap-4 px-5 py-3">
@@ -63,7 +63,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               className="w-full bg-transparent text-base outline-none resize-none pt-1.5"
               style={{
                 color: "hsl(var(--foreground))",
-                caretColor: "hsl(4 82% 55%)",
+                caretColor: "hsl(var(--primary))",
                 maxHeight: "200px",
                 minHeight: "24px",
                 lineHeight: "1.6",
@@ -82,7 +82,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             disabled={!canSend}
             className="shrink-0 w-9 h-9 self-center rounded-xl flex items-center justify-center transition-all duration-200"
             style={{
-              background: canSend ? "#ad1e13ff" : "hsl(var(--muted))",
+              background: canSend ? "hsl(var(--primary))" : "hsl(var(--muted))",
               color: canSend ? "#fff" : "hsl(var(--muted-foreground))",
               cursor: canSend ? "pointer" : "not-allowed",
               transform: "scale(1)",
@@ -90,12 +90,12 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
             onMouseEnter={e => {
               if (canSend) {
                 (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
-                (e.currentTarget as HTMLButtonElement).style.background = "hsl(4 82% 40%)";
+                (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--primary-hover))";
               }
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(4 82% 47%)" : "hsl(var(--muted))";
+              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(var(--primary))" : "hsl(var(--muted))";
             }}
           >
             <ArrowUp size={16} strokeWidth={2.5} />
