@@ -118,9 +118,9 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header */}
-      <header className="border-b border-border/60 px-6 py-4 flex items-center gap-4">
+      <header className="shrink-0 border-b border-border/60 px-6 py-4 flex items-center gap-4">
         <button
           onClick={() => navigate("/")}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -144,6 +144,7 @@ const Admin = () => {
       </header>
 
       {/* Content */}
+      <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {loading ? (
           <div className="flex justify-center py-20 text-sm text-muted-foreground">Carregando...</div>
@@ -153,7 +154,7 @@ const Admin = () => {
             <button onClick={load} className="text-sm text-foreground underline">Tentar novamente</button>
           </div>
         ) : (
-          <div className="rounded-2xl border border-border/60 overflow-hidden">
+          <div className="rounded-2xl border border-border/60 overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/60 bg-muted/40">
@@ -231,6 +232,7 @@ const Admin = () => {
             )}
           </div>
         )}
+      </div>
       </div>
 
       {/* Modal */}
