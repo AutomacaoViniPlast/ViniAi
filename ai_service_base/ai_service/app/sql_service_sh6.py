@@ -235,6 +235,48 @@ class SQLServiceSH6:
             resultado = round(metros / minutos, 4) if minutos > 0 else 0.0
             return {"metros": metros, "minutos": minutos, "resultado": resultado}
 
+    def get_metros_por_minuto_por_recurso(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        filial: str | None = None,
+        recursos: list[str] | None = None,
+        is_diaria: bool = False,
+    ) -> list[dict]:
+        """SUM(QTDPROD2) / SUM(MINUTOS) agrupado por recurso (MAC1 / MAC2)."""
+        col_data = "DATA_INI" if is_diaria else "DATA_APONT"
+        rec_sql, rec_p = _recursos_clause(recursos)
+        fil_sql, fil_p = _filial_clause(filial)
+        query = f"""
+            SELECT
+                LTRIM(RTRIM(RECURSO))          AS recurso,
+                COALESCE(SUM(QTDPROD2), 0)     AS total_metros,
+                COALESCE(SUM(MINUTOS),  0)     AS total_minutos
+            FROM dbo.STG_PROD_SH6_VPLONAS
+            WHERE {col_data} BETWEEN ? AND ?
+              {fil_sql}
+              {rec_sql}
+            GROUP BY LTRIM(RTRIM(RECURSO))
+            ORDER BY recurso
+        """
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p
+        with get_mssql_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            rows = []
+            for r in cur.fetchall():
+                metros  = float(r[1]) if r[1] else 0.0
+                minutos = float(r[2]) if r[2] else 0.0
+                resultado = round(metros / minutos, 4) if minutos > 0 else 0.0
+                rows.append({
+                    "recurso":       r[0],
+                    "recurso_label": traduzir_recurso(r[0]),
+                    "metros":        metros,
+                    "minutos":       minutos,
+                    "resultado":     resultado,
+                })
+            return rows
+
     # ── KGH (KG por hora) por recurso ─────────────────────────────────────────
     def get_kgh(
         self,

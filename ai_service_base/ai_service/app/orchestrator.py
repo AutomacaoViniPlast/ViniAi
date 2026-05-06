@@ -727,6 +727,21 @@ class ChatOrchestrator:
 
         # ── Metros por minuto (SH6) ───────────────────────────────────────────
         if ir.intent == "metros_por_minuto":
+            if ir.entity_type == "extrusora":
+                rows = self.sql.get_metros_por_minuto_por_recurso(ini, fim, recursos=recursos, is_diaria=is_diaria)
+                if not rows:
+                    return f"🔍 Nenhum dado de metros/min encontrado{periodo}{rec_lbl}."
+                blocos = []
+                for r in rows:
+                    blocos.append(
+                        f"**{r['recurso_label']}**\n\n"
+                        f"| Métrica | Valor |\n|---------|-------|\n"
+                        f"| Metros totais | {r['metros']:,.2f} m |\n"
+                        f"| Minutos totais | {r['minutos']:,.0f} min |\n"
+                        f"| **Média m/min** | **{r['resultado']:.4f}** |"
+                    )
+                header = f"📏 **Metros por minuto por extrusora**{periodo}{rec_lbl}\n\n"
+                return header + "\n\n".join(blocos)
             data = self.sql.get_metros_por_minuto(ini, fim, recursos=recursos, is_diaria=is_diaria)
             if data["resultado"] == 0:
                 return f"🔍 Nenhum dado de metros/min encontrado{periodo}{rec_lbl}."

@@ -1140,9 +1140,16 @@ class RuleBasedInterpreter:
         # ── 10b. Metros por minuto ────────────────────────────────────────────
         # Antes do comparativo — evita que "m/min da extrusora 2" caia em comparativo_extrusoras
         if self._METROS_MIN.search(low):
+            por_extrusora = bool(re.search(
+                r"cada\s+(?:mac|extrusora|m[aá]quina)|"
+                r"por\s+(?:mac|extrusora|m[aá]quina)|"
+                r"em\s+cada\b",
+                low,
+            ))
             return InterpretationResult(
                 intent="metros_por_minuto", route="sql",
                 metric="metros_por_minuto",
+                entity_type="extrusora" if por_extrusora else None,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 recursos=recursos,
                 confidence=0.95,
