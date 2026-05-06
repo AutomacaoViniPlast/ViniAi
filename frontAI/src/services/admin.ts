@@ -30,7 +30,7 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: number,
-  data: Partial<{ nome: string; setor: string; nivel_acesso: string; ativo: boolean; password: string }>
+  data: Partial<{ nome: string; setor: string; nivel_acesso: string; ativo: boolean; password: string; force_password_change: boolean }>
 ): Promise<AdminUser> {
   return apiFetch<AdminUser>(`/admin/users/${id}`, {
     method: "PATCH",

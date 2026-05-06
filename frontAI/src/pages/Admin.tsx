@@ -55,7 +55,7 @@ const Admin = () => {
   }
 
   function openEdit(user: AdminUser) {
-    setForm({ nome: user.nome, email: user.email, password: "", setor: user.setor, nivel_acesso: user.nivel_acesso });
+    setForm({ nome: user.nome, email: user.email, password: "", setor: user.setor, nivel_acesso: user.nivel_acesso, force_password_change: user.force_password_change ?? false });
     setFormError("");
     setEditing(user);
     setModal("edit");
@@ -103,6 +103,7 @@ const Admin = () => {
           nome: form.nome,
           setor: form.setor,
           nivel_acesso: form.nivel_acesso,
+          force_password_change: form.force_password_change,
         };
         if (form.password.length > 0) payload.password = form.password;
         const updated = await updateUser(editing.id, payload);
@@ -272,17 +273,15 @@ const Admin = () => {
                 />
               </div>
 
-              {modal === "create" && (
-                <label className="flex items-center gap-3 cursor-pointer select-none rounded-xl border border-border px-4 py-3 transition-colors hover:bg-muted/40">
-                  <input
-                    type="checkbox"
-                    checked={form.force_password_change}
-                    onChange={(e) => setForm((f) => ({ ...f, force_password_change: e.target.checked }))}
-                    className="h-4 w-4 rounded accent-primary"
-                  />
-                  <span className="text-sm">Exigir troca de senha no primeiro acesso</span>
-                </label>
-              )}
+              <label className="flex items-center gap-3 cursor-pointer select-none rounded-xl border border-border px-4 py-3 transition-colors hover:bg-muted/40">
+                <input
+                  type="checkbox"
+                  checked={form.force_password_change}
+                  onChange={(e) => setForm((f) => ({ ...f, force_password_change: e.target.checked }))}
+                  className="h-4 w-4 rounded accent-primary"
+                />
+                <span className="text-sm">Exigir troca de senha no próximo acesso</span>
+              </label>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">

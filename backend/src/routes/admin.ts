@@ -11,7 +11,7 @@ router.use(adminMiddleware);
 router.get("/users", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, nome, email, setor, nivel_acesso, ativo
+      `SELECT id, nome, email, setor, nivel_acesso, ativo, force_password_change
        FROM usuarios
        ORDER BY ativo DESC, nome ASC`
     );
@@ -70,7 +70,7 @@ router.post("/users", async (req, res) => {
 router.patch("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, setor, nivel_acesso, ativo, password } = req.body;
+    const { nome, setor, nivel_acesso, ativo, password, force_password_change } = req.body;
 
     const fields: string[] = [];
     const values: unknown[] = [];
@@ -80,6 +80,7 @@ router.patch("/users/:id", async (req, res) => {
     if (setor !== undefined) { fields.push(`setor = $${idx++}`); values.push(String(setor)); }
     if (nivel_acesso !== undefined) { fields.push(`nivel_acesso = $${idx++}`); values.push(String(nivel_acesso)); }
     if (ativo !== undefined) { fields.push(`ativo = $${idx++}`); values.push(Boolean(ativo)); }
+    if (force_password_change !== undefined) { fields.push(`force_password_change = $${idx++}`); values.push(Boolean(force_password_change)); }
     if (password !== undefined && String(password).length >= 8) {
       const senha_hash = await bcrypt.hash(String(password), 10);
       fields.push(`senha_hash = $${idx++}`);
@@ -93,7 +94,7 @@ router.patch("/users/:id", async (req, res) => {
     values.push(Number(id));
     const result = await pool.query(
       `UPDATE usuarios SET ${fields.join(", ")} WHERE id = $${idx}
-       RETURNING id, nome, email, setor, nivel_acesso, ativo`,
+       RETURNING id, nome, email, setor, nivel_acesso, ativo, force_password_change`,
       values
     );
 
