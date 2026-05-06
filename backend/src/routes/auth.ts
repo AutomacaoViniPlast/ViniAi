@@ -227,7 +227,7 @@ router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, nome, email, setor, nivel_acesso, ativo
+      `SELECT id, nome, email, setor, nivel_acesso, ativo, force_password_change
        FROM usuarios
        WHERE id = $1
        LIMIT 1`,

@@ -22,7 +22,7 @@ export async function signUp(email: string, password: string, nome: string) {
 }
 
 export async function getMe() {
-  return apiFetch<{ user: SessionData["user"] }>("/auth/me", {
+  return apiFetch<{ user: SessionData["user"] & { force_password_change?: boolean } }>("/auth/me", {
     method: "GET",
   });
 }
