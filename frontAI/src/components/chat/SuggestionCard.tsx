@@ -16,14 +16,15 @@ const SuggestionCard = ({ icon: Icon, title, description, onClick }: SuggestionC
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="text-left w-full rounded-2xl p-4 transition-all duration-200 animate-scale-in"
+      className="text-left w-full rounded-2xl p-4 outline-none select-none active:scale-[0.98]"
       style={{
         background: hovered ? "hsl(var(--secondary))" : "hsl(var(--card))",
         border: hovered
-          ? "1px solid hsl(4 82% 47% / 0.4)"
-          : "1px solid hsl(var(--border))",
-        boxShadow: hovered ? "0 4px 20px hsl(4 82% 47% / 0.1)" : "none",
+          ? "1px solid hsl(var(--primary))"
+          : "1px solid transparent",
+        boxShadow: "none",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        transition: "background 0.2s ease, border 0.2s ease, transform 0.2s ease",
       }}
     >
       <div className="flex items-start gap-3">
@@ -31,13 +32,13 @@ const SuggestionCard = ({ icon: Icon, title, description, onClick }: SuggestionC
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200"
           style={{
-            background: hovered ? "hsl(4 82% 47% / 0.18)" : "hsl(var(--muted))",
-            border: hovered ? "1px solid hsl(4 82% 47% / 0.35)" : "1px solid hsl(var(--border))",
+            background: hovered ? "hsl(var(--primary) / 0.18)" : "hsl(var(--muted))",
+            border: hovered ? "1px solid hsl(var(--primary) / 0.35)" : "1px solid transparent",
           }}
         >
           <Icon
             size={16}
-            style={{ color: hovered ? "hsl(4 82% 62%)" : "hsl(var(--muted-foreground))" }}
+            style={{ color: hovered ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))" }}
             strokeWidth={2}
           />
         </div>

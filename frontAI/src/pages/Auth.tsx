@@ -104,7 +104,7 @@ const Auth = () => {
         </section>
 
         <section className="relative flex items-center justify-center bg-transparent p-4 sm:p-6 md:p-8 z-10">
-          <div className="w-full max-w-3xl lg:mr-16 rounded-3xl border-2 border-border/70 bg-card p-7 shadow-[0_20px_40px_hsl(0_0%_0%/0.24)] sm:p-10 relative z-20">
+          <div className="w-full max-w-3xl lg:mr-16 rounded-3xl border-none bg-card p-7 shadow-[0_15px_35px_hsl(0_0%_0%/0.15)] sm:p-10 relative z-20">
             <div className="mb-6 flex items-center justify-center gap-2.5 lg:hidden">
               <img src={logoVini} alt="ViniAI Logo" className="relative -translate-y-0.5 h-9 w-9 object-contain" />
               <span className="text-[0.95rem] font-semibold tracking-wide">ViniAI</span>
@@ -138,14 +138,14 @@ const Auth = () => {
             ) : (
               <>
                 <form onSubmit={handleSubmit} noValidate>
-                  <div className="space-y-5">
+                  <div className="space-y-4">
                     {mode === "register" && (
                       <input
                         type="text"
                         placeholder="Seu nome"
                         value={nome}
                         onChange={(e) => setNome(e.target.value)}
-                        className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
+                        className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
                       />
                     )}
 
@@ -154,26 +154,28 @@ const Auth = () => {
                       placeholder="Email corporativo"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`w-full rounded-xl border bg-input px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
+                      className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
                     />
 
                     {mode !== "forgot_password" && (
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Senha"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className={`w-full rounded-xl border bg-input px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "border-red-500 shadow-[0_0_0_3px_hsl(0_72%_51%/0.15)]" : "border-border focus:border-primary focus:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]"}`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                          tabIndex={-1}
-                        >
-                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
+                      <div className="space-y-1.5">
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Senha"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -183,7 +185,7 @@ const Auth = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-all hover:brightness-110 hover:shadow-[0_10px_24px_hsl(var(--primary)/0.35)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground border border-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Enviar link"}
                   </button>
@@ -198,8 +200,12 @@ const Auth = () => {
                           Criar conta
                         </button>
                       </p>
-                      <p>
-                        <button onClick={() => { setMode("forgot_password"); setMessage(""); }} className="font-medium text-foreground transition-colors hover:text-primary">
+                      <p className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => { setMode("forgot_password"); setMessage(""); }}
+                          className="text-sm font-medium text-foreground transition-colors hover:text-primary"
+                        >
                           Esqueci minha senha
                         </button>
                       </p>

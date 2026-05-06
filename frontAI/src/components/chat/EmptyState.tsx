@@ -209,7 +209,7 @@ const EmptyState = ({ onSuggestionClick, setor }: EmptyStateProps) => {
           style={{ fontFamily: "'Space Grotesk', sans-serif", color: "hsl(var(--foreground))", letterSpacing: "-0.02em" }}
         >
           Como posso{" "}
-          <span className="bg-gradient-to-br from-[hsl(4,82%,50%)] to-[#700d0dff] bg-clip-text text-transparent">
+          <span className="bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(-10,135%,80%)] bg-clip-text text-transparent">
             ajudar hoje?
           </span>
         </h1>

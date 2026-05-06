@@ -6,88 +6,105 @@
 
 @layer base {
   :root {
-    /* Variáveis globais e paleta de cores do sistema */
-    --background: 0 0% 7%;
+    /* Variáveis globais e paleta de cores do sistema - Tons Pastéis / Clean (Dark Mode Padrão) */
+    /* Fundo escuro mais claro, moderno e pastelizado */
+    --background: 0 0% 14%;
+    --app-bg: linear-gradient(to top, hsl(0 0% 14%), hsl(0 0% 13%));
 
-    /* Texto principal - branco */
+    /* Texto principal - branco off-white, limpo e legível */
     --foreground: 0 0% 95%;
 
-    --sidebar: 0 0% 5%;
+    /* Sidebar levemente mais escura que o fundo para emoldurar o app */
+    --sidebar: 0 0% 14%;
 
-    /* Vermelho principal (mantido) */
-    --primary: 2 72% 44%;
+    /* Vermelho pastelizado moderno — menos saturado, mais suave */
+    --primary: 2 85% 60%;
     --primary-foreground: 0 0% 100%;
+    /* Hover levemente mais claro que a cor base ao passar o mouse */
+    --primary-hover: 2 76% 60%;
 
-    --primary-hover: 2 72% 38%;
-
-    --secondary: 0 0% 13%;
+    /* Superfícies secundárias e hovers de botões cinzas (mais claros que o card) */
+    --secondary: 0 0% 19%;
     --secondary-foreground: 0 0% 95%;
 
-    /* Tons neutros */
-    --muted: 0 0% 11%;
-    --muted-foreground: 0 0% 60%;
+    /* Tons neutros e suaves para textos secundários e fundos discretos */
+    --muted: 0 0% 19%;
+    --muted-foreground: 0 0% 70%;
 
-    /* Bordas */
-    --border: 0 0% 17%;
-    --input: 0 0% 10%;
-    --ring: 2 72% 44%;
+    /* Bordas sutis integradas para separar elementos suavemente */
+    --border: 0 0% 22%;
 
-    /* Cards */
-    --card: 0 0% 10%;
+    /* Boxes (Inputs, Cards) mais claras que o fundo para dar efeito de elevação */
+    --input: 0 0% 17%;
+    --ring: 2 76% 67%;
+
+    /* Cards flutuantes e painéis (mesma elevação do input) */
+    --card: 0 0% 17%;
     --card-foreground: 0 0% 95%;
-    --popover: 0 0% 10%;
+    --popover: 0 0% 17%;
     --popover-foreground: 0 0% 95%;
 
-    /* Accent */
-    --accent: 0 0% 14%;
+    /* Accent (Item selecionado ou hover forte) */
+    --accent: 0 0% 19%;
     --accent-foreground: 0 0% 95%;
 
-    /* Destrutivo */
-    --destructive: 0 68% 46%;
+    /* Destrutivo também usa o vermelho pastelizado com tonalidade forte */
+    --destructive: 2 76% 70%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Gradientes */
-    --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
-    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.18) 0%, hsl(0 0% 14% / 0.2) 100%);
+    /* Gradientes clean usando a nova cor */
+    --gradient-primary: linear-gradient(135deg, hsl(2, 100%, 61%) 0%, hsl(2, 100%, 77%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(2 76% 67% / 0.15) 0%, hsl(0 0% 19% / 0.2) 100%);
 
-    /* Vidro */
-    --glass-bg: hsl(0 0% 10% / 0.70);
-    --glass-border: hsl(0 0% 100% / 0.07);
+    /* Vidro ajustado para a elevação das boxes */
+    --glass-bg: hsl(0 0% 17% / 0.65);
+    --glass-border: hsl(0 0% 100% / 0.05);
 
-    /* Sombra */
-    --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.18);
-    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.5), 0 1px 2px hsl(0 0% 0% / 0.4);
+    /* Sombra refinada */
+    --shadow-glow: 0 0 30px hsl(2 76% 67% / 0.15);
+    --shadow-subtle: 0 4px 20px hsl(0 0% 0% / 0.25), 0 1px 3px hsl(0 0% 0% / 0.15);
   }
 
-  /* Cores específicas para o tema claro */
+  /* Cores específicas para o tema claro - Tons Pastéis */
   [data-theme="light"] {
-    --background: 0 0% 77%;
-    --foreground: 0 0% 1%;
-    --sidebar: 0 0% 71%;
-    --primary: 2 72% 44%;
+    --background: 0 0% 98%;
+    --app-bg: linear-gradient(to top, hsl(0 0% 98%), hsl(0 0% 93%));
+    --foreground: 0 0% 15%;
+    --sidebar: 0 0% 96%;
+
+    --primary: 2 79% 62%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 2 72% 38%;
-    --secondary: 0 0% 67%;
-    --secondary-foreground: 0 0% 1%;
-    --muted: 0 0% 69%;
-    --muted-foreground: 0 0% 10%;
-    --border: 0 0% 61%;
-    --input: 0 0% 69%;
-    --ring: 2 72% 44%;
-    --card: 0 0% 72%;
-    --card-foreground: 0 0% 1%;
-    --popover: 0 0% 72%;
-    --popover-foreground: 0 0% 1%;
-    --accent: 0 0% 68%;
-    --accent-foreground: 0 0% 1%;
-    --destructive: 0 68% 46%;
+    --primary-hover: 2 79% 57%;
+
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 15%;
+
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 45%;
+
+    --border: 0 0% 88%;
+    --input: 0 0% 95%;
+    --ring: 2 79% 62%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
+
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 15%;
+
+    --destructive: 2 79% 62%;
     --destructive-foreground: 0 0% 100%;
-    --gradient-primary: linear-gradient(135deg, hsl(2 72% 42%) 0%, hsl(2 68% 52%) 100%);
-    --gradient-glow: linear-gradient(135deg, hsl(2 72% 44% / 0.1) 0%, hsl(0 0% 65% / 0.1) 100%);
-    --glass-bg: hsl(0 0% 77% / 0.75);
-    --glass-border: hsl(0 0% 0% / 0.1);
-    --shadow-glow: 0 0 40px hsl(2 72% 44% / 0.1);
-    --shadow-subtle: 0 1px 3px hsl(0 0% 0% / 0.15), 0 1px 2px hsl(0 0% 0% / 0.1);
+
+    --gradient-primary: linear-gradient(135deg, hsl(2 79% 62%) 0%, hsl(2 72% 70%) 100%);
+    --gradient-glow: linear-gradient(135deg, hsl(2 79% 62% / 0.15) 0%, hsl(0 0% 90% / 0.3) 100%);
+
+    --glass-bg: hsl(0 0% 94% / 0.85);
+    --glass-border: hsl(0 0% 0% / 0.06);
+
+    --shadow-glow: 0 0 30px hsl(2 79% 62% / 0.15);
+    --shadow-subtle: 0 4px 15px hsl(0 0% 0% / 0.03), 0 1px 3px hsl(0 0% 0% / 0.02);
   }
 
   * {
@@ -155,7 +172,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, hsl(4 82% 47% / 0.5), hsl(214 60% 30% / 0.3));
+    background: linear-gradient(135deg, hsl(2 76% 58% / 0.5), hsl(214 60% 30% / 0.3));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -236,6 +253,54 @@
   .icon-badge {
     @apply w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200;
   }
+}
+
+/* ===================== SIDEBAR COLLAPSED TOGGLE ===================== */
+
+/* Ao hover: esconde logo, mostra ícone de abrir */
+.sidebar-collapsed-toggle:hover .sidebar-collapsed-logo {
+  opacity: 0 !important;
+}
+
+.sidebar-collapsed-toggle:hover .sidebar-collapsed-icon {
+  opacity: 1 !important;
+}
+
+/* ===================== SIDEBAR RESIZE HANDLE ===================== */
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 50;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 32px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:active::after {
+  background: hsl(var(--primary) / 0.55);
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: transparent;
 }
 
 /* ===================== KEYFRAMES ===================== */
@@ -393,12 +458,11 @@
 
 .prose-chat code {
   background: hsl(var(--muted));
-  border: 1px solid hsl(var(--border));
-  padding: 0.15em 0.4em;
+  padding: 0.2em 0.4em;
   border-radius: 5px;
   font-size: 0.82em;
   font-family: 'Fira Code', 'Cascadia Code', monospace;
-  color: hsl(4 82% 65%);
+  color: hsl(2 76% 68%);
 }
 
 .prose-chat pre {
@@ -442,7 +506,7 @@
 }
 
 .prose-chat a {
-  color: hsl(4 82% 65%);
+  color: hsl(2 76% 68%);
   text-decoration: underline;
 }
 

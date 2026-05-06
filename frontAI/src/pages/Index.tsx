@@ -50,13 +50,17 @@ const Index = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [search, setSearch] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(290);
+  const [isResizingActive, setIsResizingActive] = useState(false);
+  const lastExpandedWidth = useRef(290);
+  const isSidebarCollapsed = sidebarWidth < 170;
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(window.innerWidth < 768);
   const [carregando, setCarregando] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isDark, setIsDark] = useState(() => localStorage.getItem("vini-theme") !== "light");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
 
@@ -164,28 +168,29 @@ const Index = () => {
 
   const toggleTheme = () => setIsDark(prev => !prev);
 
-  // Cores inline reativamente ao tema
+  // Cores inline reativas ao tema via variáveis CSS
   const C = {
-    bg: isDark ? "#111010ff" : "#c4c4c4",
-    sidebar: isDark ? "#0d0d0d" : "#b5b5b5",
-    sidebarBorder: isDark ? "#1e1e1e" : "#969696",
-    card: isDark ? "#161616" : "#b8b8b8",
-    searchBg: isDark ? "#0d0d0d" : "#b0b0b0",
-    searchBorder: isDark ? "#1e1e1e" : "#8c8c8c",
-    convActive: isDark ? "#1a1a1a" : "#a8a8a8",
-    convHover: isDark ? "#1a1a1a" : "#a8a8a8",
-    text: isDark ? "hsl(0 0% 95%)" : "#010101",
-    textMuted: isDark ? "hsl(0 0% 58%)" : "#111111",
-    textSubtle: isDark ? "hsl(0 0% 45%)" : "#222222",
-    convText: isDark ? "hsl(0 0% 68%)" : "#050505",
-    hoverBg: isDark ? "#1e1e1e" : "#a0a0a0",
-    pinHover: isDark ? "#222222" : "#a0a0a0",
-    loadingBg: isDark ? "#111111" : "#bdbdbd",
-    topbarBorder: isDark ? "#1e1e1e" : "#a0a0a0",
-    mobileMenuBg: isDark ? "#1a1a1a" : "#8a8a8a",
-    redText: isDark ? "hsl(2 68% 58%)" : "hsl(0 72% 30%)",
-    redHover: isDark ? "hsla(3, 35%, 22%, 1.00)" : "hsla(0, 72%, 40%, 0.15)",
-    initials: "#572222ff",
+    bg: "var(--app-bg)",
+    sidebar: "hsl(var(--sidebar))",
+    sidebarBorder: "hsl(var(--border))",
+    card: "hsl(var(--card))",
+    searchBg: "hsl(var(--input))",
+    searchBorder: "hsl(var(--border))",
+    convActive: "hsl(var(--accent))",
+    convHover: "hsl(var(--muted))",
+    text: "hsl(var(--foreground))",
+    textMuted: "hsl(var(--muted-foreground))",
+    textSubtle: "hsl(var(--muted-foreground))",
+    textLabel: isDark ? "hsl(0 0% 80%)" : "hsl(0 0% 38%)",
+    convText: "hsl(var(--foreground))",
+    hoverBg: "hsl(var(--muted))",
+    pinHover: "hsl(var(--muted))",
+    loadingBg: "hsl(var(--background))",
+    topbarBorder: "hsl(var(--border))",
+    mobileMenuBg: "hsl(var(--sidebar))",
+    redText: "hsl(var(--primary))",
+    redHover: "hsl(var(--primary) / 0.15)",
+    initials: "hsl(var(--primary))",
   };
 
   const activeConversation = conversations.find((c) => c.id === activeId);
@@ -243,6 +248,33 @@ const Index = () => {
     } catch (err) {
       console.error("Erro ao alternar pin:", err);
     }
+  };
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    if (isMobileViewport) return;
+    e.preventDefault();
+    setIsResizingActive(true);
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const newWidth = Math.min(300, Math.max(60, startWidth + ev.clientX - startX));
+      setSidebarWidth(newWidth);
+      if (newWidth >= 170) lastExpandedWidth.current = newWidth;
+    };
+
+    const onMouseUp = () => {
+      setIsResizingActive(false);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   const startRenameConversation = (conversation: Conversation) => {
@@ -405,8 +437,13 @@ const Index = () => {
     });
 
   const initials = userProfile?.nome
-    ? userProfile.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
-    : "U";
+    ? userProfile.nome
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+    : "AI";
 
   if (carregando) {
     return (
@@ -433,11 +470,11 @@ const Index = () => {
       {/* ══════════════ SIDEBAR ══════════════ */}
       <aside
         style={{
-          width: isMobileViewport ? "82vw" : (isSidebarCollapsed ? "60px" : "290px"),
+          width: isMobileViewport ? "82vw" : `${sidebarWidth}px`,
           maxWidth: isMobileViewport ? "300px" : "unset",
           background: C.sidebar,
           borderRight: `1px solid ${C.sidebarBorder}`,
-          transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
+          transition: isResizingActive ? "none" : "width 0.28s cubic-bezier(0.4,0,0.2,1)",
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",
@@ -446,37 +483,79 @@ const Index = () => {
           bottom: 0,
           left: 0,
           zIndex: 40,
+          overflow: "hidden",
           transform: isSidebarOpen || !isMobileViewport ? "translateX(0)" : "translateX(-100%)",
         }}
         className={`${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
       >
+        {/* Handle de redimensionamento — apenas desktop */}
+        {!isMobileViewport && (
+          <div
+            onMouseDown={handleResizeMouseDown}
+            className="sidebar-resize-handle"
+          />
+        )}
         {/* Sidebar header */}
         <div
-          className={`flex items-center justify-between ${isSidebarCollapsed ? "px-0" : "px-3"} pt-4 pb-2 shrink-0`}
-          style={{ minHeight: "60px" }}
+          className="flex items-center gap-2.5 px-3 pt-4 pb-2 shrink-0 overflow-hidden whitespace-nowrap"
+          style={{ minHeight: "60px", justifyContent: isSidebarCollapsed ? "center" : "flex-start" }}
         >
-          {!isSidebarCollapsed && (
+          {isSidebarCollapsed ? (
+            /* Modo colapsado: logo visível por padrão, ícone de expandir aparece ao hover (sobrepostos) */
+            <button
+              onClick={() => {
+                const defaultWidth = 290;
+                setSidebarWidth(defaultWidth);
+                lastExpandedWidth.current = defaultWidth;
+              }}
+              className="sidebar-collapsed-toggle w-10 h-10 rounded-xl shrink-0 transition-all duration-200"
+              style={{ background: "hsl(var(--primary))", position: "relative" }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = C.hoverBg;
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--primary))";
+              }}
+              title="Expandir sidebar"
+            >
+              {/* Logo — visível por padrão */}
+              <span
+                className="sidebar-collapsed-logo"
+                style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity 0.2s ease", opacity: 1 }}
+              >
+                <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain" />
+              </span>
+              {/* Ícone abrir — visível ao hover */}
+              <span
+                className="sidebar-collapsed-icon"
+                style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "opacity 0.2s ease", opacity: 0 }}
+              >
+                <PanelLeftOpen size={18} color="#fff" />
+              </span>
+            </button>
+          ) : (
+            /* Modo expandido: logo + nome + botão fechar */
             <>
-              <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="flex items-center gap-2.5 flex-1 min-w-0 overflow-hidden">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: "hsl(2 72% 44%)" }}
+                  style={{ background: "hsl(var(--primary))" }}
                 >
-                  <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain mx-auto my-auto" />
+                  <img src={logo} alt="ViniAI Logo" className="w-6 h-6 object-contain" />
                 </div>
-                <div className="overflow-hidden">
+                <div className="flex-1 min-w-0 overflow-hidden">
                   <p className="font-semibold text-sm leading-tight truncate" style={{ color: C.text }}>ViniAI</p>
-                  <p className="text-xs truncate" style={{ color: C.textMuted }}>
-                    {userProfile?.nome}
-                    {userProfile?.setor && (
-                      <span style={{ color: C.redText }}> · {userProfile.setor}</span>
-                    )}
+                  <p className="text-[11px] truncate" style={{ color: C.textMuted }}>
+                    {userProfile?.nome} <span style={{ color: C.redText, fontWeight: 700 }}>•{userProfile?.setor}</span>
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsSidebarCollapsed(true)}
-                className="hidden md:flex items-center justify-center w-7 h-7 rounded-full transition-all duration-200 shrink-0"
+                onClick={() => {
+                  lastExpandedWidth.current = sidebarWidth;
+                  setSidebarWidth(60);
+                }}
+                className="hidden md:flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 shrink-0"
                 style={{ color: C.textMuted }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = C.hoverBg;
@@ -486,290 +565,374 @@ const Index = () => {
                   e.currentTarget.style.background = "transparent";
                   e.currentTarget.style.color = C.textMuted;
                 }}
-                title="Recolher"
+                title="Recolher sidebar"
               >
                 <PanelLeftClose size={16} />
               </button>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mt-2"
-                style={{
-                  color: C.text,
-                  background: "transparent",
-                  border: "1px solid hsl(var(--border) / 0.15)"
-                }}
-              >
-                <Menu size={22} strokeWidth={2.5} />
-              </button>
             </>
-          )}
-
-          {isSidebarCollapsed && (
-            <button
-              onClick={() => setIsSidebarCollapsed(false)}
-              onMouseEnter={() => setIsLogoHovered(true)}
-              onMouseLeave={() => setIsLogoHovered(false)}
-              className="hidden md:flex mx-auto items-center justify-center w-[38px] h-[38px] rounded-xl transition-all duration-200"
-              style={{
-                background: isLogoHovered ? "#2a2a2a" : "hsl(2 72% 44%)",
-                color: "#fff",
-              }}
-              title="Expandir"
-            >
-              {isLogoHovered
-                ? <PanelLeftOpen size={16} />
-                : <img src={logo} alt="ViniAI Logo" className="w-[70%] h-[70%] object-contain" />
-              }
-            </button>
           )}
         </div>
 
-        {/* Nova conversa */}
-        <div className="px-2 pt-6 pb-0 shrink-0">
+        {/* Botão Nova Conversa */}
+        <div className="px-2 pt-4 pb-0 shrink-0" style={{ display: "flex", justifyContent: isSidebarCollapsed ? "center" : "stretch" }}>
           <button
             onClick={createNewConversation}
-            className={`flex items-center justify-center rounded-xl transition-all duration-200 ${isSidebarCollapsed ? "w-[38px] h-[38px] mx-auto" : "w-full gap-2 py-2.5 px-3 text-sm font-medium"}`}
-            style={{ background: "hsl(2 72% 44%)", color: "#fff" }}
+            className="flex items-center justify-center rounded-xl"
+            style={{
+              background: "hsl(var(--primary))",
+              color: "#fff",
+              boxShadow: "none",
+              overflow: "hidden",
+              width: isSidebarCollapsed ? "40px" : "100%",
+              height: "40px",
+              padding: isSidebarCollapsed ? "0" : "0 12px",
+              gap: isSidebarCollapsed ? "0" : "8px",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              transition: "width 0.28s cubic-bezier(0.4,0,0.2,1), padding 0.28s cubic-bezier(0.4,0,0.2,1), gap 0.28s cubic-bezier(0.4,0,0.2,1), background 0.2s ease",
+            }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = "hsl(2 72% 38%)";
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 12px hsl(2 72% 44% / 0.35)";
+              (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--primary-hover))";
+              (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1)";
             }}
             onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = "hsl(2 72% 44%)";
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+              (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--primary))";
+              (e.currentTarget as HTMLButtonElement).style.filter = "brightness(1)";
             }}
           >
-            <Plus size={isSidebarCollapsed ? 18 : 15} strokeWidth={2.5} />
-            {!isSidebarCollapsed && <span>Nova Conversa</span>}
+            <Plus size={15} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+            {/* Texto: maxWidth colapsa para não empurrar o ícone + para fora; slide-in ao expandir */}
+            <span
+              style={{
+                maxWidth: isSidebarCollapsed ? "0px" : "160px",
+                opacity: isSidebarCollapsed ? 0 : 1,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                transform: isSidebarCollapsed ? "translateX(-4px)" : "translateX(0)",
+                pointerEvents: isSidebarCollapsed ? "none" : "auto",
+                transition: isSidebarCollapsed
+                  ? "max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.08s ease, transform 0.08s ease"
+                  : "max-width 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease 0.16s, transform 0.22s cubic-bezier(0.34,1.56,0.64,1) 0.14s",
+              }}
+            >
+              Nova Conversa
+            </span>
           </button>
         </div>
 
+        {/* Botão de busca no modo colapsado */}
+        {isSidebarCollapsed && (
+          <div className="px-2 pt-4 pb-3 shrink-0 flex justify-center">
+            <button
+              onClick={() => {
+                /* Sempre expande para 290px (posição padrão da sidebar) */
+                const w = 290;
+                lastExpandedWidth.current = w;
+                setSidebarWidth(w);
+                setTimeout(() => searchInputRef.current?.focus(), 300);
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
+              style={{ background: C.searchBg, color: C.textMuted }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = C.convHover; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = C.searchBg; }}
+            >
+              <Search size={16} />
+            </button>
+          </div>
+        )}
+
         {/* Search */}
         {!isSidebarCollapsed && (
-          <div className="px-2 pt-2 pb-2 shrink-0">
+          <div className="px-2 pt-4 pb-0 shrink-0">
             <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl"
-              style={{ background: C.searchBg, border: `1px solid ${C.searchBorder}` }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              style={{ background: C.searchBg, border: `0 ${C.searchBorder}` }}
             >
               <Search size={14} style={{ color: C.textMuted, flexShrink: 0 }} />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar conversa..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 bg-transparent text-sm outline-none placeholder:text-inherit"
-                style={{ color: C.text, caretColor: "hsl(2 72% 44%)", opacity: 0.9 }}
+                style={{ color: C.text, opacity: 0.8 }}
               />
             </div>
           </div>
         )}
 
         {/* Lista de conversas */}
-        <div className="flex-1 overflow-y-auto px-2 py-0.1 space-y-1">
+        <div className="flex-1 overflow-y-auto px-2 pt-2 space-y-1">
           {!isSidebarCollapsed && filteredConversations.length > 0 && (
-            <p className="text-xs font-medium px-2 py-1.5" style={{ color: C.textSubtle }}>
+            <p className="text-xs font-medium px-2 py-1.5" style={{ color: C.textLabel }}>
               Conversas
             </p>
           )}
 
-          {filteredConversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={`group relative flex items-center transition-all duration-150 cursor-pointer ${isSidebarCollapsed ? "justify-center" : "gap-1 px-2.5 py-2.5 rounded-xl text-sm"}`}
-              style={{
-                background: activeId === conv.id ? C.convActive : "transparent",
-                color: activeId === conv.id ? C.text : C.convText,
-                width: isSidebarCollapsed ? "38px" : "auto",
-                height: isSidebarCollapsed ? "38px" : "auto",
-                margin: isSidebarCollapsed ? "4px auto" : "0",
-                borderRadius: isSidebarCollapsed ? "12px" : "",
-              }}
-              onMouseEnter={e => {
-                if (activeId !== conv.id)
-                  (e.currentTarget as HTMLDivElement).style.background = C.convHover;
-              }}
-              onMouseLeave={e => {
-                if (activeId !== conv.id)
-                  (e.currentTarget as HTMLDivElement).style.background = "transparent";
-              }}
-            >
-              {isSidebarCollapsed ? (
-                <button
-                  onClick={() => { setActiveId(conv.id); setIsSidebarOpen(false); }}
-                  className="w-full flex justify-center"
-                  title={conv.title}
-                >
-                  <MessageSquare size={16} />
-                </button>
-              ) : (
-                <>
-                  <MessageSquare size={14} className="shrink-0 opacity-50" />
+          {filteredConversations.map((conv) => {
+            /* Durante resize ou colapsado: se a sidebar for estreita demais para mostrar texto,
+               mostra apenas ícones centralizados — mesmo durante a transição de redimensionamento */
+            const showIconOnly = isSidebarCollapsed;
+            return (
+              <div
+                key={conv.id}
+                className={`group relative flex items-center transition-all duration-150 cursor-pointer ${showIconOnly ? "justify-center" : "gap-1 px-2.5 py-2.5 rounded-xl text-sm"
+                  }`}
+                style={{
+                  background: activeId === conv.id ? C.convActive : "transparent",
+                  color: activeId === conv.id ? C.text : C.convText,
+                  width: showIconOnly ? "40px" : "auto",
+                  height: showIconOnly ? "40px" : "auto",
+                  margin: showIconOnly ? "2px auto" : "0",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={e => {
+                  if (activeId !== conv.id) {
+                    (e.currentTarget as HTMLDivElement).style.background = C.convHover;
+                    (e.currentTarget as HTMLDivElement).style.filter = "brightness(1.3)";
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (activeId !== conv.id) {
+                    (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                    (e.currentTarget as HTMLDivElement).style.filter = "brightness(1)";
+                  }
+                }}
+              >
+                {showIconOnly ? (
                   <button
                     onClick={() => { setActiveId(conv.id); setIsSidebarOpen(false); }}
-                    className="flex-1 min-w-0 text-left"
+                    className="w-full flex justify-center items-center"
+                    title={conv.title}
                   >
-                    <div className="flex items-center gap-1 min-w-0">
-                      {conv.pinned && <Pin size={10} style={{ color: C.redText, flexShrink: 0 }} />}
-                      {editingConversationId === conv.id ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          value={editingTitle}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onBlur={() => void submitRenameConversation(conv.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") void submitRenameConversation(conv.id);
-                            if (e.key === "Escape") cancelRenameConversation();
-                          }}
-                          className="w-full bg-transparent text-[13px] outline-none"
-                          style={{ color: C.text }}
-                        />
-                      ) : (
-                        <span className="truncate text-[13px]">{conv.title}</span>
-                      )}
-                    </div>
+                    <MessageSquare size={16} />
                   </button>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+                ) : (
+                  <>
+                    <MessageSquare size={14} className="shrink-0 opacity-50" />
                     <button
-                      onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
-                      className="p-1 rounded-xl transition-all duration-150"
-                      style={{ color: conv.pinned ? C.redText : C.textMuted }}
-                      onMouseEnter={e => (e.currentTarget.style.background = C.pinHover)}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                      title="Fixar"
+                      onClick={() => { setActiveId(conv.id); setIsSidebarOpen(false); }}
+                      className="flex-1 min-w-0 text-left"
                     >
-                      <Pin size={12} />
+                      <div className="flex items-center gap-1 min-w-0">
+                        {conv.pinned && <Pin size={10} style={{ color: C.redText, flexShrink: 0 }} />}
+                        {editingConversationId === conv.id ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingTitle}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onBlur={() => void submitRenameConversation(conv.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void submitRenameConversation(conv.id);
+                              if (e.key === "Escape") cancelRenameConversation();
+                            }}
+                            className="w-full bg-transparent text-[13px] outline-none"
+                            style={{ color: C.text }}
+                          />
+                        ) : (
+                          <span className="truncate text-[13px]">{conv.title}</span>
+                        )}
+                      </div>
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startRenameConversation(conv);
-                      }}
-                      className="p-1 rounded-xl transition-all duration-150"
-                      style={{ color: C.textMuted }}
-                      onMouseEnter={e => (e.currentTarget.style.background = C.pinHover)}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                      title="Editar título"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); void exportConversation(conv); }}
-                      className="p-1 rounded-xl transition-all duration-150"
-                      style={{ color: C.textMuted }}
-                      onMouseEnter={e => (e.currentTarget.style.background = C.pinHover)}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                      title="Exportar conversa"
-                    >
-                      <FileDown size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
-                      className="p-1 rounded-xl transition-all duration-150"
-                      style={{ color: C.textMuted }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLButtonElement).style.background = "hsl(2 60% 19%)";
-                        (e.currentTarget as HTMLButtonElement).style.color = "hsl(2 68% 60%)";
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                        (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
-                      }}
-                      title="Excluir"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
+                        className="p-1 rounded-xl transition-all duration-150"
+                        style={{ color: conv.pinned ? C.redText : "hsl(var(--foreground) / 0.8)" }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = C.pinHover;
+                          if (!conv.pinned) e.currentTarget.style.color = C.text;
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = "transparent";
+                          if (!conv.pinned) e.currentTarget.style.color = C.text;
+                        }}
+                        title="Fixar"
+                      >
+                        <Pin size={13} strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startRenameConversation(conv);
+                        }}
+                        className="p-1 rounded-xl transition-all duration-150"
+                        style={{ color: "hsl(var(--foreground) / 0.8)" }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = C.pinHover;
+                          e.currentTarget.style.color = C.text;
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = "transparent";
+                          e.currentTarget.style.color = "hsl(var(--foreground) / 0.8)";
+                        }}
+                        title="Editar título"
+                      >
+                        <Pencil size={13} strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
+                        className="p-1 rounded-xl transition-all duration-150"
+                        style={{ color: "hsl(var(--foreground) / 0.8)" }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--destructive) / 0.15)";
+                          (e.currentTarget as HTMLButtonElement).style.color = "hsl(var(--destructive))";
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                          (e.currentTarget as HTMLButtonElement).style.color = "hsl(var(--foreground) / 0.8)";
+                        }}
+                        title="Excluir"
+                      >
+                        <Trash2 size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Rodapé sidebar */}
         <div className="p-2 shrink-0">
-          {!isSidebarCollapsed && (
-            <div
-              className="flex items-center gap-2 px-2.5 py-2.5 rounded-xl mb-1"
-              style={{ background: C.card }}
-            >
+          {isSidebarCollapsed ? (
+            /* Modo colapsado: avatar + sair como ícones 40×40px centralizados */
+            <div className="flex flex-col gap-1 items-center">
+              {/* Avatar com iniciais — só o círculo, sem fundo extra */}
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                style={{ background: C.initials, color: "hsl(0 0% 95%)" }}
+                className="flex items-center justify-center w-10 h-10"
+                title={userProfile?.nome}
               >
-                {initials}
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  style={{ background: C.initials, color: "hsl(0 0% 95%)" }}
+                >
+                  {initials}
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={{ color: C.text }}>
-                  {userProfile?.nome}
-                </p>
-                <p className="text-xs truncate" style={{ color: C.redText }}>
-                  {userProfile?.setor}
-                </p>
-              </div>
-              {/* Botão alternar tema simplificado */}
+              {userProfile?.nivel_acesso === "ADMIN" && (
+                <button
+                  onClick={() => navigate("/admin")}
+                  title="Painel Admin"
+                  className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
+                  style={{ color: C.textMuted }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+                    (e.currentTarget as HTMLButtonElement).style.color = C.text;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
+                  }}
+                >
+                  <ShieldCheck size={16} strokeWidth={1.8} />
+                </button>
+              )}
               <button
-                onClick={toggleTheme}
-                title={isDark ? "Modo claro" : "Modo escuro"}
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
-                style={{
-                  color: isDark ? "hsl(0 0% 70%)" : "#444",
-                }}
+                onClick={handleLogout}
+                title="Sair da conta"
+                className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
+                style={{ color: C.redText }}
                 onMouseEnter={e => {
-                  (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-                  (e.currentTarget as HTMLButtonElement).style.color = isDark ? "#fff" : "#000";
+                  (e.currentTarget as HTMLButtonElement).style.background = C.redHover;
                 }}
                 onMouseLeave={e => {
                   (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                  (e.currentTarget as HTMLButtonElement).style.color = isDark ? "hsl(0 0% 70%)" : "#444";
                 }}
               >
-                {isDark ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
+                <LogOut size={16} strokeWidth={2} />
               </button>
             </div>
-          )}
+          ) : (
+            /* Modo expandido: perfil + tema + admin + sair */
+            <>
+              <div
+                className="flex items-center gap-2 px-2.5 py-2.5 rounded-xl mb-1"
+                style={{ background: C.searchBg }}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  style={{ background: C.initials, color: "hsl(0 0% 95%)" }}
+                >
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+                    {userProfile?.nome}
+                  </p>
+                  <p className="text-xs truncate" style={{ color: C.redText }}>
+                    {userProfile?.setor}
+                  </p>
+                </div>
+                {/* Botão alternar tema simplificado */}
+                <button
+                  onClick={toggleTheme}
+                  title={isDark ? "Modo claro" : "Modo escuro"}
+                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-200"
+                  style={{
+                    color: "hsl(var(--foreground) / 0.8)",
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+                    (e.currentTarget as HTMLButtonElement).style.color = C.text;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    (e.currentTarget as HTMLButtonElement).style.color = "hsl(var(--foreground) / 0.8)";
+                  }}
+                >
+                  {isDark ? <Sun size={15} strokeWidth={2} /> : <Moon size={15} strokeWidth={2} />}
+                </button>
+              </div>
 
-          {userProfile?.nivel_acesso === "ADMIN" && (
-            <button
-              onClick={() => navigate("/admin")}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
-              style={{ color: C.textMuted }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-                (e.currentTarget as HTMLButtonElement).style.color = C.text;
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
-              }}
-            >
-              <ShieldCheck size={16} strokeWidth={1.8} />
-              {!isSidebarCollapsed && <span>Painel Admin</span>}
-            </button>
-          )}
+              {userProfile?.nivel_acesso === "ADMIN" && (
+                <button
+                  onClick={() => navigate("/admin")}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 justify-start"
+                  style={{ color: C.textMuted }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+                    (e.currentTarget as HTMLButtonElement).style.color = C.text;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    (e.currentTarget as HTMLButtonElement).style.color = C.textMuted;
+                  }}
+                >
+                  <ShieldCheck size={16} strokeWidth={1.8} />
+                  <span>Painel Admin</span>
+                </button>
+              )}
 
-          <button
-            onClick={handleLogout}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 ${isSidebarCollapsed ? "justify-center" : "justify-start"}`}
-            style={{ color: C.redText }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = C.redHover;
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-            }}
-          >
-            <LogOut size={16} strokeWidth={2} />
-            {!isSidebarCollapsed && <span>Sair da conta</span>}
-          </button>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm transition-all duration-200 justify-start"
+                style={{ color: C.redText }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = C.redHover;
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                }}
+              >
+                <LogOut size={16} strokeWidth={2} />
+                <span>Sair da conta</span>
+              </button>
+            </>
+          )}
         </div>
       </aside>
 
       {/* ══════════════ MAIN ══════════════ */}
       <main
         className="flex-1 flex flex-col min-w-0 min-h-0"
-        style={{ marginLeft: isMobileViewport ? "0" : (isSidebarCollapsed ? "60px" : "260px") }}
+        style={{ marginLeft: isMobileViewport ? "0" : `${sidebarWidth}px`, transition: isResizingActive ? "none" : "margin-left 0.28s cubic-bezier(0.4,0,0.2,1)" }}
       >
         {/* Menu flutuante para dispositivos móveis */}
         <div className={`md:hidden absolute top-0 left-0 p-2 z-50 pointer-events-none w-full flex items-center ${isSidebarOpen ? "hidden" : ""}`}>
