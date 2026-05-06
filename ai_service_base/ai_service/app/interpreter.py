@@ -580,7 +580,11 @@ class RuleBasedInterpreter:
         r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
         r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
         r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
-        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade",
+        r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
+        r"[ií]ndice[s]?\s+(?:de\s+)?(?:qualidade|ld|defeito[s]?)|"
+        r"taxa\s+(?:de\s+)?(?:ld|defeito[s]?|qualidade)|"
+        r"percentual\s+(?:de\s+)?(?:ld|defeito[s]?|qualidade)|"
+        r"porcentagem\s+(?:de\s+)?(?:ld|defeito[s]?|qualidade)",
         re.IGNORECASE,
     )
 
@@ -590,7 +594,11 @@ class RuleBasedInterpreter:
         r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
         r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
         r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
-        r"resumo\s+de\s+qualidade|quebra\s+por\s+qualidade",
+        r"resumo\s+de\s+qualidade|quebra\s+por\s+qualidade|"
+        r"[ií]ndice[s]?\s+(?:de|por)\s+qualidade|"
+        r"taxa\s+(?:de\s+)?qualidade|"
+        r"percentual\s+(?:de\s+)?qualidade|"
+        r"porcentagem\s+(?:de\s+)?qualidade",
         re.IGNORECASE,
     )
 
@@ -645,7 +653,11 @@ class RuleBasedInterpreter:
         r"quanto\s+(?:foi\s+)?produzido|quanto\s+(?:o\s+)?fez|quanto\s+(?:a\s+)?f[aá]brica|"
         r"quanto\s+saiu|o\s+que\s+saiu|o\s+que\s+foi\s+(?:feito|produzido)|"
         r"o\s+que\s+a\s+(?:f[aá]brica|m[aá]quina|extrusora)\s+fez|"
-        r"m[aá]quina\s+(?:produziu|fez)|linha\s+(?:produziu|fez)",
+        r"m[aá]quina\s+(?:produziu|fez)|linha\s+(?:produziu|fez)|"
+        r"efici[eê]ncia\s+(?:da\s+)?(?:produ[cç][aã]o|m[aá]quina|extrusora|linha)|"
+        r"aproveitamento\s+(?:da\s+)?(?:produ[cç][aã]o|m[aá]quina|linha)|"
+        r"desempenho\s+(?:da\s+)?(?:produ[cç][aã]o|m[aá]quina|extrusora|linha)|"
+        r"balan[cç]o\s+(?:de\s+)?produ[cç][aã]o|saldo\s+(?:de\s+)?produ[cç][aã]o",
         re.IGNORECASE,
     )
 
