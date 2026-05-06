@@ -1,6 +1,6 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 3.4  
+**Versão:** 3.5  
 **Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -319,6 +319,23 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 "Compare o LD de fevereiro com março"
 ```
 
+### `resumo_qualidade` — Índices de qualidade do período (v3.5)
+
+Retorna breakdown de Inteiro / LD / FP / BAG sobre o total inspecionado no período.
+
+```
+"Índices de qualidade hoje"              ← novo (v3.5)
+"Índices por qualidade esse mês"
+"Taxa de qualidade da produção"          ← novo (v3.5)
+"Percentual de qualidade hoje"           ← novo (v3.5)
+"Quais os índices por qualidade ontem?"
+"Produção por qualidade em março"
+"Dividido por qualidade essa semana"
+"Resumo de qualidade do mês"
+```
+
+> **Fonte:** `V_KARDEX` via `get_resumo_qualidade()`.
+
 ### `geracao_ld_por_operador` — LD de um operador
 ```
 "Qual foi o LD do ezequiel em janeiro?"
@@ -371,6 +388,30 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 
 > **Fonte:** `dbo.V_APONT_REV_GERAL` via `get_ranking_producao_extrusora()` — coluna `OPER_MP`, métrica `COALESCE(QTDPROD, 0)` em metros.  
 > **Default top_n:** 50 (sem whitelist de operadores — retorna todos com registro no período).
+
+### `metros_por_minuto` — Velocidade da extrusora (v3.5)
+
+Retorna metros totais, minutos totais e média m/min. Quando a mensagem inclui referência a "cada MAC/extrusora", retorna um bloco separado por MAC1 e MAC2.
+
+```
+"Metros por minuto hoje"
+"Qual a velocidade da extrusora?"
+"m/min essa semana"
+"Metros por minuto em cada MAC hoje"     ← breakdown por MAC1/MAC2 (v3.5)
+"m/min de cada extrusora"                ← breakdown por MAC1/MAC2 (v3.5)
+```
+
+> **Implementação (v3.5):** quando detecta "cada MAC/extrusora" ou "por extrusora", o interpreter seta `entity_type="extrusora"`. O orchestrator então chama `get_metros_por_minuto_por_recurso()` (GROUP BY RECURSO) e renderiza um bloco por extrusora, igual ao padrão do KGH.
+
+### `kgh` — KG por hora por extrusora
+
+```
+"KGH de hoje"
+"KG por hora da MAC1 essa semana"
+"KGH da extrusora 2 em março"
+```
+
+> Sempre retorna um bloco por extrusora (GROUP BY RECURSO). Fonte: `STG_PROD_SH6_VPLONAS`.
 
 ### `producao_por_turno` — Por turno
 ```
@@ -456,11 +497,12 @@ As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro
  5.  list_operadores           — "quais operadores da revisão?" (guard: sem LD, sem ranking)
  6.  ranking_produtos_ld       — LD + produto + qual/ranking/top
  7.  ranking_usuarios_ld       — LD + ranking/top/quem/apontou mais/gerou mais/operador que mais (v3.3+)
- 8.  LD próprio                — LD + "meu/minha/eu identifiquei"
+ 8.  resumo_qualidade          — _QUALIDADE_RESUMO: "índices de/por qualidade", "por qualidade", "taxa/percentual de qualidade" (v3.5: expandido)
+ 8.1 LD próprio                — LD + "meu/minha/eu identifiquei"
  9.  LD por operador           — LD + ação ou operador explícito (+ unidade_filtro MT se "em metros")
 10.  LD genérico               — LD sem operador → usa autenticado (+ unidade_filtro MT se "em metros")
 10a. ranking_revisao           — "quem mais revisou", "ranking de revisão", "metros revisados"
-10b. metros_por_minuto         — "metros por minuto", "m/min" (v3.4: antes era 11)
+10b. metros_por_minuto         — "metros por minuto", "m/min"; se "cada MAC/extrusora" → entity_type="extrusora" → breakdown por MAC (v3.5)
 10c. kgh                       — "KGH", "KG por hora" (v3.4: antes era 11b)
 10d. horas_trabalhadas         — "horas trabalhadas", "tempo de produção" (v3.4: antes era 10c)
 10e. comparativo_extrusoras    — produção + extrusora + comparação (v3.4: guard trocado para sem operador)
@@ -674,6 +716,9 @@ FastAPI (ai_service)
 | Limitação (resolvida) | Como foi corrigido |
 |----------------------|-------------------|
 | "Qual o **material** que mais gerou LD?" caía em ranking de operador | `_PRODUTO`: `\bmateriais?\b` substituído por `\bmaterial(?:is)?\b` — agora casa singular e plural |
+| "**Índices de qualidade** hoje?" retornava Top produtos com LD em vez de resumo de qualidade | `_LD` e `_QUALIDADE_RESUMO` expandidos com `[ií]ndice[s]?`, `taxa`, `percentual` e `porcentagem` de qualidade/ld/defeito |
+| `_PRODUCAO` não cobria "eficiência/aproveitamento/desempenho da produção" | Adicionados termos de eficiência, aproveitamento, desempenho e balanço/saldo ao padrão `_PRODUCAO` |
+| "Metros por minuto em cada MAC" retornava total agregado sem breakdown por extrusora | Novo `get_metros_por_minuto_por_recurso()` (GROUP BY RECURSO); interpreter detecta "cada MAC/extrusora" → `entity_type="extrusora"`; orchestrator renderiza bloco por MAC igual ao KGH |
 
 ### Próximos passos sugeridos
 
