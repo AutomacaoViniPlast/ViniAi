@@ -171,7 +171,16 @@ const Admin = () => {
                     key={user.id}
                     className={`border-b border-border/40 transition-colors hover:bg-muted/20 ${i % 2 === 0 ? "" : "bg-muted/10"}`}
                   >
-                    <td className="px-4 py-3 font-medium">{user.nome}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <div className="flex items-center gap-2">
+                        {user.nome}
+                        {user.force_password_change && (
+                          <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                            Trocar senha
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-lg bg-muted px-2 py-0.5 text-xs font-medium capitalize">
