@@ -691,7 +691,7 @@ const Index = () => {
                         <span className="truncate text-[13px]">{conv.title}</span>
                       </div>
                     </button>
-                    <div className="flex items-center gap-0.5 opacity-100 transition-opacity duration-150 shrink-0">
+                    <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity duration-150 shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
                         className="p-1 rounded-xl transition-all duration-150"
