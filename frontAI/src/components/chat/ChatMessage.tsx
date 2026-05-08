@@ -50,7 +50,7 @@ const ChatMessage = ({
 
       <div
         className={cn(
-          "max-w-[75%] px-5 py-3.5 rounded-xl",
+          "max-w-[calc(100%-3.5rem)] md:max-w-[75%] px-5 py-3.5 rounded-xl",
           isUser
             ? "bg-primary text-white rounded-tr-[4px]"
             : "glass rounded-tl-[4px]"
@@ -65,6 +65,13 @@ const ChatMessage = ({
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeSanitize]}
+              components={{
+                table: ({ node: _node, ...props }) => (
+                  <div className="prose-chat-table-scroll">
+                    <table {...props} />
+                  </div>
+                ),
+              }}
             >
               {displayed}
             </ReactMarkdown>
