@@ -713,7 +713,7 @@ const Index = () => {
                           e.stopPropagation();
                           void exportConversation(conv);
                         }}
-                        className="p-1 rounded-xl transition-all duration-150"
+                        className="pr-3 pl-3 rounded-xl transition-all duration-150"
                         style={{ color: "hsl(var(--foreground) / 0.8)" }}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = C.pinHover;
@@ -894,8 +894,8 @@ const Index = () => {
             className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
             style={{
               color: C.text,
-              background: "transparent",
-              border: "1px solid hsl(var(--border) / 0.15)"
+              background: "#242424",
+              border: "2px solid hsl(var(--border) / 0.7)"
             }}
           >
             <Menu size={22} strokeWidth={2.5} />
