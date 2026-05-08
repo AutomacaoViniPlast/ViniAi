@@ -894,7 +894,7 @@ const Index = () => {
             className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
             style={{
               color: C.text,
-              background: "#242424",
+              background: C.mobileMenuBg,
               border: "2px solid hsl(var(--border) / 0.7)"
             }}
           >
