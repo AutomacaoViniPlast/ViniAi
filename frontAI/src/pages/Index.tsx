@@ -19,7 +19,7 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
+import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Message {
@@ -61,8 +61,6 @@ const Index = () => {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("vini-theme") !== "light");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState("");
 
   // Carrega perfil e conversas do banco de dados
   useEffect(() => {
@@ -275,35 +273,6 @@ const Index = () => {
     document.body.style.userSelect = "none";
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
-  };
-
-  const startRenameConversation = (conversation: Conversation) => {
-    setEditingConversationId(conversation.id);
-    setEditingTitle(conversation.title);
-  };
-
-  const cancelRenameConversation = () => {
-    setEditingConversationId(null);
-    setEditingTitle("");
-  };
-
-  const submitRenameConversation = async (id: string) => {
-    const trimmedTitle = editingTitle.trim();
-    if (!trimmedTitle) {
-      cancelRenameConversation();
-      return;
-    }
-
-    try {
-      await updateTitle(id, trimmedTitle);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, title: trimmedTitle } : c))
-      );
-      cancelRenameConversation();
-    } catch (err) {
-      console.error("Erro ao renomear conversa:", err);
-      toast.error("Não foi possível atualizar o título.");
-    }
   };
 
   const exportConversation = async (conv: Conversation) => {
@@ -719,24 +688,7 @@ const Index = () => {
                     >
                       <div className="flex items-center gap-1 min-w-0">
                         {conv.pinned && <Pin size={10} style={{ color: C.redText, flexShrink: 0 }} />}
-                        {editingConversationId === conv.id ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editingTitle}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onBlur={() => void submitRenameConversation(conv.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") void submitRenameConversation(conv.id);
-                              if (e.key === "Escape") cancelRenameConversation();
-                            }}
-                            className="w-full bg-transparent text-[13px] outline-none"
-                            style={{ color: C.text }}
-                          />
-                        ) : (
-                          <span className="truncate text-[13px]">{conv.title}</span>
-                        )}
+                        <span className="truncate text-[13px]">{conv.title}</span>
                       </div>
                     </button>
                     <div className="flex items-center gap-0.5 opacity-100 transition-opacity duration-150 shrink-0">
@@ -755,25 +707,6 @@ const Index = () => {
                         title="Fixar"
                       >
                         <Pin size={13} strokeWidth={2} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startRenameConversation(conv);
-                        }}
-                        className="p-1 rounded-xl transition-all duration-150"
-                        style={{ color: "hsl(var(--foreground) / 0.8)" }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = C.pinHover;
-                          e.currentTarget.style.color = C.text;
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "hsl(var(--foreground) / 0.8)";
-                        }}
-                        title="Editar título"
-                      >
-                        <Pencil size={13} strokeWidth={2} />
                       </button>
                       <button
                         onClick={(e) => {
