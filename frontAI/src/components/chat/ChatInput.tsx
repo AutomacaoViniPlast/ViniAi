@@ -39,17 +39,17 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
   return (
     <form onSubmit={handleSubmit}>
       <div
-        className="rounded-3xl overflow-hidden outline-none"
+        className="rounded-3xl overflow-hidden outline-none relative"
         style={{
           background: "hsl(var(--input))",
-          border: focused ? "1px solid hsl(var(--primary) / 0.5)" : "1px solid transparent",
+          border: focused ? "1px solid hsl(var(--foreground) / 0.03)" : "1px solid transparent",
           boxShadow: "none",
-          transition: "border 0.2s ease, background 0.2s ease",
+          transition: "all 0.3s ease",
         }}
       >
-        <div className="flex items-end gap-4 px-5 py-3">
+        <div className="flex items-end px-5 py-3">
           {/* Textarea */}
-          <div className="flex-1  ">
+          <div className="flex-1 pr-10">
             <textarea
               ref={textareaRef}
               value={message}
@@ -63,7 +63,7 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
               className="w-full bg-transparent text-base outline-none resize-none pt-1.5"
               style={{
                 color: "hsl(var(--foreground))",
-                caretColor: "hsl(var(--primary))",
+                caretColor: "hsl(var(--foreground))",
                 maxHeight: "200px",
                 minHeight: "24px",
                 lineHeight: "1.6",
@@ -80,23 +80,10 @@ const ChatInput = ({ onSend, disabled }: ChatInputProps) => {
           <button
             type="submit"
             disabled={!canSend}
-            className="shrink-0 w-9 h-9 self-center rounded-xl flex items-center justify-center transition-all duration-200"
-            style={{
-              background: canSend ? "hsl(var(--primary))" : "hsl(var(--muted))",
-              color: canSend ? "#fff" : "hsl(var(--muted-foreground))",
-              cursor: canSend ? "pointer" : "not-allowed",
-              transform: "scale(1)",
-            }}
-            onMouseEnter={e => {
-              if (canSend) {
-                (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.08)";
-                (e.currentTarget as HTMLButtonElement).style.background = "hsl(var(--primary-hover))";
-              }
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
-              (e.currentTarget as HTMLButtonElement).style.background = canSend ? "hsl(var(--primary))" : "hsl(var(--muted))";
-            }}
+            className={`absolute right-4 bottom-3 shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-500 bg-primary text-white hover:brightness-110 hover:scale-110 active:scale-95 ${
+              canSend ? "opacity-100 scale-100" : "opacity-0 scale-0 pointer-events-none"
+            }`}
+            style={{ transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)" }}
           >
             <ArrowUp size={16} strokeWidth={2.5} />
           </button>

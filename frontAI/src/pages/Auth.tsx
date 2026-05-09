@@ -145,7 +145,7 @@ const Auth = () => {
                         placeholder="Seu nome"
                         value={nome}
                         onChange={(e) => setNome(e.target.value)}
-                        className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
+                        className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:scale-[1.01]"}`}
                       />
                     )}
 
@@ -154,7 +154,7 @@ const Auth = () => {
                       placeholder="Email corporativo"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
+                      className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:scale-[1.01]"}`}
                     />
 
                     {mode !== "forgot_password" && (
@@ -165,7 +165,7 @@ const Auth = () => {
                             placeholder="Senha"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"}`}
+                            className={`w-full rounded-xl border-none bg-white/5 px-5 py-3 pr-12 text-sm outline-none transition-all placeholder:text-muted-foreground ${hasError ? "shadow-[0_0_0_2px_#ef4444]" : "focus:bg-white/10 focus:scale-[1.01]"}`}
                           />
                           <button
                             type="button"
@@ -185,7 +185,7 @@ const Auth = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground border border-primary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground border border-primary transition-all duration-300 hover:brightness-110 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {loading ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Enviar link"}
                   </button>

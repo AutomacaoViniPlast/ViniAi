@@ -515,31 +515,11 @@
   margin: 1em 0;
 }
 
-.prose-chat-table-scroll {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  margin: 0.75em 0;
-  border: 1px solid hsl(var(--border));
-  border-radius: 10px;
-  -webkit-overflow-scrolling: touch;
-}
-
 .prose-chat table {
   width: 100%;
   border-collapse: collapse;
-  margin: 0;
+  margin: 0.75em 0;
   font-size: 0.85em;
-}
-
-.prose-chat-table-scroll table {
-  width: max-content;
-  min-width: 100%;
-}
-
-.prose-chat-table-scroll th,
-.prose-chat-table-scroll td {
-  white-space: nowrap;
 }
 
 .prose-chat th {

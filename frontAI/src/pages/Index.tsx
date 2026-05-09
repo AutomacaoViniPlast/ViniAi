@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import ChatMessage from "@/components/chat/ChatMessage";
 import ChatInput from "@/components/chat/ChatInput";
 import EmptyState from "@/components/chat/EmptyState";
+import ProfileEdit from "@/components/ProfileEdit";
 import { sendChatMessage } from "../services/n8n";
 import {
   listConversations,
@@ -19,7 +20,7 @@ import { toast } from "@/components/ui/sonner";
 import logo from "../image/logoviniai.png";
 import logo2 from "../image/logoviniai2.png";
 import abrir from "../image/abrir.png";
-import { Pin, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
+import { Pin, Pencil, Trash2, LogOut, Plus, MessageSquare, Search, PanelLeftClose, PanelLeftOpen, Sun, Moon, Menu, FileDown, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Message {
@@ -41,6 +42,7 @@ interface UserProfile {
   nome: string;
   setor: string;
   nivel_acesso?: string;
+  photo?: string;
 }
 
 const Index = () => {
@@ -61,6 +63,21 @@ const Index = () => {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("vini-theme") !== "light");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [isProfileEditing, setIsProfileEditing] = useState(false);
+
+  const handleSaveProfile = (data: { nome: string; setor: string; photo?: string | null }) => {
+    if (!userProfile) return;
+    const newPhoto = data.photo === undefined ? userProfile.photo : data.photo;
+    const updatedProfile = { ...userProfile, nome: data.nome, setor: data.setor, photo: newPhoto || undefined };
+    const storedUser = getUser();
+    if (storedUser) {
+      localStorage.setItem("user", JSON.stringify({ ...storedUser, nome: data.nome, setor: data.setor, photo: newPhoto || undefined }));
+    }
+    setUserProfile(updatedProfile);
+    toast.success("Perfil atualizado com sucesso!");
+  };
 
   // Carrega perfil e conversas do banco de dados
   useEffect(() => {
@@ -69,6 +86,7 @@ const Index = () => {
       nome: user?.nome || "Usuário",
       setor: user?.setor || "GERAL",
       nivel_acesso: user?.nivel_acesso,
+      photo: user?.photo,
     });
 
     async function init() {
@@ -273,6 +291,29 @@ const Index = () => {
     document.body.style.userSelect = "none";
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+  };
+
+  const startRenameConversation = (conversation: Conversation) => {
+    setEditingConversationId(conversation.id);
+    setEditingTitle(conversation.title);
+  };
+
+  const cancelRenameConversation = () => {
+    setEditingConversationId(null);
+    setEditingTitle("");
+  };
+
+  const submitRenameConversation = async (id: string) => {
+    const trimmedTitle = editingTitle.trim();
+    if (!trimmedTitle) { cancelRenameConversation(); return; }
+    try {
+      await updateTitle(id, trimmedTitle);
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: trimmedTitle } : c)));
+      cancelRenameConversation();
+    } catch (err) {
+      console.error("Erro ao renomear conversa:", err);
+      toast.error("Não foi possível atualizar o título.");
+    }
   };
 
   const exportConversation = async (conv: Conversation) => {
@@ -688,10 +729,27 @@ const Index = () => {
                     >
                       <div className="flex items-center gap-1 min-w-0">
                         {conv.pinned && <Pin size={10} style={{ color: C.redText, flexShrink: 0 }} />}
-                        <span className="truncate text-[13px]">{conv.title}</span>
+                        {editingConversationId === conv.id ? (
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingTitle}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onBlur={() => void submitRenameConversation(conv.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void submitRenameConversation(conv.id);
+                              if (e.key === "Escape") cancelRenameConversation();
+                            }}
+                            className="w-full bg-transparent text-[13px] outline-none"
+                            style={{ color: C.text }}
+                          />
+                        ) : (
+                          <span className="truncate text-[13px]">{conv.title}</span>
+                        )}
                       </div>
                     </button>
-                    <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity duration-150 shrink-0">
+                    <div className="flex items-center gap-0.5 opacity-100 transition-opacity duration-150 shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
                         className="p-1 rounded-xl transition-all duration-150"
@@ -709,11 +767,24 @@ const Index = () => {
                         <Pin size={13} strokeWidth={2} />
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void exportConversation(conv);
+                        onClick={(e) => { e.stopPropagation(); startRenameConversation(conv); }}
+                        className="p-1 rounded-xl transition-all duration-150"
+                        style={{ color: "hsl(var(--foreground) / 0.8)" }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = C.pinHover;
+                          e.currentTarget.style.color = C.text;
                         }}
-                        className="pr-3 pl-3 rounded-xl transition-all duration-150"
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = "transparent";
+                          e.currentTarget.style.color = "hsl(var(--foreground) / 0.8)";
+                        }}
+                        title="Renomear"
+                      >
+                        <Pencil size={13} strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); void exportConversation(conv); }}
+                        className="p-1 rounded-xl transition-all duration-150"
                         style={{ color: "hsl(var(--foreground) / 0.8)" }}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = C.pinHover;
@@ -758,15 +829,25 @@ const Index = () => {
             <div className="flex flex-col gap-1 items-center">
               {/* Avatar com iniciais — só o círculo, sem fundo extra */}
               <div
-                className="flex items-center justify-center w-10 h-10"
+                className="flex items-center justify-center w-10 h-10 relative group"
                 title={userProfile?.nome}
               >
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  style={{ background: C.initials, color: "hsl(0 0% 95%)" }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 overflow-hidden"
+                  style={{ background: userProfile?.photo ? "transparent" : C.initials, color: "hsl(0 0% 95%)" }}
                 >
-                  {initials}
+                  {userProfile?.photo ? (
+                    <img src={userProfile.photo} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    initials
+                  )}
                 </div>
+                <button
+                  onClick={() => setIsProfileEditing(true)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                >
+                  <Pencil size={12} color="#fff" />
+                </button>
               </div>
               {userProfile?.nivel_acesso === "ADMIN" && (
                 <button
@@ -808,11 +889,24 @@ const Index = () => {
                 className="flex items-center gap-2 px-2.5 py-2.5 rounded-xl mb-1"
                 style={{ background: C.searchBg }}
               >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                  style={{ background: C.initials, color: "hsl(0 0% 95%)" }}
-                >
-                  {initials}
+                <div className="relative group shrink-0">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold overflow-hidden"
+                    style={{ background: userProfile?.photo ? "transparent" : C.initials, color: "hsl(0 0% 95%)" }}
+                  >
+                    {userProfile?.photo ? (
+                      <img src={userProfile.photo} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setIsProfileEditing(true)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    title="Editar perfil"
+                  >
+                    <Pencil size={12} color="#fff" />
+                  </button>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: C.text }}>
@@ -887,24 +981,31 @@ const Index = () => {
         style={{ marginLeft: isMobileViewport ? "0" : `${sidebarWidth}px`, transition: isResizingActive ? "none" : "margin-left 0.28s cubic-bezier(0.4,0,0.2,1)" }}
       >
         {/* Menu flutuante para dispositivos móveis */}
-        <div className={`md:hidden absolute top-0 left-0 p-2 z-50 pointer-events-none w-full flex items-center ${isSidebarOpen ? "hidden" : ""}`}>
-          {/* Botão Menu (Esquerda) */}
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
-            style={{
-              color: C.text,
-              background: C.mobileMenuBg,
-              border: "2px solid hsl(var(--border) / 0.7)"
-            }}
-          >
-            <Menu size={22} strokeWidth={2.5} />
-          </button>
-        </div>
+        {!isProfileEditing && (
+          <div className={`md:hidden absolute top-0 left-0 p-2 z-50 pointer-events-none w-full flex items-center ${isSidebarOpen ? "hidden" : ""}`}>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0 pointer-events-auto"
+              style={{
+                color: C.text,
+                background: "transparent",
+                border: "1px solid hsl(var(--border) / 0.15)"
+              }}
+            >
+              <Menu size={22} strokeWidth={2.5} />
+            </button>
+          </div>
+        )}
 
-        {/* Exibe o histórico de mensagens ou a tela inicial */}
+        {/* Exibe o histórico de mensagens, a tela inicial ou edição de perfil */}
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {!activeConversation || activeConversation.messages.length === 0 ? (
+          {isProfileEditing ? (
+            <ProfileEdit
+              user={userProfile}
+              onClose={() => setIsProfileEditing(false)}
+              onSave={handleSaveProfile}
+            />
+          ) : !activeConversation || activeConversation.messages.length === 0 ? (
             <EmptyState onSuggestionClick={handleSend} setor={userProfile?.setor} />
           ) : (
             <div className="flex-1 overflow-y-auto py-4 px-3 sm:px-4 md:px-6">
@@ -926,11 +1027,13 @@ const Index = () => {
           )}
         </div>
 
-        <div className="shrink-0 px-3 sm:px-4 md:px-6 pt-6 sm:pt-8 md:pt-10 pb-2 md:pb-2">
-          <div className="max-w-4xl mx-auto">
-            <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
+        {!isProfileEditing && (
+          <div className="shrink-0 px-3 sm:px-4 md:px-6 pt-6 sm:pt-8 md:pt-10 pb-2 md:pb-2">
+            <div className="max-w-4xl mx-auto">
+              <ChatInput onSend={handleSend} disabled={!activeConversation || isTyping} />
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
     </div>

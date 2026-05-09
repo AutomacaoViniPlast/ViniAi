@@ -39,21 +39,19 @@ const ChatMessage = ({
     >
       <div
         className={cn(
-          "w-10 h-10 rounded-xl flex items-center justify-center",
-          isUser
-            ? "bg-primary/20 text-primary"
-            : "glass"
+          "w-8 h-8 flex items-center justify-center shrink-0",
+          isUser ? "text-primary" : "text-foreground"
         )}
       >
-        {isUser ? <User size={18} /> : <Bot size={18} />}
+        {isUser ? <User size={20} strokeWidth={2.5} /> : <Bot size={20} strokeWidth={2.5} />}
       </div>
 
       <div
         className={cn(
-          "max-w-[calc(100%-3.5rem)] md:max-w-[75%] px-5 py-3.5 rounded-xl",
+          "max-w-[85%] sm:max-w-[75%] px-5 py-3 rounded-2xl shadow-sm",
           isUser
             ? "bg-primary text-white rounded-tr-[4px]"
-            : "glass rounded-tl-[4px]"
+            : "bg-secondary/50 backdrop-blur-md rounded-tl-[4px]"
         )}
       >
         {isTyping ? (
@@ -66,11 +64,15 @@ const ChatMessage = ({
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeSanitize]}
               components={{
-                table: ({ node: _node, ...props }) => (
-                  <div className="prose-chat-table-scroll">
-                    <table {...props} />
+                table: ({ children }) => (
+                  <div className="w-full overflow-x-auto my-4 scrollbar-thin scrollbar-thumb-border">
+                    <table className="min-w-full border-collapse">
+                      {children}
+                    </table>
                   </div>
                 ),
+                th: ({ children }) => <th className="px-4 py-2 border border-border/50 bg-muted/50 text-left font-semibold">{children}</th>,
+                td: ({ children }) => <td className="px-4 py-2 border border-border/50">{children}</td>,
               }}
             >
               {displayed}
