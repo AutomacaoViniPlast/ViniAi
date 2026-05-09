@@ -749,7 +749,7 @@ const Index = () => {
                         )}
                       </div>
                     </button>
-                    <div className="flex items-center gap-0.5 opacity-100 transition-opacity duration-150 shrink-0">
+                    <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity duration-150 shrink-0">
                       <button
                         onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
                         className="p-1 rounded-xl transition-all duration-150"
@@ -767,24 +767,8 @@ const Index = () => {
                         <Pin size={13} strokeWidth={2} />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); startRenameConversation(conv); }}
-                        className="p-1 rounded-xl transition-all duration-150"
-                        style={{ color: "hsl(var(--foreground) / 0.8)" }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = C.pinHover;
-                          e.currentTarget.style.color = C.text;
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "hsl(var(--foreground) / 0.8)";
-                        }}
-                        title="Renomear"
-                      >
-                        <Pencil size={13} strokeWidth={2} />
-                      </button>
-                      <button
                         onClick={(e) => { e.stopPropagation(); void exportConversation(conv); }}
-                        className="p-1 rounded-xl transition-all duration-150"
+                        className="pr-3 pl-3 rounded-xl transition-all duration-150"
                         style={{ color: "hsl(var(--foreground) / 0.8)" }}
                         onMouseEnter={e => {
                           e.currentTarget.style.background = C.pinHover;
