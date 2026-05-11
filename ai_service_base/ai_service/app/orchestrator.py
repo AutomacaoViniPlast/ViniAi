@@ -962,11 +962,13 @@ class ChatOrchestrator:
                 origem=ir.origem,
             )
             inteiro_kg = float(resumo["I"]["KG"])
+            inteiro_mt = float(resumo["I"]["MT"])
             ld_kg      = float(resumo["Y"]["KG"])
             ld_mt      = float(resumo["Y"]["MT"])
             fp_kg      = float(resumo["P"]["KG"])
             fp_mt      = float(resumo["P"]["MT"])
             bag_kg     = float(resumo["BAG"]["KG"])
+            bag_mt     = float(resumo["BAG"]["MT"])
             total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
 
             if total_kg == 0 and ld_mt == 0 and fp_mt == 0:
@@ -991,8 +993,9 @@ class ChatOrchestrator:
             )
             linhas = []
             if inteiro_kg > 0:
+                mt_col = f"**{_fmt_mt(inteiro_mt)} MT**" if inteiro_mt > 0 else "—"
                 linhas.append(
-                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | — | {_pct(inteiro_kg)} |"
+                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | {mt_col} | {_pct(inteiro_kg)} |"
                 )
             if ld_kg > 0 or ld_mt > 0:
                 mt_col = f"**{_fmt_mt(ld_mt)} MT**" if ld_mt > 0 else "—"
@@ -1005,8 +1008,9 @@ class ChatOrchestrator:
                     f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** | {mt_col} | {_pct(fp_kg)} |"
                 )
             if bag_kg > 0:
+                mt_col = f"**{_fmt_mt(bag_mt)} MT**" if bag_mt > 0 else "—"
                 linhas.append(
-                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | — | {_pct(bag_kg)} |"
+                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | {mt_col} | {_pct(bag_kg)} |"
                 )
             perda_kg = ld_kg + fp_kg + bag_kg
             if perda_kg > 0:
