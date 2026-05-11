@@ -995,7 +995,7 @@ class ChatOrchestrator:
                 f"⚠️ **Produção por qualidade{nome_str}**\n"
                 f"📅 Período ({tipo}){periodo}\n\n"
                 "| Qualidade | KG | % KG | MT | % MT |\n"
-                "|-----------|----|----|----|----|----|\n"
+                "|-----------|----|------|----|------|\n"
             )
             linhas = []
             if inteiro_kg > 0 or inteiro_mt > 0:
