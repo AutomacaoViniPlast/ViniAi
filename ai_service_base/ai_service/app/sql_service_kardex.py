@@ -831,12 +831,14 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
+              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
+              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
+              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {fil_sql}
               {rec_sql}
               {ori_sql}
-              {incl_sql}
         """
-        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p + ori_p + incl_p
+        params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
