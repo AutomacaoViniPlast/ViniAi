@@ -449,9 +449,8 @@ class SQLServiceKardex:
         origem: str | None = None,
     ) -> dict[str, Decimal]:
         """
-        KG → SUM(QUANTIDADE) WHERE UM='KG'
-        MT → SUM(QTSEGUM)    WHERE UM='KG'
-             (quando UM='MT' o QTSEGUM representa KG — inversão do sistema — excluído da soma de metros)
+        KG → fórmula universal: UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM
+        MT → fórmula universal: UM='MT'→QUANTIDADE, UM='KG'→QTSEGUM
 
         PENDÊNCIA (Bug 13): raul.ribeiro pode não aparecer quando o campo USUARIO
         usa formato diferente (ex: "RAUL" sem sobrenome). Investigar normalização
@@ -462,8 +461,12 @@ class SQLServiceKardex:
 
         query = f"""
             SELECT
-                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM, 0) ELSE 0 END), 0) AS total_mt
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                  THEN COALESCE(QUANTIDADE, 0)
+                                  ELSE COALESCE(QTSEGUM, 0) END), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                                  THEN COALESCE(QUANTIDADE, 0)
+                                  ELSE COALESCE(QTSEGUM, 0) END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
               AND EMISSAO BETWEEN ? AND ?
@@ -807,9 +810,8 @@ class SQLServiceKardex:
         filtro_usuarios: list[str] | None = None,
     ) -> dict[str, Decimal]:
         """
-        KG → SUM(QUANTIDADE) WHERE UM='KG'
-        MT → SUM(QTSEGUM)    WHERE UM='KG'
-             (quando UM='MT' o QTSEGUM representa KG — inversão do sistema — excluído da soma de metros)
+        KG → fórmula universal: UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM
+        MT → fórmula universal: UM='MT'→QUANTIDADE, UM='KG'→QTSEGUM
 
         Usado quando nenhum operador específico for solicitado.
         """
@@ -820,8 +822,12 @@ class SQLServiceKardex:
 
         query = f"""
             SELECT
-                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM, 0) ELSE 0 END), 0) AS total_mt
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                                  THEN COALESCE(QUANTIDADE, 0)
+                                  ELSE COALESCE(QTSEGUM, 0) END), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                                  THEN COALESCE(QUANTIDADE, 0)
+                                  ELSE COALESCE(QTSEGUM, 0) END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
