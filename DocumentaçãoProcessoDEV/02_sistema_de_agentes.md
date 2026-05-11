@@ -1,6 +1,6 @@
 # ViniAI — Sistema de Agentes
 
-**Versão:** 1.6  
+**Versão:** 1.7  
 **Última atualização:** Maio/2026
 
 ---
@@ -53,7 +53,8 @@ A Ayla é a assistente de **toda a área de Produção**. Ela atende os seguinte
 **Qualidade / LD — Material com Defeito**
 - Quem gerou mais LD em determinado período (ranking por operador)
 - Ranking de produtos com mais LD
-- Total de LD por operador específico (filtro por KG ou metros)
+- Total de LD por operador específico (filtro por KG ou metros lineares)
+- **Resumo por qualidade** (Inteiro / LD / FP / BAG): KG, MT e % do total para cada categoria, com linha de total perda e total geral *(v1.7)*
 - **Perda de material** (LD + BAG): total, taxa percentual sobre inspecionado *(v3.3)*
 - **Comparativo entre períodos**: produção, LD ou revisão de um período vs outro *(v3.3)*
 

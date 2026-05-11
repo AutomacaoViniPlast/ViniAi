@@ -1,6 +1,6 @@
 # ViniAI — Arquitetura Geral do Sistema
 
-**Versão:** 3.5  
+**Versão:** 3.6  
 **Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -158,6 +158,70 @@ main                  → importa orchestrator, schemas
 
 > **Tabela principal para todas as consultas atuais:** `dbo.STG_KARDEX`  
 > As demais tabelas serão integradas conforme novos agentes e funcionalidades forem desenvolvidos.
+
+### dbo.V_KARDEX — view principal de qualidade e movimentação
+
+View usada para todas as consultas de qualidade (Inteiro, LD, FP, BAG) e totais de produção por peso e metros.
+
+#### Colunas principais
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| USUARIO | varchar | Login do operador |
+| EMISSAO | date | Data da movimentação (tipo nativo SQL Server) |
+| PRODUTO | varchar | Código do produto |
+| QUALIDADE | varchar(1) | `I`=Inteiro, `Y`=LD (defeito), `P`=Fora de Padrão |
+| UM | varchar | Unidade de medida principal: `KG` ou `MT` |
+| QUANTIDADE | float | Quantidade na unidade principal (UM) |
+| QTSEGUM | float | Quantidade na unidade secundária |
+| PESO_KG | float | Campo calculado da view — **não usar** (incompleto para alguns produtos FP) |
+| TES | varchar | Tipo de entrada/saída |
+| LOCAL | varchar | Local de armazenagem |
+| TIPO | varchar | Tipo de documento (`ME`, `PP`, etc.) |
+| FILIAL | varchar | Código da filial (`010101`=Viniplast, `010201`=MKTrading) |
+
+#### Inversão de unidade (regra crítica)
+
+Quando `UM='MT'`, os campos ficam **invertidos**:
+- `QUANTIDADE` = metros (unidade principal)
+- `QTSEGUM` = quilogramas (unidade secundária)
+
+Quando `UM='KG'`, é o padrão:
+- `QUANTIDADE` = quilogramas
+- `QTSEGUM` = metros
+
+**Fórmula universal KG:** `CASE WHEN UM='KG' THEN QUANTIDADE ELSE QTSEGUM END`  
+**Fórmula universal MT:** `CASE WHEN UM='MT' THEN QUANTIDADE ELSE QTSEGUM END`
+
+> **Nunca usar `PESO_KG`** para somar KG — o campo é incompleto para produtos com `B1_SEGUM ≠ 'KG'` no cadastro SB1010, causando KG=0 quando o valor correto está em QTSEGUM.
+
+#### Filtros padrão para consultas de qualidade
+
+| Coluna | Filtro | Motivo |
+|--------|--------|--------|
+| `TES` | `IN ('010', '002', '499')` | Apenas movimentações de revisão/qualidade |
+| `LOCAL` | `IN ('12', '10')` | Locais de estoque de material inspecionado |
+| `TIPO` | `IN ('ME', 'PP')` | Tipos de documento válidos |
+| `FILIAL` | **sem filtro padrão** | Metabase inclui todas as filiais; aplicar filial só quando explicitamente solicitado |
+
+#### Códigos de qualidade
+
+| Código | Categoria | Filtro |
+|--------|-----------|--------|
+| `I` | Inteiro (sem defeito) | `QUALIDADE = 'I'` |
+| `Y` | LD (leve defeito) | `QUALIDADE = 'Y'` |
+| `P` | Fora de Padrão | `QUALIDADE = 'P'` |
+| BAG | Sacola / refugo | `PRODUTO = 'MSP008'` (independe de QUALIDADE) |
+
+#### Regra de `filtro_usuarios` (OPERADORES_REVISAO)
+
+| Contexto | Aplicar? | Motivo |
+|----------|---------|--------|
+| **Totais gerais** (ld_total, resumo_qualidade sem operador) | **Não** | Restringe por usuário em vez de por escopo de dado — causa undercount vs Metabase |
+| **Rankings** (ranking_ld por operador) | **Sim** | Objetivo é ranquear somente operadores de revisão |
+| **perda_material** (taxa de perda) | **Sim** | Análise específica dos operadores de revisão |
+
+---
 
 ### dbo.STG_KARDEX — tabela principal (mais completa)
 
