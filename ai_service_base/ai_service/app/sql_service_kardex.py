@@ -462,8 +462,8 @@ class SQLServiceKardex:
 
         query = f"""
             SELECT
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QUANTIDADE, 0) ELSE 0 END), 0) AS total_kg,
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM,   0) ELSE 0 END), 0) AS total_mt
+                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM, 0) ELSE 0 END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
               AND EMISSAO BETWEEN ? AND ?
@@ -820,8 +820,8 @@ class SQLServiceKardex:
 
         query = f"""
             SELECT
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QUANTIDADE, 0) ELSE 0 END), 0) AS total_kg,
-                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM,   0) ELSE 0 END), 0) AS total_mt
+                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM, 0) ELSE 0 END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
@@ -880,26 +880,15 @@ class SQLServiceKardex:
 
         # BAG = PRODUTO='MSP008' (independente de QUALIDADE)
         # I=Inteiro, Y=LD, P=Fora de Padrão — via coluna QUALIDADE
-        # I e P: KG em QTSEGUM. Y e BAG: KG em QUANTIDADE quando UM='KG'.
+        # KG: usa PESO_KG da view (já encapsula: UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM)
+        # MT: SUM(QTSEGUM WHERE UM='KG') — exclui UM='MT' pois nesse caso QTSEGUM=KG (inversão)
         query = f"""
             SELECT
                 CASE
                     WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
                     ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
                 END AS qualidade,
-                COALESCE(SUM(
-                    CASE
-                        WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008'
-                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'I' THEN COALESCE(QTSEGUM, 0)
-                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'P' THEN COALESCE(QTSEGUM, 0)
-                        WHEN UPPER(LTRIM(RTRIM(QUALIDADE))) = 'Y'
-                            THEN CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                                      THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
-                        ELSE 0
-                    END
-                ), 0) AS total_kg,
+                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
                 COALESCE(SUM(
                     CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
                          THEN COALESCE(QTSEGUM, 0) ELSE 0 END
@@ -913,9 +902,6 @@ class SQLServiceKardex:
                       AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT LIKE 'MSP%'
                   )
               )
-              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
-              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
-              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {op_sql}
               {fil_sql}
               {rec_sql}
