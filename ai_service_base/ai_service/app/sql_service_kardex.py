@@ -861,8 +861,8 @@ class SQLServiceKardex:
            "P": {"KG": Decimal, "MT": Decimal},
            "BAG": {"KG": Decimal, "MT": Decimal}}
 
-        PENDENTE: confirmar coluna correta de KG para Inteiro/P/BAG —
-        se o resultado vier zerado, rodar query diagnóstica no banco.
+        KG via fórmula universal (UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM).
+        PESO_KG descartado: incompleto para produtos FP sem B1_SEGUM='KG' no SB1010.
         """
         fil_sql, fil_p = _filial_clause(filial)
         rec_sql, rec_p = _recurso_clause(recursos)
@@ -880,18 +880,25 @@ class SQLServiceKardex:
 
         # BAG = PRODUTO='MSP008' (independente de QUALIDADE)
         # I=Inteiro, Y=LD, P=Fora de Padrão — via coluna QUALIDADE
-        # KG: usa PESO_KG da view (já encapsula: UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM)
-        # MT: SUM(QTSEGUM WHERE UM='KG') — exclui UM='MT' pois nesse caso QTSEGUM=KG (inversão)
+        # KG: fórmula universal — UM='KG'→QUANTIDADE, UM='MT'→QTSEGUM (inversão da view)
+        #     PESO_KG foi descartado: alguns produtos FP têm B1_SEGUM≠'KG' no SB1010,
+        #     o que faz PESO_KG=0 mesmo com QTSEGUM correto.
+        # MT: fórmula universal — UM='MT'→QUANTIDADE, UM='KG'→QTSEGUM
         query = f"""
             SELECT
                 CASE
                     WHEN UPPER(LTRIM(RTRIM(PRODUTO))) = 'MSP008' THEN 'BAG'
                     ELSE UPPER(LTRIM(RTRIM(QUALIDADE)))
                 END AS qualidade,
-                COALESCE(SUM(COALESCE(PESO_KG, 0)), 0) AS total_kg,
                 COALESCE(SUM(
                     CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
-                         THEN COALESCE(QTSEGUM, 0) ELSE 0 END
+                         THEN COALESCE(QUANTIDADE, 0)
+                         ELSE COALESCE(QTSEGUM, 0) END
+                ), 0) AS total_kg,
+                COALESCE(SUM(
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
+                         THEN COALESCE(QUANTIDADE, 0)
+                         ELSE COALESCE(QTSEGUM, 0) END
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
@@ -903,7 +910,7 @@ class SQLServiceKardex:
                   )
               )
               AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
-              AND LTRIM(RTRIM(LOCAL)) IN ('01', '10', '12')
+              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
               AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {op_sql}
               {fil_sql}
