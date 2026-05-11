@@ -252,7 +252,9 @@ def _rows_as_dicts(cur) -> list[dict]:
 
 
 def _filial_clause(filial: str | None) -> tuple[str, list]:
-    return "AND LTRIM(RTRIM(FILIAL)) = ?", [filial or FILIAL_PADRAO]
+    if not filial:
+        return "", []
+    return "AND LTRIM(RTRIM(FILIAL)) = ?", [filial]
 
 
 def _local_op_clause(local_op: str = LOCAL_OP_PRODUCAO) -> tuple[str, list]:
