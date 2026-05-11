@@ -970,15 +970,21 @@ class ChatOrchestrator:
             bag_kg     = float(resumo["BAG"]["KG"])
             bag_mt     = float(resumo["BAG"]["MT"])
             total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
+            total_mt   = inteiro_mt + ld_mt + fp_mt + bag_mt
 
-            if total_kg == 0 and ld_mt == 0 and fp_mt == 0:
+            if total_kg == 0 and total_mt == 0:
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
                 return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
-            def _pct(v: float) -> str:
+            def _pct_kg(v: float) -> str:
                 if total_kg == 0:
                     return "—"
                 return f"{v / total_kg * 100:.2f}%".replace(".", ",")
+
+            def _pct_mt(v: float) -> str:
+                if total_mt == 0:
+                    return "—"
+                return f"{v / total_mt * 100:.2f}%".replace(".", ",")
 
             def _fmt_mt(v: float) -> str:
                 return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -988,38 +994,41 @@ class ChatOrchestrator:
             header   = (
                 f"⚠️ **Produção por qualidade{nome_str}**\n"
                 f"📅 Período ({tipo}){periodo}\n\n"
-                "| Qualidade | KG | MT | % do total |\n"
-                "|-----------|----|----|------------|\n"
+                "| Qualidade | KG | % KG | MT | % MT |\n"
+                "|-----------|----|----|----|----|----|\n"
             )
             linhas = []
-            if inteiro_kg > 0:
+            if inteiro_kg > 0 or inteiro_mt > 0:
                 mt_col = f"**{_fmt_mt(inteiro_mt)} MT**" if inteiro_mt > 0 else "—"
                 linhas.append(
-                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | {mt_col} | {_pct(inteiro_kg)} |"
+                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | {_pct_kg(inteiro_kg)} | {mt_col} | {_pct_mt(inteiro_mt)} |"
                 )
             if ld_kg > 0 or ld_mt > 0:
                 mt_col = f"**{_fmt_mt(ld_mt)} MT**" if ld_mt > 0 else "—"
                 linhas.append(
-                    f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** | {mt_col} | {_pct(ld_kg)} |"
+                    f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** | {_pct_kg(ld_kg)} | {mt_col} | {_pct_mt(ld_mt)} |"
                 )
             if fp_kg > 0 or fp_mt > 0:
                 mt_col = f"**{_fmt_mt(fp_mt)} MT**" if fp_mt > 0 else "—"
                 linhas.append(
-                    f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** | {mt_col} | {_pct(fp_kg)} |"
+                    f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** | {_pct_kg(fp_kg)} | {mt_col} | {_pct_mt(fp_mt)} |"
                 )
-            if bag_kg > 0:
+            if bag_kg > 0 or bag_mt > 0:
                 mt_col = f"**{_fmt_mt(bag_mt)} MT**" if bag_mt > 0 else "—"
                 linhas.append(
-                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | {mt_col} | {_pct(bag_kg)} |"
+                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | {_pct_kg(bag_kg)} | {mt_col} | {_pct_mt(bag_mt)} |"
                 )
             perda_kg = ld_kg + fp_kg + bag_kg
-            if perda_kg > 0:
+            perda_mt = ld_mt + fp_mt + bag_mt
+            if perda_kg > 0 or perda_mt > 0:
+                perda_mt_col = f"**{_fmt_mt(perda_mt)} MT**" if perda_mt > 0 else "—"
                 linhas.append(
-                    f"| **⚠️ Total perda** | **{_fmt_kg(perda_kg)}** | — | **{_pct(perda_kg)}** |"
+                    f"| **⚠️ Total perda** | **{_fmt_kg(perda_kg)}** | **{_pct_kg(perda_kg)}** | {perda_mt_col} | **{_pct_mt(perda_mt)}** |"
                 )
-            if total_kg > 0:
+            if total_kg > 0 or total_mt > 0:
+                total_mt_col = f"**{_fmt_mt(total_mt)} MT**" if total_mt > 0 else "—"
                 linhas.append(
-                    f"| **📦 Total geral** | **{_fmt_kg(total_kg)}** | — | **100%** |"
+                    f"| **📦 Total geral** | **{_fmt_kg(total_kg)}** | **100%** | {total_mt_col} | **100%** |"
                 )
             return header + "\n".join(linhas)
 
