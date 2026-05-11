@@ -34,7 +34,10 @@ Colunas da view:
   COR_VERSO   → cor verso (prioritária sobre inferência do parser)
   TURNO       → turno — filtrado somente quando explicitamente solicitado
   HORA        → hora do apontamento
-  QTSEGUM     → segunda quantidade — lida com UM2, regra especial de unidade por qualidade
+  QTSEGUM     → segunda quantidade com regra de inversão:
+               - Se UM='KG' na linha → QTSEGUM contém metros lineares (MT)
+               - Se UM='MT' na linha → QTSEGUM contém KG (inversão obrigatória do sistema)
+               Para somar metros de LD/BAG: SUM(QTSEGUM) WHERE UM='KG'
   RECURSO     → extrusora (ver RECURSO_MAP)
   QUALIDADE   → Y=LD, I=Inteiro, P=Fora de Padrão (posição 5 do código PRODUTO)
   USR_LIB_APO → usuário que libera o apontamento quando o lançamento está bloqueado
@@ -193,7 +196,7 @@ def resolve_segunda_unidade_por_qualidade(qualidade: str | None) -> str | None:
 
     Regra exclusiva para QTSEGUM (não confundir com QUANTIDADE + UM):
       I / P   → KG
-      Y / BAG → MT
+      Y / BAG → MT  (apenas quando UM='KG' na linha — ver regra de inversão no cabeçalho)
 
     Retorna None quando a qualidade não for reconhecida.
     """
@@ -446,8 +449,10 @@ class SQLServiceKardex:
         origem: str | None = None,
     ) -> dict[str, Decimal]:
         """
-        Soma de QUANTIDADE para QUALIDADE='Y' (LD) por UM.
-        PENDENTE: confirmar se registros de LD podem ter UM=MT na prática.
+        KG → SUM(QUANTIDADE) WHERE UM='KG'
+        MT → SUM(QTSEGUM)    WHERE UM='KG'
+             (quando UM='MT' o QTSEGUM representa KG — inversão do sistema — excluído da soma de metros)
+
         PENDÊNCIA (Bug 13): raul.ribeiro pode não aparecer quando o campo USUARIO
         usa formato diferente (ex: "RAUL" sem sobrenome). Investigar normalização
         do campo USUARIO na V_KARDEX antes de corrigir.
@@ -456,25 +461,25 @@ class SQLServiceKardex:
         ori_sql, ori_p = _origem_clause(origem)
 
         query = f"""
-            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
+            SELECT
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QUANTIDADE, 0) ELSE 0 END), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM,   0) ELSE 0 END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE LOWER(LTRIM(RTRIM(USUARIO))) LIKE LOWER(?)
               AND EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
               {fil_sql}
               {ori_sql}
-            GROUP BY LTRIM(RTRIM(UM))
         """
         params = [f"%{operador.strip()}%", _parse_date(data_inicio), _parse_date(data_fim)] + fil_p + ori_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            resultado = {um: Decimal("0") for um in UM_VALIDAS}
-            for row in cur.fetchall():
-                um = (row[0] or "").strip().upper()
-                if um in resultado:
-                    resultado[um] = Decimal(str(row[1]))
-            return resultado
+            row = cur.fetchone()
+            return {
+                "KG": Decimal(str(row[0] or 0)),
+                "MT": Decimal(str(row[1] or 0)),
+            }
 
     # ── Ranking de LD por operador ────────────────────────────────────────────
     def get_ranking_ld(
@@ -802,7 +807,10 @@ class SQLServiceKardex:
         filtro_usuarios: list[str] | None = None,
     ) -> dict[str, Decimal]:
         """
-        Soma de QUANTIDADE com QUALIDADE='Y' (LD) por UM, sem filtro de operador.
+        KG → SUM(QUANTIDADE) WHERE UM='KG'
+        MT → SUM(QTSEGUM)    WHERE UM='KG'
+             (quando UM='MT' o QTSEGUM representa KG — inversão do sistema — excluído da soma de metros)
+
         Usado quando nenhum operador específico for solicitado.
         """
         fil_sql, fil_p = _filial_clause(filial)
@@ -811,7 +819,9 @@ class SQLServiceKardex:
         incl_sql, incl_p = _incluir_clause(filtro_usuarios)
 
         query = f"""
-            SELECT LTRIM(RTRIM(UM)) AS unidade, COALESCE(SUM(QUANTIDADE), 0) AS total
+            SELECT
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QUANTIDADE, 0) ELSE 0 END), 0) AS total_kg,
+                COALESCE(SUM(CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG' THEN COALESCE(QTSEGUM,   0) ELSE 0 END), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
@@ -819,18 +829,16 @@ class SQLServiceKardex:
               {rec_sql}
               {ori_sql}
               {incl_sql}
-            GROUP BY LTRIM(RTRIM(UM))
         """
         params = [_parse_date(data_inicio), _parse_date(data_fim)] + fil_p + rec_p + ori_p + incl_p
         with get_mssql_conn() as conn:
             cur = conn.cursor()
             cur.execute(query, params)
-            resultado = {um: Decimal("0") for um in UM_VALIDAS}
-            for row in cur.fetchall():
-                um = (row[0] or "").strip().upper()
-                if um in resultado:
-                    resultado[um] = Decimal(str(row[1]))
-            return resultado
+            row = cur.fetchone()
+            return {
+                "KG": Decimal(str(row[0] or 0)),
+                "MT": Decimal(str(row[1] or 0)),
+            }
 
     # ── Resumo de produção por qualidade (Inteiro / LD / FP) ────────────────
     def get_resumo_qualidade(
@@ -893,8 +901,8 @@ class SQLServiceKardex:
                     END
                 ), 0) AS total_kg,
                 COALESCE(SUM(
-                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'MT'
-                         THEN COALESCE(QUANTIDADE, 0) ELSE 0 END
+                    CASE WHEN UPPER(LTRIM(RTRIM(UM))) = 'KG'
+                         THEN COALESCE(QTSEGUM, 0) ELSE 0 END
                 ), 0) AS total_mt
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?

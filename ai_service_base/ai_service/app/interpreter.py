@@ -628,7 +628,7 @@ class RuleBasedInterpreter:
     # LD solicitado em metros (unidade MT) — filtra exibição para MT
     _METROS_UNIDADE = re.compile(
         r"\bem\s+metros?\b|\bem\s+mt\b|metros?\s+de\s+ld|quantos?\s+metros?\s+de\s+ld|"
-        r"medido\s+em\s+metros?|ld\s+em\s+metros?",
+        r"medido\s+em\s+metros?|ld\s+em\s+metros?|metros?\s+lineares?",
         re.IGNORECASE,
     )
 

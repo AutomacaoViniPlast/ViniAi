@@ -247,15 +247,20 @@ class ChatOrchestrator:
 
         # Caso 1: mensagem ambígua com período novo → herda intent do histórico
         # Ex: "Quero saber de janeiro!" após consulta de LD
+        # Se a mensagem também pedir metros (ex: "LD em metros de janeiro"), força MT.
         if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and periodo_explicito:
             followup_ir = self._try_context_followup(recent, msg_ini, msg_fim, msg_lbl, session_id=sid)
             if followup_ir:
+                if self.interpreter._METROS_UNIDADE.search(normalized_message):
+                    followup_ir.unidade_filtro = "MT"
                 ir = followup_ir
                 print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
 
         # Caso 4: mensagem ambígua sem período mas com recurso → herda intent + período do histórico
         # Ex: "E da MAC2?" após "Produção da MAC1 e 2 ontem?" — sem período, mas menciona recurso
         # Sem este caso, o LLM responde com valor inventado baseado no histórico (alucinação)
+        # Caso 4b: sem período e sem recurso, mas pedindo metros lineares → herda intent + período + força MT
+        # Ex: "Quantos metros lineares no total?" após "Total de LD em abril de 2026"
         elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
             recurso_novo = self.interpreter._extract_recurso(normalized_message)
             if recurso_novo:
@@ -263,6 +268,12 @@ class ChatOrchestrator:
                 if followup_ir:
                     ir = followup_ir
                     print(f"[{self.agent_name}] RAG recurso-carry (clarify): reutilizando intent '{ir.intent}' com recurso {recurso_novo}.")
+            elif self.interpreter._METROS_UNIDADE.search(normalized_message):
+                followup_ir = self._try_context_followup(recent, None, None, None, session_id=sid)
+                if followup_ir:
+                    followup_ir.unidade_filtro = "MT"
+                    ir = followup_ir
+                    print(f"[{self.agent_name}] MT carry-over: reutilizando intent '{ir.intent}' com unidade_filtro=MT e período herdado.")
 
         # Caso 3: SQL genérico sem operador → follow-up de recurso/extrusora
         # Ex: "E na extrusora 2?" após consulta de KGH herda intent kgh + atualiza recurso
