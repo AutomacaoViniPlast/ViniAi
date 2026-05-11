@@ -13,7 +13,7 @@ import {
   saveMessage,
   updateTitle,
 } from "../services/conversations";
-import { getUser } from "../lib/storage";
+import { getUser, saveUserPhoto } from "../lib/storage";
 import { getMe } from "../services/auth";
 import { toast } from "@/components/ui/sonner";
 
@@ -83,6 +83,7 @@ const Index = () => {
     // Persiste no localStorage
     const storedUser = getUser();
     if (storedUser) {
+      saveUserPhoto(storedUser.id, newPhoto || null);
       localStorage.setItem("user", JSON.stringify({
         ...storedUser,
         nome: data.nome,
@@ -1028,6 +1029,7 @@ const Index = () => {
                     id={msg.id}
                     content={msg.content}
                     role={msg.role}
+                    userPhoto={userProfile?.photo}
                   />
                 ))}
                 {isTyping && (

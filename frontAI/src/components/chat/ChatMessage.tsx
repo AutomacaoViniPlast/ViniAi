@@ -12,6 +12,7 @@ interface ChatMessageProps {
   content: string;
   role: "user" | "assistant";
   isTyping?: boolean;
+  userPhoto?: string;
 }
 
 const ChatMessage = ({
@@ -19,6 +20,7 @@ const ChatMessage = ({
   content,
   role,
   isTyping,
+  userPhoto,
 }: ChatMessageProps) => {
   const isUser = role === "user";
 
@@ -39,11 +41,19 @@ const ChatMessage = ({
     >
       <div
         className={cn(
-          "w-8 h-8 flex items-center justify-center shrink-0",
+          "w-8 h-8 flex items-center justify-center shrink-0 rounded-full overflow-hidden",
           isUser ? "text-primary" : "text-foreground"
         )}
       >
-        {isUser ? <User size={20} strokeWidth={2.5} /> : <Bot size={20} strokeWidth={2.5} />}
+        {isUser ? (
+          userPhoto ? (
+            <img src={userPhoto} alt="Perfil" className="w-full h-full object-cover" />
+          ) : (
+            <User size={20} strokeWidth={2.5} />
+          )
+        ) : (
+          <Bot size={20} strokeWidth={2.5} />
+        )}
       </div>
 
       <div
