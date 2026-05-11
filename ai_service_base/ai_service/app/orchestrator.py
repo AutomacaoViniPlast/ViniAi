@@ -973,30 +973,50 @@ class ChatOrchestrator:
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
                 return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
+            def _pct(v: float) -> str:
+                if total_kg == 0:
+                    return "—"
+                return f"{v / total_kg * 100:.2f}%".replace(".", ",")
+
+            def _fmt_mt(v: float) -> str:
+                return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
             tipo     = "dia" if is_diaria else "mês"
             nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
             header   = (
                 f"⚠️ **Produção por qualidade{nome_str}**\n"
                 f"📅 Período ({tipo}){periodo}\n\n"
-                "| Qualidade | Total |\n|-----------|-------|\n"
+                "| Qualidade | KG | MT | % do total |\n"
+                "|-----------|----|----|------------|\n"
             )
             linhas = []
             if inteiro_kg > 0:
-                linhas.append(f"| ✅ Inteiro (sem defeito) | **{_fmt_kg(inteiro_kg)}** |")
-            if ld_kg > 0:
-                linhas.append(f"| ⚠️ LD (defeito) | **{_fmt_kg(ld_kg)}** |")
-            if ld_mt > 0:
-                fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                linhas.append(f"| ⚠️ LD (defeito) | **{fmt_mt} MT** |")
-            if fp_kg > 0:
-                linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
-            if fp_mt > 0:
-                fmt_mt_fp = f"{fp_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                linhas.append(f"| 🔶 Fora de Padrão | **{fmt_mt_fp} MT** |")
+                linhas.append(
+                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | — | {_pct(inteiro_kg)} |"
+                )
+            if ld_kg > 0 or ld_mt > 0:
+                mt_col = f"**{_fmt_mt(ld_mt)} MT**" if ld_mt > 0 else "—"
+                linhas.append(
+                    f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** | {mt_col} | {_pct(ld_kg)} |"
+                )
+            if fp_kg > 0 or fp_mt > 0:
+                mt_col = f"**{_fmt_mt(fp_mt)} MT**" if fp_mt > 0 else "—"
+                linhas.append(
+                    f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** | {mt_col} | {_pct(fp_kg)} |"
+                )
             if bag_kg > 0:
-                linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
+                linhas.append(
+                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | — | {_pct(bag_kg)} |"
+                )
+            perda_kg = ld_kg + fp_kg + bag_kg
+            if perda_kg > 0:
+                linhas.append(
+                    f"| **⚠️ Total perda** | **{_fmt_kg(perda_kg)}** | — | **{_pct(perda_kg)}** |"
+                )
             if total_kg > 0:
-                linhas.append(f"| **📦 Total** | **{_fmt_kg(total_kg)}** |")
+                linhas.append(
+                    f"| **📦 Total geral** | **{_fmt_kg(total_kg)}** | — | **100%** |"
+                )
             return header + "\n".join(linhas)
 
         # ── Ranking de operadores com mais LD (KARDEX) ────────────────────────────
