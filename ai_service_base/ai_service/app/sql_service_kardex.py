@@ -903,7 +903,7 @@ class SQLServiceKardex:
                   )
               )
               AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
-              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
+              AND LTRIM(RTRIM(LOCAL)) IN ('01', '10', '12')
               AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
               {op_sql}
               {fil_sql}
