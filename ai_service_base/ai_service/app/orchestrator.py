@@ -695,9 +695,10 @@ class ChatOrchestrator:
                 ld_kg      = float(resumo["Y"]["KG"])
                 ld_mt      = float(resumo["Y"]["MT"])
                 fp_kg      = float(resumo["P"]["KG"])
+                fp_mt      = float(resumo["P"]["MT"])
                 bag_kg     = float(resumo["BAG"]["KG"])
                 total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
-                if total_kg == 0 and ld_mt == 0:
+                if total_kg == 0 and ld_mt == 0 and fp_mt == 0:
                     return f"🔍 Nenhum registro encontrado para **{ir.entity_value}**{periodo}."
                 tipo   = "dia" if is_diaria else "mês"
                 header = (
@@ -715,6 +716,9 @@ class ChatOrchestrator:
                     linhas.append(f"| ⚠️ LD | **{fmt_mt} MT** |")
                 if fp_kg > 0:
                     linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+                if fp_mt > 0:
+                    fmt_mt_fp = f"{fp_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    linhas.append(f"| 🔶 Fora de Padrão | **{fmt_mt_fp} MT** |")
                 if bag_kg > 0:
                     linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
                 if total_kg > 0:
@@ -962,10 +966,11 @@ class ChatOrchestrator:
             ld_kg      = float(resumo["Y"]["KG"])
             ld_mt      = float(resumo["Y"]["MT"])
             fp_kg      = float(resumo["P"]["KG"])
+            fp_mt      = float(resumo["P"]["MT"])
             bag_kg     = float(resumo["BAG"]["KG"])
             total_kg   = inteiro_kg + ld_kg + fp_kg + bag_kg
 
-            if total_kg == 0 and ld_mt == 0:
+            if total_kg == 0 and ld_mt == 0 and fp_mt == 0:
                 nome = f" para **{ir.entity_value}**" if ir.entity_value else ""
                 return f"🔍 Nenhum registro encontrado para essa solicitação{nome}{periodo}."
 
@@ -986,6 +991,9 @@ class ChatOrchestrator:
                 linhas.append(f"| ⚠️ LD (defeito) | **{fmt_mt} MT** |")
             if fp_kg > 0:
                 linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
+            if fp_mt > 0:
+                fmt_mt_fp = f"{fp_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                linhas.append(f"| 🔶 Fora de Padrão | **{fmt_mt_fp} MT** |")
             if bag_kg > 0:
                 linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
             if total_kg > 0:
