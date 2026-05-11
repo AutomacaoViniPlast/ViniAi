@@ -890,6 +890,7 @@ class ChatOrchestrator:
                 ini, fim,
                 recursos=recursos,
                 origem=ir.origem,
+                filtro_usuarios=OPERADORES_REVISAO,
             )
             if not any(float(total_ld.get(um, 0)) > 0 for um in ("KG", "MT")):
                 return f"🔍 Nenhum registro encontrado para essa solicitação{periodo}{rec_lbl}."
@@ -1129,8 +1130,8 @@ class ChatOrchestrator:
                 d2 = self.kardex.get_ld_por_operador(ir.entity_value, ini2, fim2, origem=ir.origem)
                 titulo = f"⚠️ **LD — {ir.entity_value}**: {lbl1} vs {lbl2}"
             else:
-                d1 = self.kardex.get_ld_total(ini1, fim1, origem=ir.origem)
-                d2 = self.kardex.get_ld_total(ini2, fim2, origem=ir.origem)
+                d1 = self.kardex.get_ld_total(ini1, fim1, origem=ir.origem, filtro_usuarios=OPERADORES_REVISAO)
+                d2 = self.kardex.get_ld_total(ini2, fim2, origem=ir.origem, filtro_usuarios=OPERADORES_REVISAO)
                 titulo = f"⚠️ **Comparativo de LD**: {lbl1} vs {lbl2}"
             v1 = float(d1.get("KG", 0))
             v2 = float(d2.get("KG", 0))
