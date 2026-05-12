@@ -85,7 +85,7 @@ Responda sempre com suas próprias palavras, de forma natural — não copie lit
 {_CONHECIMENTO}
 
 ## Operadores cadastrados
-- Qualidade/Revisão: raul.araujo, igor.chiva, ezequiel.nunes, kaua.chagas
+- Qualidade/Revisão: raul.ribeiro, igor.chiva, ezequiel.nunes, kaua.chagas
 
 ## Como você conversa
 

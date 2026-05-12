@@ -717,13 +717,11 @@ class ChatOrchestrator:
                 if ld_kg > 0:
                     linhas.append(f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** |")
                 if ld_mt > 0:
-                    fmt_mt = f"{ld_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    linhas.append(f"| ⚠️ LD | **{fmt_mt} MT** |")
+                    linhas.append(f"| ⚠️ LD | **{_fmt_metros(ld_mt)}** |")
                 if fp_kg > 0:
                     linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** |")
                 if fp_mt > 0:
-                    fmt_mt_fp = f"{fp_mt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    linhas.append(f"| 🔶 Fora de Padrão | **{fmt_mt_fp} MT** |")
+                    linhas.append(f"| 🔶 Fora de Padrão | **{_fmt_metros(fp_mt)}** |")
                 if bag_kg > 0:
                     linhas.append(f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** |")
                 if total_kg > 0:

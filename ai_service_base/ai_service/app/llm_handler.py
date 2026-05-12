@@ -15,8 +15,11 @@ Configuração via .env:
 """
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from app.schemas import ConversationTurn
 
@@ -47,18 +50,18 @@ class LLMHandler:
     def _setup(self) -> None:
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
-            print(f"[{self._agent_name}] OPENAI_API_KEY não definida — modo offline (fallback fixo).")
+            logger.warning("[%s] OPENAI_API_KEY não definida — modo offline (fallback fixo).", self._agent_name)
             return
 
         try:
             from openai import OpenAI
             self._client  = OpenAI(api_key=api_key)
             self._enabled = True
-            print(f"[{self._agent_name}] ChatGPT ativo | modelo: {self._model}")
+            logger.info("[%s] ChatGPT ativo | modelo: %s", self._agent_name, self._model)
         except ImportError:
-            print(
-                f"[{self._agent_name}] Biblioteca 'openai' não instalada.\n"
-                "             Execute: pip install openai"
+            logger.error(
+                "[%s] Biblioteca 'openai' não instalada. Execute: pip install openai",
+                self._agent_name,
             )
 
     # ── API pública ───────────────────────────────────────────────────────────
@@ -111,7 +114,7 @@ class LLMHandler:
             return response.choices[0].message.content.strip()
 
         except Exception as exc:
-            print(f"[{self._agent_name}] Erro na chamada à API: {exc}")
+            logger.error("[%s] Erro na chamada à API: %s", self._agent_name, exc)
             return self._fallback(intent)
 
     def normalize_message(self, text: str) -> str:
@@ -150,11 +153,11 @@ class LLMHandler:
             )
             normalized = response.choices[0].message.content.strip()
             if normalized != text:
-                print(f"[Normalizer] '{text}' → '{normalized}'")
+                logger.debug("[Normalizer] '%s' → '%s'", text, normalized)
             return normalized
 
         except Exception as exc:
-            print(f"[Normalizer] Erro: {exc} — usando texto original.")
+            logger.warning("[Normalizer] Erro: %s — usando texto original.", exc)
             return text
 
     # ── Internos ──────────────────────────────────────────────────────────────

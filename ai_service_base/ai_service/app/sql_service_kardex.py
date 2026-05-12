@@ -127,6 +127,13 @@ LOCAL_ARMAZENS_CONHECIDOS: tuple[str, ...] = (
     "01", "10", "12", "15", "20", "35", "40", "50", "60"
 )
 
+# Filtros obrigatórios para consultas de qualidade (LD, resumo, perda).
+# Definem exatamente quais movimentações representam produção real auditável.
+# Fonte única — usada em get_ld_total(), get_resumo_qualidade() e similares.
+_QUALIDADE_TES_SQL   = "AND LTRIM(RTRIM(TES))             IN ('010', '002', '499')"
+_QUALIDADE_LOCAL_SQL = "AND LTRIM(RTRIM(LOCAL))            IN ('12', '10')"
+_QUALIDADE_TIPO_SQL  = "AND UPPER(LTRIM(RTRIM(TIPO)))      IN ('ME', 'PP')"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PARSER E TRADUTORES
@@ -833,9 +840,9 @@ class SQLServiceKardex:
             FROM dbo.V_KARDEX
             WHERE EMISSAO BETWEEN ? AND ?
               AND LTRIM(RTRIM(QUALIDADE)) = 'Y'
-              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
-              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
-              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
+              {_QUALIDADE_TES_SQL}
+              {_QUALIDADE_LOCAL_SQL}
+              {_QUALIDADE_TIPO_SQL}
               {fil_sql}
               {rec_sql}
               {ori_sql}
@@ -919,9 +926,9 @@ class SQLServiceKardex:
                       AND UPPER(LTRIM(RTRIM(PRODUTO))) NOT LIKE 'MSP%'
                   )
               )
-              AND LTRIM(RTRIM(TES))   IN ('010', '002', '499')
-              AND LTRIM(RTRIM(LOCAL)) IN ('12', '10')
-              AND UPPER(LTRIM(RTRIM(TIPO))) IN ('ME', 'PP')
+              {_QUALIDADE_TES_SQL}
+              {_QUALIDADE_LOCAL_SQL}
+              {_QUALIDADE_TIPO_SQL}
               {op_sql}
               {fil_sql}
               {rec_sql}
