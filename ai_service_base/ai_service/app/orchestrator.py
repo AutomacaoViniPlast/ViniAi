@@ -65,6 +65,11 @@ def _fmt_kg(valor: float) -> str:
 def _fmt_metros(valor: float) -> str:
     return f"{valor:,.2f} m".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def _fmt_numero(valor: float, casas: int = 2) -> str:
+    """Formata número no padrão brasileiro sem unidade (usado em KGH, m/min, horas)."""
+    fmt = f"{valor:,.{casas}f}"
+    return fmt.replace(",", "X").replace(".", ",").replace("X", ".")
+
 
 def _fmt_quantidade(resultado: dict) -> str:
     """Formata resultado de QUANTIDADE separado por UM (retorno do KARDEX). Omite unidades zeradas."""
@@ -669,7 +674,7 @@ class ChatOrchestrator:
             header = f"⏱️ **Horas trabalhadas**{periodo}{rec_lbl}\n\n"
             header += "| Extrusora | Horas | Minutos |\n|-----------|-------|--------|\n"
             linhas = "\n".join(
-                f"| {r['recurso_label']} | **{r['horas']:,.2f} h** | {r['minutos']:,.0f} min |"
+                f"| {r['recurso_label']} | **{_fmt_numero(r['horas'])} h** | {_fmt_numero(r['minutos'], 0)} min |"
                 for r in rows
             )
             return header + linhas
@@ -751,9 +756,9 @@ class ChatOrchestrator:
                     blocos.append(
                         f"**{r['recurso_label']}**\n\n"
                         f"| Métrica | Valor |\n|---------|-------|\n"
-                        f"| Metros totais | {r['metros']:,.2f} m |\n"
-                        f"| Minutos totais | {r['minutos']:,.0f} min |\n"
-                        f"| **Média m/min** | **{r['resultado']:.4f}** |"
+                        f"| Metros totais | {_fmt_metros(r['metros'])} |\n"
+                        f"| Minutos totais | {_fmt_numero(r['minutos'], 0)} min |\n"
+                        f"| **Média m/min** | **{_fmt_numero(r['resultado'], 4)}** |"
                     )
                 header = f"📏 **Metros por minuto por extrusora**{periodo}{rec_lbl}\n\n"
                 return header + "\n\n".join(blocos)
@@ -763,9 +768,9 @@ class ChatOrchestrator:
             return (
                 f"📏 **Metros por minuto**{periodo}{rec_lbl}\n\n"
                 f"| Métrica | Valor |\n|---------|-------|\n"
-                f"| Metros totais | {data['metros']:,.2f} m |\n"
-                f"| Minutos totais | {data['minutos']:,.0f} min |\n"
-                f"| **Média m/min** | **{data['resultado']:.4f}** |"
+                f"| Metros totais | {_fmt_metros(data['metros'])} |\n"
+                f"| Minutos totais | {_fmt_numero(data['minutos'], 0)} min |\n"
+                f"| **Média m/min** | **{_fmt_numero(data['resultado'], 4)}** |"
             )
 
         # ── Produção por turno (KARDEX) ──────────────────────────────────────────
@@ -804,13 +809,41 @@ class ChatOrchestrator:
                 bloco = (
                     f"**{r['recurso_label']}**\n\n"
                     f"| Métrica | Valor |\n|---------|-------|\n"
-                    f"| KG total | {r['total_kg']:,.2f} KG |\n"
-                    f"| Horas totais | {r['horas']:,.2f} h |\n"
-                    f"| **KGH** | **{r['kgh']:,.2f}** |"
+                    f"| KG total | {_fmt_kg(r['total_kg'])} |\n"
+                    f"| Horas totais | {_fmt_numero(r['horas'])} h |\n"
+                    f"| **KGH** | **{_fmt_numero(r['kgh'])}** |"
                 )
                 blocos.append(bloco)
             header = f"⚡ **KG/hora por extrusora**{periodo}{rec_lbl}\n\n"
             return header + "\n\n".join(blocos)
+
+        # ── KGH + metros por minuto combinados (SH6) ─────────────────────────
+        if ir.intent == "kgh_e_metros_por_minuto":
+            kgh_rows = self.sql.get_kgh(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            mmin_data = self.sql.get_metros_por_minuto(ini, fim, recursos=recursos, is_diaria=is_diaria)
+            partes = []
+            if kgh_rows:
+                blocos_kgh = []
+                for r in kgh_rows:
+                    blocos_kgh.append(
+                        f"**{r['recurso_label']}**\n\n"
+                        f"| Métrica | Valor |\n|---------|-------|\n"
+                        f"| KG total | {_fmt_kg(r['total_kg'])} |\n"
+                        f"| Horas totais | {_fmt_numero(r['horas'])} h |\n"
+                        f"| **KGH** | **{_fmt_numero(r['kgh'])}** |"
+                    )
+                partes.append(f"⚡ **KG/hora por extrusora**{periodo}{rec_lbl}\n\n" + "\n\n".join(blocos_kgh))
+            if mmin_data and mmin_data["resultado"] != 0:
+                partes.append(
+                    f"📏 **Metros por minuto**{periodo}{rec_lbl}\n\n"
+                    f"| Métrica | Valor |\n|---------|-------|\n"
+                    f"| Metros totais | {_fmt_metros(mmin_data['metros'])} |\n"
+                    f"| Minutos totais | {_fmt_numero(mmin_data['minutos'], 0)} min |\n"
+                    f"| **Média m/min** | **{_fmt_numero(mmin_data['resultado'], 4)}** |"
+                )
+            if not partes:
+                return f"🔍 Nenhum dado encontrado{periodo}{rec_lbl}."
+            return "\n\n---\n\n".join(partes)
 
         # ── Intents KARDEX — consultas que envolvem qualidade do material ────────
 

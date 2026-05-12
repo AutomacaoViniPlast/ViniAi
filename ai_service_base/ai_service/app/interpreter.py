@@ -1137,6 +1137,17 @@ class RuleBasedInterpreter:
                 reasoning="Ranking de produtividade da revisão (STG_APONT_REV_GERAL).",
             )
 
+        # ── 10b-combo. KGH + metros por minuto na mesma pergunta ────────────
+        if self._METROS_MIN.search(low) and self._KGH.search(low):
+            return InterpretationResult(
+                intent="kgh_e_metros_por_minuto", route="sql",
+                metric="kgh_e_metros_por_minuto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                recursos=recursos,
+                confidence=0.97,
+                reasoning="Consulta combinada: KGH e metros por minuto.",
+            )
+
         # ── 10b. Metros por minuto ────────────────────────────────────────────
         # Antes do comparativo — evita que "m/min da extrusora 2" caia em comparativo_extrusoras
         if self._METROS_MIN.search(low):
