@@ -13,7 +13,7 @@ import {
   saveMessage,
   updateTitle,
 } from "../services/conversations";
-import { getUser } from "../lib/storage";
+import { getUser, saveUserPhoto } from "../lib/storage";
 import { getMe } from "../services/auth";
 import { toast } from "@/components/ui/sonner";
 
@@ -73,7 +73,13 @@ const Index = () => {
     const updatedProfile = { ...userProfile, nome: data.nome, setor: data.setor, photo: newPhoto || undefined };
     const storedUser = getUser();
     if (storedUser) {
-      localStorage.setItem("user", JSON.stringify({ ...storedUser, nome: data.nome, setor: data.setor, photo: newPhoto || undefined }));
+      saveUserPhoto(storedUser.id, newPhoto || null);
+      localStorage.setItem("user", JSON.stringify({
+        ...storedUser,
+        nome: data.nome,
+        setor: data.setor,
+        photo: newPhoto || undefined
+      }));
     }
     setUserProfile(updatedProfile);
     toast.success("Perfil atualizado com sucesso!");
@@ -1000,6 +1006,7 @@ const Index = () => {
                     id={msg.id}
                     content={msg.content}
                     role={msg.role}
+                    userPhoto={userProfile?.photo}
                   />
                 ))}
                 {isTyping && (
