@@ -36,7 +36,10 @@ Regra de importações (anti-circular):
 """
 from __future__ import annotations
 
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 from app.agents import get_agent
 from app.config import (
@@ -214,10 +217,10 @@ class ChatOrchestrator:
         #    então pula o lookup do PostgreSQL para evitar queries desnecessárias e
         #    esgotamento do pool de conexões em caso de retentativas do N8N.
         if is_whatsapp:
-            recent = []
+            recent, history_failed = [], False
         else:
             self.context.append_user_message(payload.session_id, payload.message)
-            recent = self.context.get_recent(payload.session_id, limit=32)
+            recent, history_failed = self.context.get_recent(payload.session_id, limit=32)
 
         # 2. Resolve campos do usuário — topo do payload tem prioridade;
         #    fallback para metadata (compatibilidade com N8N que envia via metadata)
@@ -253,13 +256,15 @@ class ChatOrchestrator:
         # Caso 1: mensagem ambígua com período novo → herda intent do histórico
         # Ex: "Quero saber de janeiro!" após consulta de LD
         # Se a mensagem também pedir metros (ex: "LD em metros de janeiro"), força MT.
+        rag_attempted = False
         if ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and periodo_explicito:
+            rag_attempted = True
             followup_ir = self._try_context_followup(recent, msg_ini, msg_fim, msg_lbl, session_id=sid)
             if followup_ir:
                 if self.interpreter._METROS_UNIDADE.search(normalized_message):
                     followup_ir.unidade_filtro = "MT"
                 ir = followup_ir
-                print(f"[{self.agent_name}] RAG carry-over: reutilizando intent '{ir.intent}' com novo período.")
+                logger.debug("[%s] RAG carry-over: intent '%s' com novo período.", self.agent_name, ir.intent)
 
         # Caso 4: mensagem ambígua sem período mas com recurso → herda intent + período do histórico
         # Ex: "E da MAC2?" após "Produção da MAC1 e 2 ontem?" — sem período, mas menciona recurso
@@ -267,18 +272,19 @@ class ChatOrchestrator:
         # Caso 4b: sem período e sem recurso, mas pedindo metros lineares → herda intent + período + força MT
         # Ex: "Quantos metros lineares no total?" após "Total de LD em abril de 2026"
         elif ir.route in ("clarify", "smalltalk") and ir.confidence < 0.75 and not periodo_explicito:
+            rag_attempted = True
             recurso_novo = self.interpreter._extract_recurso(normalized_message)
             if recurso_novo:
                 followup_ir = self._try_context_followup(recent, None, None, None, recursos_new=recurso_novo, session_id=sid)
                 if followup_ir:
                     ir = followup_ir
-                    print(f"[{self.agent_name}] RAG recurso-carry (clarify): reutilizando intent '{ir.intent}' com recurso {recurso_novo}.")
+                    logger.debug("[%s] RAG recurso-carry (clarify): intent '%s' com recurso %s.", self.agent_name, ir.intent, recurso_novo)
             elif self.interpreter._METROS_UNIDADE.search(normalized_message):
                 followup_ir = self._try_context_followup(recent, None, None, None, session_id=sid)
                 if followup_ir:
                     followup_ir.unidade_filtro = "MT"
                     ir = followup_ir
-                    print(f"[{self.agent_name}] MT carry-over: reutilizando intent '{ir.intent}' com unidade_filtro=MT e período herdado.")
+                    logger.debug("[%s] MT carry-over: intent '%s' com unidade_filtro=MT.", self.agent_name, ir.intent)
 
         # Caso 3: SQL genérico sem operador → follow-up de recurso/extrusora
         # Ex: "E na extrusora 2?" após consulta de KGH herda intent kgh + atualiza recurso
@@ -288,12 +294,13 @@ class ChatOrchestrator:
             and not ir.entity_value
             and ir.confidence < 0.75
         ):
+            rag_attempted = True
             followup_ir = self._try_context_followup(
                 recent, msg_ini, msg_fim, msg_lbl, recursos_new=ir.recursos, session_id=sid,
             )
             if followup_ir:
                 ir = followup_ir
-                print(f"[{self.agent_name}] RAG recurso-carry: reutilizando intent '{ir.intent}' com novo recurso.")
+                logger.debug("[%s] RAG recurso-carry: intent '%s' com novo recurso.", self.agent_name, ir.intent)
 
         # Caso 2: consulta SQL sem período explícito → herda período do histórico
         # Ex: "E o do Igor?" após "Qual o LD do Ezequiel em janeiro?" herda janeiro
@@ -302,12 +309,13 @@ class ChatOrchestrator:
         elif ir.route == "sql" and not periodo_explicito and (
             ir.confidence < 0.87 or len(payload.message.strip().split()) <= 5
         ):
+            rag_attempted = True
             inherited = self._inherit_period_from_history(recent, session_id=sid)
             if inherited:
                 ir.data_inicio, ir.data_fim, ir.period_text = inherited
-                print(
-                    f"[{self.agent_name}] period-inherit: "
-                    f"'{inherited[2]}' herdado do histórico (conf={ir.confidence:.2f})."
+                logger.debug(
+                    "[%s] period-inherit: '%s' herdado do histórico (conf=%.2f).",
+                    self.agent_name, inherited[2], ir.confidence,
                 )
 
         # ── 4c. Expedição — resposta fixa (funcionalidade não implementada) ────
@@ -322,7 +330,7 @@ class ChatOrchestrator:
         # ── 4d. Conversação natural → LLM ────────────────────────────────────
         if ir.route in ("smalltalk", "clarify"):
             user_context = {"name": user_name, "setor": user_setor, "cargo": user_cargo}
-            print(f"[{self.agent_name}] user_context recebido: {user_context}")
+            logger.debug("[%s] user_context recebido: %s", self.agent_name, user_context)
             answer = self.llm.respond(
                 message=payload.message,
                 history=recent,
@@ -348,13 +356,18 @@ class ChatOrchestrator:
                 setor_usuario = get_setor_de(user_login)
                 if ir.intent in ("geracao_ld_por_operador", "resumo_qualidade") and setor_usuario == "revisao":
                     ir.entity_value = user_login
-                    print(f"[{self.agent_name}] Auto-inject (revisao): entity_value='{user_login}'.")
+                    logger.debug("[%s] Auto-inject (revisao): entity_value='%s'.", self.agent_name, user_login)
                 elif ir.intent == "producao_por_operador" and setor_usuario == "extrusora":
                     ir.entity_value = user_login
-                    print(f"[{self.agent_name}] Auto-inject (extrusora): entity_value='{user_login}'.")
+                    logger.debug("[%s] Auto-inject (extrusora): entity_value='%s'.", self.agent_name, user_login)
 
         # ── 4e. Consulta ao banco de dados → SQL ─────────────────────────────
         answer = self._handle_sql(ir)
+        if history_failed and rag_attempted:
+            answer += (
+                "\n\n_Não consegui acessar o histórico desta conversa — "
+                "se sua pergunta depende de algo que perguntou antes, repita o contexto._"
+            )
         self.context.append_assistant_message(payload.session_id, answer)
         # Persiste o intent resolvido para carry-over preciso nas próximas mensagens.
         # WhatsApp (sid=None) é ignorado pois não usa o PostgreSQL N8N.

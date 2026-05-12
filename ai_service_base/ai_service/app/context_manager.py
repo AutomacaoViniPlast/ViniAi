@@ -19,9 +19,12 @@ Uso:
 from __future__ import annotations
 
 import json
+import logging
 
 from app.db import get_n8n_conn
 from app.schemas import ConversationTurn, InterpretationResult
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresContextManager:
@@ -57,9 +60,11 @@ class PostgresContextManager:
                     ON session_intents (session_id, created_at DESC)
                 """)
         except Exception as exc:
-            print(f"[ContextManager] Aviso: não foi possível criar tabela session_intents: {exc}")
+            logger.warning("[ContextManager] Não foi possível criar tabela session_intents: %s", exc)
 
-    def get_recent(self, session_id: str, limit: int = 10) -> list[ConversationTurn]:
+    def get_recent(
+        self, session_id: str, limit: int = 10
+    ) -> tuple[list[ConversationTurn], bool]:
         """
         Retorna as últimas `limit` mensagens da conversa em ordem cronológica.
 
@@ -67,7 +72,10 @@ class PostgresContextManager:
           session_id : UUID da conversa (enviado pelo frontend no payload)
           limit      : número máximo de mensagens a retornar (padrão: 6)
 
-        Retorna lista vazia se o banco N8N estiver inacessível (falha silenciosa).
+        Retorno: (mensagens, history_failed)
+          history_failed=True indica falha no banco — lista vazia não significa
+          "conversa nova", e o orchestrator deve avisar o usuário se precisar
+          de contexto anterior.
         """
         try:
             with get_n8n_conn() as conn:
@@ -86,11 +94,11 @@ class PostgresContextManager:
                     (session_id, limit),
                 ).fetchall()
 
-            return [ConversationTurn(role=row[0], content=row[1]) for row in rows]
+            return [ConversationTurn(role=row[0], content=row[1]) for row in rows], False
 
         except Exception as exc:
-            print(f"[ContextManager] Erro ao buscar histórico da sessão {session_id}: {exc}")
-            return []
+            logger.error("[ContextManager] Erro ao buscar histórico da sessão %s: %s", session_id, exc)
+            return [], True
 
     def save_intent(self, session_id: str, ir: InterpretationResult) -> None:
         """
@@ -118,7 +126,7 @@ class PostgresContextManager:
                     ),
                 )
         except Exception as exc:
-            print(f"[ContextManager] Erro ao salvar intent sessão {session_id}: {exc}")
+            logger.warning("[ContextManager] Erro ao salvar intent sessão %s: %s", session_id, exc)
 
     def get_last_intent(self, session_id: str) -> InterpretationResult | None:
         """
@@ -161,7 +169,7 @@ class PostgresContextManager:
             )
 
         except Exception as exc:
-            print(f"[ContextManager] Erro ao buscar intent sessão {session_id}: {exc}")
+            logger.error("[ContextManager] Erro ao buscar intent sessão %s: %s", session_id, exc)
             return None
 
     # ── Stubs de escrita (compatibilidade com o orchestrator) ─────────────────
