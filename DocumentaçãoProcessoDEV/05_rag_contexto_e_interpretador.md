@@ -1,6 +1,6 @@
 # ViniAI — RAG Conversacional, Contexto e Interpretador
 
-**Versão:** 3.5  
+**Versão:** 4.0  
 **Última atualização:** Maio/2026  
 **Responsável técnico:** TI / Desenvolvimento
 
@@ -319,22 +319,25 @@ Suporta métricas: `producao_total`, `geracao_ld`, `revisao_kg`.
 "Compare o LD de fevereiro com março"
 ```
 
-### `resumo_qualidade` — Índices de qualidade do período (v3.5)
+### `resumo_qualidade` — Índices de qualidade do período (v4.0)
 
 Retorna breakdown de Inteiro / LD / FP / BAG sobre o total inspecionado no período.
 
+Quando a mensagem menciona um indicador específico, `qualidade_filtro` é preenchido e o orchestrator retorna formato compacto sem percentuais. Quando nenhum indicador é detectado (ou "por qualidade" / "resumo"), retorna a tabela completa.
+
 ```
-"Índices de qualidade hoje"              ← novo (v3.5)
-"Índices por qualidade esse mês"
-"Taxa de qualidade da produção"          ← novo (v3.5)
-"Percentual de qualidade hoje"           ← novo (v3.5)
-"Quais os índices por qualidade ontem?"
-"Produção por qualidade em março"
-"Dividido por qualidade essa semana"
-"Resumo de qualidade do mês"
+"Índices de qualidade hoje"              ← tabela completa
+"Quanto de FP hoje?"                     ← formato compacto só FP
+"Total de BAG esse mês"                  ← formato compacto só BAG ← v4.0 (antes: alucinação)
+"Qual o total de inteiro hoje?"          ← formato compacto só Inteiro
+"Qual o LD do kaua.chagas?"              ← redireciona de geracao_ld para cá ← v4.0
+"Taxa de qualidade da produção"          ← tabela completa
+"Produção por qualidade em março"        ← tabela completa
+"Resumo de qualidade do mês"             ← tabela completa
 ```
 
-> **Fonte:** `V_KARDEX` via `get_resumo_qualidade()`.
+> **Fonte:** `V_KARDEX` via `get_resumo_qualidade()`.  
+> `qualidade_filtro`: `["I"]`=Inteiro, `["Y"]`=LD, `["P"]`=FP, `["BAG"]`=BAG, `None`=todos.
 
 ### `geracao_ld_por_operador` — LD de um operador
 ```
@@ -497,8 +500,9 @@ As regras são avaliadas em ordem. Regras com maior especificidade vêm primeiro
  5.  list_operadores           — "quais operadores da revisão?" (guard: sem LD, sem ranking)
  6.  ranking_produtos_ld       — LD + produto + qual/ranking/top
  7.  ranking_usuarios_ld       — LD + ranking/top/quem/apontou mais/gerou mais/operador que mais (v3.3+)
- 8.  resumo_qualidade          — _QUALIDADE_RESUMO: "índices de/por qualidade", "por qualidade", "taxa/percentual de qualidade" (v3.5: expandido)
+ 8.  resumo_qualidade          — _QUALIDADE_RESUMO: "índices de/por qualidade", "por qualidade", "taxa/percentual de qualidade", BAG (v4.0: BAG adicionado)
  8.1 LD próprio                — LD + "meu/minha/eu identifiquei"
+ 8.5 LD + operador de revisão  — LD + operador em OPERADORES_REVISAO → resumo_qualidade (v4.0: novo)
  9.  LD por operador           — LD + ação ou operador explícito (+ unidade_filtro MT se "em metros")
 10.  LD genérico               — LD sem operador → usa autenticado (+ unidade_filtro MT se "em metros")
 10a. ranking_revisao           — "quem mais revisou", "ranking de revisão", "metros revisados"
@@ -711,7 +715,7 @@ FastAPI (ai_service)
 | "quais periodos voce tem dados" não batia no regex e caía no LLM (que alucinava) | `_PERIODOS` expandido com `quais?\s+per[ií]odos?` e `que\s+per[ií]odos?` |
 | KARDEX sumia nas chamadas repetidas a `periodos_disponiveis` | `WITH (NOLOCK)` adicionado; filtro `FILIAL` removido da query de períodos (scan sem índice em 1.19M linhas causava bloqueio) |
 
-### Corrigido em Maio/2026
+### Corrigido em Maio/2026 (v3.5)
 
 | Limitação (resolvida) | Como foi corrigido |
 |----------------------|-------------------|
@@ -719,6 +723,17 @@ FastAPI (ai_service)
 | "**Índices de qualidade** hoje?" retornava Top produtos com LD em vez de resumo de qualidade | `_LD` e `_QUALIDADE_RESUMO` expandidos com `[ií]ndice[s]?`, `taxa`, `percentual` e `porcentagem` de qualidade/ld/defeito |
 | `_PRODUCAO` não cobria "eficiência/aproveitamento/desempenho da produção" | Adicionados termos de eficiência, aproveitamento, desempenho e balanço/saldo ao padrão `_PRODUCAO` |
 | "Metros por minuto em cada MAC" retornava total agregado sem breakdown por extrusora | Novo `get_metros_por_minuto_por_recurso()` (GROUP BY RECURSO); interpreter detecta "cada MAC/extrusora" → `entity_type="extrusora"`; orchestrator renderiza bloco por MAC igual ao KGH |
+
+### Corrigido em 2026-05-13 (v4.0)
+
+| Limitação (resolvida) | Como foi corrigido |
+|----------------------|-------------------|
+| "Qual o total de FP hoje?" retornava tabela completa com todos os indicadores de qualidade | Novo campo `qualidade_filtro: list[str] \| None` em `InterpretationResult`; orchestrator renderiza formato compacto `\| KG \| MT \|` quando exatamente 1 indicador detectado |
+| "Quanto de **BAG** hoje?" caía para o LLM e alucinava resposta de "Total de LD" | `\bbag\b` ausente em `_QUALIDADE_RESUMO` — adicionado ao regex |
+| "Quais os **materiais** com mais LD?" não roteava para ranking de produtos (plural português) | `\bmaterial(?:is)?\b` não casa com "materiais" — corrigido para `\bmateri(?:al\|ais)\b` |
+| Rankings retornavam Top 5 ou Top 20 variando por intent | Todos os defaults padronizados para `top_n or 10` em `interpreter.py` e `orchestrator.py` |
+| "Qual o LD do kaua.chagas?" roteava para `geracao_ld_por_operador` (incorreto para revisão) | Step 8.5: LD + operador em `OPERADORES_REVISAO` → redireciona para `resumo_qualidade` |
+| Token JWT em localStorage exposto a XSS | Backend seta `auth_token` em cookie httpOnly; middleware lê cookie primeiro, Bearer como fallback; frontend usa `credentials: 'include'` |
 
 ### Próximos passos sugeridos
 

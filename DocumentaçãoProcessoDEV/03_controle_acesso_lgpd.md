@@ -1,6 +1,6 @@
 # ViniAI — Controle de Acesso e LGPD
 
-**Versão:** 1.5  
+**Versão:** 1.6  
 **Última atualização:** Maio/2026  
 **Base legal:** Lei nº 13.709/2018 — Lei Geral de Proteção de Dados Pessoais (LGPD)
 
@@ -174,6 +174,8 @@ POST /admin/users  { ..., force_password_change: true }
 | Token de reset de senha | SHA-256 gravado no banco — token bruto só no email |
 | Validade do token de reset | 10 minutos, uso único |
 | JWT | HS256, 7 dias, validado com decode local no frontend |
+| httpOnly cookie | `auth_token` setado em cookie `httpOnly; SameSite=Lax; path=/` — inacessível via JavaScript, mitiga XSS |
+| Auth híbrida | Middleware lê cookie primeiro, Bearer token como fallback — compatível com ambiente sem HTTPS |
 | Troca de senha obrigatória | Flag `force_password_change` no banco + bloqueio no frontend |
 | AI Service | `X-API-Key` obrigatório em `/v1/chat/process` (validado via env var `AI_API_KEY`) |
 

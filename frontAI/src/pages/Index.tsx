@@ -212,6 +212,7 @@ const Index = () => {
     mobileMenuBg: "hsl(var(--sidebar))",
     redText: "hsl(var(--primary))",
     redHover: "hsl(var(--primary) / 0.15)",
+    gradText: "linear-gradient(135deg, hsl(2, 100%, 61%) 0%, hsl(2, 100%, 77%) 100%)",
     initials: "hsl(var(--primary))",
   };
 
@@ -569,7 +570,7 @@ const Index = () => {
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <p className="font-semibold text-sm leading-tight truncate" style={{ color: C.text }}>ViniAI</p>
                   <p className="text-[11px] truncate" style={{ color: C.textMuted }}>
-                    {userProfile?.nome} <span style={{ color: C.redText, fontWeight: 700 }}>•{userProfile?.setor}</span>
+                    Assistente Virtual <span className="bg-gradient-to-br from-[hsl(var(--primary))] to-[hsl(-10,135%,80%)] bg-clip-text text-transparent" style={{ fontWeight: 700, fontSize: "12px" }}>ViniPlast</span>
                   </p>
                 </div>
               </div>
