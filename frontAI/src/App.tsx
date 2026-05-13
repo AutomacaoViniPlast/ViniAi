@@ -10,7 +10,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
 import ChangePassword from "./pages/ChangePassword";
-import { getUser, isUserStored, clearSession } from "./lib/storage";
+import { getUser, isTokenValid, clearSession } from "./lib/storage";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +19,7 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  if (!isUserStored()) {
+  if (!isTokenValid()) {
     clearSession();
     return <Navigate to="/auth" replace />;
   }
@@ -31,7 +31,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 };
 
 const AdminRoute = ({ children }: ProtectedRouteProps) => {
-  if (!isUserStored()) {
+  if (!isTokenValid()) {
     clearSession();
     return <Navigate to="/auth" replace />;
   }

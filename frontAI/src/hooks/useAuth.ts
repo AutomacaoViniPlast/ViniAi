@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getUser, type SessionUser } from "../lib/storage";
+import { getToken, getUser, type SessionUser } from "../lib/storage";
 import { getMe, signIn, signOut, signUp } from "../services/auth";
 
 export function useAuth() {
@@ -8,9 +8,9 @@ export function useAuth() {
 
   useEffect(() => {
     async function loadSession() {
-      // Se não há dados de usuário em cache, não está logado
-      const cached = getUser();
-      if (!cached) {
+      const token = getToken();
+
+      if (!token) {
         setLoading(false);
         return;
       }

@@ -128,7 +128,7 @@ router.post("/register", registerLimiter, async (req, res) => {
     );
 
     setAuthCookie(res, token);
-    return res.status(201).json({ user });
+    return res.status(201).json({ token, user });
   } catch (error) {
     console.error("Erro no register:", error);
     return res.status(500).json({
@@ -192,6 +192,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     setAuthCookie(res, token);
     return res.json({
+      token,
       user: {
         id: user.id,
         nome: user.nome,
@@ -300,7 +301,7 @@ router.post("/change-password", authMiddleware, async (req: AuthRequest, res) =>
     );
 
     setAuthCookie(res, token);
-    return res.json({ user: { ...user, force_password_change: false } });
+    return res.json({ token, user: { ...user, force_password_change: false } });
   } catch (error) {
     console.error("Erro no change-password:", error);
     return res.status(500).json({ message: "Erro interno ao alterar senha" });

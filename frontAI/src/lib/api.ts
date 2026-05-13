@@ -4,11 +4,14 @@ export async function apiFetch<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const token = localStorage.getItem("token");
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -25,6 +28,7 @@ export async function apiFetch<T = any>(
   if (response.status === 401) {
     const onAuthPage = window.location.pathname.startsWith("/auth") || window.location.pathname.startsWith("/reset-password");
     if (!onAuthPage) {
+      localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/auth";
       return null as T;
