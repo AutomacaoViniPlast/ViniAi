@@ -58,12 +58,24 @@ const router = Router();
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
-
-  if (!secret) {
-    throw new Error("JWT_SECRET não definido");
-  }
-
+  if (!secret) throw new Error("JWT_SECRET não definido");
   return secret;
+}
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: false, // alterar para true se HTTPS for habilitado
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias em ms
+  path: "/",
+};
+
+function setAuthCookie(res: any, token: string) {
+  res.cookie("auth_token", token, COOKIE_OPTIONS);
+}
+
+function clearAuthCookie(res: any) {
+  res.clearCookie("auth_token", { path: "/" });
 }
 
 router.post("/register", registerLimiter, async (req, res) => {
@@ -115,7 +127,8 @@ router.post("/register", registerLimiter, async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    return res.status(201).json({ token, user });
+    setAuthCookie(res, token);
+    return res.status(201).json({ user });
   } catch (error) {
     console.error("Erro no register:", error);
     return res.status(500).json({
@@ -127,8 +140,6 @@ router.post("/register", registerLimiter, async (req, res) => {
 
 router.post("/login", loginLimiter, async (req, res) => {
   try {
-    console.log("[LOGIN] Requisição recebida");
-
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -138,8 +149,6 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     const emailNormalizado = String(email).trim().toLowerCase();
-    console.log("[LOGIN] Email normalizado:", emailNormalizado);
-    console.log("[LOGIN] JWT carregado?", !!process.env.JWT_SECRET);
 
     const result = await pool.query(
       `SELECT id, nome, email, senha_hash, setor, nivel_acesso, ativo, force_password_change
@@ -149,24 +158,14 @@ router.post("/login", loginLimiter, async (req, res) => {
       [emailNormalizado]
     );
 
-    console.log("[LOGIN] Usuários encontrados:", result.rows.length);
-
     if (result.rows.length === 0) {
-      return res.status(401).json({
-        message: "Email ou senha inválidos",
-      });
+      return res.status(401).json({ message: "Email ou senha inválidos" });
     }
 
     const user = result.rows[0];
 
-    console.log("[LOGIN] Usuário encontrado:", user.email);
-    console.log("[LOGIN] Usuário ativo:", user.ativo);
-    console.log("[LOGIN] senha_hash existe?", !!user.senha_hash);
-
     if (!user.ativo) {
-      return res.status(403).json({
-        message: "Usuário inativo",
-      });
+      return res.status(403).json({ message: "Usuário inativo" });
     }
 
     if (!user.senha_hash) {
@@ -174,12 +173,9 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     const senhaValida = await bcrypt.compare(String(password), user.senha_hash);
-    console.log("[LOGIN] Senha válida?", senhaValida);
 
     if (!senhaValida) {
-      return res.status(401).json({
-        message: "Email ou senha inválidos",
-      });
+      return res.status(401).json({ message: "Email ou senha inválidos" });
     }
 
     const token = jwt.sign(
@@ -194,10 +190,8 @@ router.post("/login", loginLimiter, async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    console.log("[LOGIN] Token gerado com sucesso");
-
+    setAuthCookie(res, token);
     return res.json({
-      token,
       user: {
         id: user.id,
         nome: user.nome,
@@ -305,10 +299,8 @@ router.post("/change-password", authMiddleware, async (req: AuthRequest, res) =>
       { expiresIn: "7d" }
     );
 
-    return res.json({
-      token,
-      user: { ...user, force_password_change: false },
-    });
+    setAuthCookie(res, token);
+    return res.json({ user: { ...user, force_password_change: false } });
   } catch (error) {
     console.error("Erro no change-password:", error);
     return res.status(500).json({ message: "Erro interno ao alterar senha" });
@@ -406,6 +398,11 @@ router.post("/reset-password", async (req, res) => {
     console.error("Erro no reset-password:", error);
     return res.status(500).json({ message: "Erro interno ao redefinir senha" });
   }
+});
+
+router.post("/logout", (_req, res) => {
+  clearAuthCookie(res);
+  return res.json({ message: "Logout realizado com sucesso" });
 });
 
 export default router;

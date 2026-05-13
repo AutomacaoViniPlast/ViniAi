@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
 import conversationRoutes from "./routes/conversations";
@@ -39,6 +40,7 @@ app.use(
   })
 );
 
+app.use(cookieParser());
 app.use(express.json());
 
 app.get("/health", async (_req, res) => {

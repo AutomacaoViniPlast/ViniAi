@@ -28,7 +28,7 @@ import calendar
 import re
 from datetime import date, timedelta
 
-from app.config import ORIGENS, SETORES, _normalizar_setor, todos_operadores
+from app.config import OPERADORES_REVISAO, ORIGENS, SETORES, _normalizar_setor, todos_operadores
 from app.schemas import InterpretationResult
 
 # ── Meses PT-BR ───────────────────────────────────────────────────────────────
@@ -645,6 +645,19 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Detecção de indicadores de qualidade isolados (para qualidade_filtro)
+    _MENCIONA_LD_ISOLADO     = re.compile(r"\bld\b|\blaudo\b", re.IGNORECASE)
+    _MENCIONA_FP_ISOLADO     = re.compile(r"\bfp\b|\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b", re.IGNORECASE)
+    _MENCIONA_BAG_ISOLADO    = re.compile(r"\bbag\b", re.IGNORECASE)
+    _MENCIONA_INTEIRO_ISOLADO = re.compile(r"\binteiro\b|\bsem\s+defeito\b", re.IGNORECASE)
+    # Palavras que indicam pedido geral (mostrar todos os indicadores)
+    _QUALIDADE_COMPLETA = re.compile(
+        r"qualidade\s+da\s+produ[cç][aã]o|quebra\s+por\s+qualidade|resumo\s+de\s+qualidade|"
+        r"por\s+qualidade|geral\s+de\s+qualidade|todos\s+os\s+(?:tipos|indicadores)|"
+        r"\bgeral\b|\btudo\b|\bcompleto\b",
+        re.IGNORECASE,
+    )
+
     # Produção (extrusora, fabricação)
     _PRODUCAO = re.compile(
         r"produ[cç][aã]o|produziu|produzido|produzidos|produzir|produzi|"
@@ -1053,7 +1066,7 @@ class RuleBasedInterpreter:
                 intent="ranking_produtos_ld", route="sql",
                 metric="geracao_ld", entity_type="produto",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                top_n=top_n or 5,
+                top_n=top_n or 10,
                 setor=setor, origem=origem,
                 confidence=0.90,
                 reasoning="Ranking de produtos por geração de LD.",
@@ -1065,7 +1078,7 @@ class RuleBasedInterpreter:
                 intent="ranking_usuarios_ld", route="sql",
                 metric="geracao_ld", entity_type="operador",
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                top_n=top_n or 5,
+                top_n=top_n or 10,
                 setor=setor, origem=origem,
                 confidence=0.89,
                 reasoning="Ranking de operadores por LD.",
@@ -1081,6 +1094,7 @@ class RuleBasedInterpreter:
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
                 setor=setor, origem=origem,
+                qualidade_filtro=self._build_qualidade_filtro(low),
                 confidence=0.87 if (self._PROPRIO.search(low) or operador) else 0.82,
                 reasoning="Resumo da producao por qualidade na V_KARDEX.",
             )
@@ -1094,6 +1108,21 @@ class RuleBasedInterpreter:
                 setor=setor, origem=origem,
                 confidence=0.88,
                 reasoning="LD do próprio usuário autenticado (primeira pessoa).",
+            )
+
+        # ── 8.5. LD de operador de revisão → resumo de qualidade ─────────────
+        # Revisores não têm LD "gerado" — sua métrica é a qualidade inspecionada
+        if self._LD.search(low) and operador and operador in OPERADORES_REVISAO:
+            return InterpretationResult(
+                intent="resumo_qualidade", route="sql",
+                metric="qualidade_material",
+                entity_type="operador",
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                setor=setor, origem=origem,
+                qualidade_filtro=self._build_qualidade_filtro(low),
+                confidence=0.90,
+                reasoning="LD + operador de revisão → redireciona para resumo de qualidade inspecionada.",
             )
 
         # ── 9. LD por operador específico ou com ação de geração ──────────────
@@ -1132,7 +1161,7 @@ class RuleBasedInterpreter:
                 entity_type="operador" if operador else None,
                 entity_value=operador,
                 data_inicio=ini, data_fim=fim, period_text=lbl,
-                top_n=top_n or 5,
+                top_n=top_n or 10,
                 confidence=0.92,
                 reasoning="Ranking de produtividade da revisão (STG_APONT_REV_GERAL).",
             )
@@ -1377,6 +1406,21 @@ class RuleBasedInterpreter:
         if m2:
             return int(m2.group(1))
         return None
+
+    def _build_qualidade_filtro(self, low: str) -> list[str] | None:
+        """Detecta quais indicadores de qualidade foram pedidos. None = todos."""
+        if self._QUALIDADE_COMPLETA.search(low):
+            return None
+        filtro: list[str] = []
+        if self._MENCIONA_LD_ISOLADO.search(low):
+            filtro.append("Y")
+        if self._MENCIONA_FP_ISOLADO.search(low):
+            filtro.append("P")
+        if self._MENCIONA_BAG_ISOLADO.search(low):
+            filtro.append("BAG")
+        if self._MENCIONA_INTEIRO_ISOLADO.search(low):
+            filtro.append("I")
+        return filtro if filtro else None
 
     def _extract_operator(self, text: str) -> str | None:
         """Extrai login de operador do texto (formato nome.sobrenome ou primeiro nome)."""

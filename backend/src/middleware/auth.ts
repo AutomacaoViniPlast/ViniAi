@@ -16,16 +16,16 @@ export function authMiddleware(
   res: Response,
   next: NextFunction
 ) {
+  // Cookie httpOnly tem prioridade; Bearer como fallback para clientes legados
+  const cookieToken = (req as any).cookies?.auth_token as string | undefined;
   const authHeader = req.headers.authorization;
+  const bearerToken =
+    authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
-  if (!authHeader) {
+  const token = cookieToken || bearerToken;
+
+  if (!token) {
     return res.status(401).json({ message: "Token não informado" });
-  }
-
-  const [type, token] = authHeader.split(" ");
-
-  if (type !== "Bearer" || !token) {
-    return res.status(401).json({ message: "Token inválido" });
   }
 
   const secret = process.env.JWT_SECRET;

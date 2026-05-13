@@ -536,7 +536,7 @@ class ChatOrchestrator:
         periodo   = _periodo_label(ir)
         ini       = ir.data_inicio
         fim       = ir.data_fim
-        top_n     = ir.top_n or 5
+        top_n     = ir.top_n or 10
         recursos  = ir.recursos  # None = ambas extrusoras (default no service)
         is_diaria = self._is_diaria(ir)
         rec_lbl   = self._recurso_label(recursos)
@@ -1034,45 +1034,60 @@ class ChatOrchestrator:
 
             tipo     = "dia" if is_diaria else "mês"
             nome_str = f" — {ir.entity_value}" if ir.entity_value else ""
-            header   = (
+            filtro   = ir.qualidade_filtro  # None = todos; ["Y"] = só LD; etc.
+
+            _DADOS: dict[str, tuple[str, float, float]] = {
+                "I":   ("✅ Inteiro",        inteiro_kg, inteiro_mt),
+                "Y":   ("⚠️ LD",            ld_kg,      ld_mt),
+                "P":   ("🔶 Fora de Padrão", fp_kg,      fp_mt),
+                "BAG": ("🛍️ BAG",           bag_kg,     bag_mt),
+            }
+            _ORDEM = ["I", "Y", "P", "BAG"]
+
+            # Isolado: um único indicador pedido — formato compacto sem percentuais
+            if filtro and len(filtro) == 1:
+                cod = filtro[0]
+                label, v_kg, v_mt = _DADOS[cod]
+                return (
+                    f"{label}{nome_str}\n"
+                    f"📅 Período ({tipo}){periodo}\n\n"
+                    f"| KG | MT |\n|----|----|\n"
+                    f"| **{_fmt_kg(v_kg)}** | **{_fmt_mt(v_mt)} MT** |"
+                )
+
+            # Múltiplos ou todos: tabela completa com percentuais
+            header = (
                 f"⚠️ **Produção por qualidade{nome_str}**\n"
                 f"📅 Período ({tipo}){periodo}\n\n"
                 "| Qualidade | KG | % KG | MT | % MT |\n"
                 "|-----------|----|------|----|------|\n"
             )
+            mostrar = set(filtro) if filtro else set(_ORDEM)
             linhas = []
-            if inteiro_kg > 0 or inteiro_mt > 0:
-                mt_col = f"**{_fmt_mt(inteiro_mt)} MT**" if inteiro_mt > 0 else "—"
-                linhas.append(
-                    f"| ✅ Inteiro | **{_fmt_kg(inteiro_kg)}** | {_pct_kg(inteiro_kg)} | {mt_col} | {_pct_mt(inteiro_mt)} |"
-                )
-            if ld_kg > 0 or ld_mt > 0:
-                mt_col = f"**{_fmt_mt(ld_mt)} MT**" if ld_mt > 0 else "—"
-                linhas.append(
-                    f"| ⚠️ LD | **{_fmt_kg(ld_kg)}** | {_pct_kg(ld_kg)} | {mt_col} | {_pct_mt(ld_mt)} |"
-                )
-            if fp_kg > 0 or fp_mt > 0:
-                mt_col = f"**{_fmt_mt(fp_mt)} MT**" if fp_mt > 0 else "—"
-                linhas.append(
-                    f"| 🔶 Fora de Padrão | **{_fmt_kg(fp_kg)}** | {_pct_kg(fp_kg)} | {mt_col} | {_pct_mt(fp_mt)} |"
-                )
-            if bag_kg > 0 or bag_mt > 0:
-                mt_col = f"**{_fmt_mt(bag_mt)} MT**" if bag_mt > 0 else "—"
-                linhas.append(
-                    f"| 🛍️ BAG | **{_fmt_kg(bag_kg)}** | {_pct_kg(bag_kg)} | {mt_col} | {_pct_mt(bag_mt)} |"
-                )
-            perda_kg = ld_kg + fp_kg + bag_kg
-            perda_mt = ld_mt + fp_mt + bag_mt
-            if perda_kg > 0 or perda_mt > 0:
-                perda_mt_col = f"**{_fmt_mt(perda_mt)} MT**" if perda_mt > 0 else "—"
-                linhas.append(
-                    f"| **⚠️ Total perda** | **{_fmt_kg(perda_kg)}** | **{_pct_kg(perda_kg)}** | {perda_mt_col} | **{_pct_mt(perda_mt)}** |"
-                )
-            if total_kg > 0 or total_mt > 0:
-                total_mt_col = f"**{_fmt_mt(total_mt)} MT**" if total_mt > 0 else "—"
-                linhas.append(
-                    f"| **📦 Total geral** | **{_fmt_kg(total_kg)}** | **100%** | {total_mt_col} | **100%** |"
-                )
+            for cod in _ORDEM:
+                if cod not in mostrar:
+                    continue
+                label, v_kg, v_mt = _DADOS[cod]
+                if v_kg > 0 or v_mt > 0:
+                    mt_col = f"**{_fmt_mt(v_mt)} MT**" if v_mt > 0 else "—"
+                    linhas.append(
+                        f"| {label} | **{_fmt_kg(v_kg)}** | {_pct_kg(v_kg)} | {mt_col} | {_pct_mt(v_mt)} |"
+                    )
+
+            # Totais de perda e geral apenas no resumo completo
+            if filtro is None:
+                perda_kg = ld_kg + fp_kg + bag_kg
+                perda_mt = ld_mt + fp_mt + bag_mt
+                if perda_kg > 0 or perda_mt > 0:
+                    perda_mt_col = f"**{_fmt_mt(perda_mt)} MT**" if perda_mt > 0 else "—"
+                    linhas.append(
+                        f"| **⚠️ Total perda** | **{_fmt_kg(perda_kg)}** | **{_pct_kg(perda_kg)}** | {perda_mt_col} | **{_pct_mt(perda_mt)}** |"
+                    )
+                if total_kg > 0 or total_mt > 0:
+                    total_mt_col = f"**{_fmt_mt(total_mt)} MT**" if total_mt > 0 else "—"
+                    linhas.append(
+                        f"| **📦 Total geral** | **{_fmt_kg(total_kg)}** | **100%** | {total_mt_col} | **100%** |"
+                    )
             return header + "\n".join(linhas)
 
         # ── Ranking de operadores com mais LD (KARDEX) ────────────────────────────
@@ -1112,7 +1127,7 @@ class ChatOrchestrator:
 
         # ── Produção agrupada por produto (todos, sem filtro qualidade) ──────────
         if ir.intent == "producao_agrupada_por_produto":
-            top_n = ir.top_n or 20
+            top_n = ir.top_n or 10
             rows = self.kardex.get_producao_por_produto(
                 ini, fim, limite=top_n, origem=ir.origem,
             )

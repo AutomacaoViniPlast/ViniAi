@@ -72,6 +72,7 @@ class InterpretationResult(BaseModel):
     data_fim2: str | None = None         # DD/MM/YYYY — segundo período (comparação entre períodos)
     period_text2: str | None = None      # ex: "fevereiro de 2026" — segundo período
     unidade_filtro: str | None = None    # "MT" | "KG" | None — filtra unidade de medida na resposta
+    qualidade_filtro: list[str] | None = None  # ["I"] | ["Y"] | ["P"] | ["BAG"] | None (todos)
     confidence: float = 0.0              # confiança da interpretação (0.0–1.0)
     reasoning: str | None = None         # explicação textual da decisão
 

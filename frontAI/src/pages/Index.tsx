@@ -217,8 +217,15 @@ const Index = () => {
 
   const activeConversation = conversations.find((c) => c.id === activeId);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:4000"}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // ignora erros de rede
+    }
     localStorage.removeItem("user");
     window.location.href = "/auth";
   };

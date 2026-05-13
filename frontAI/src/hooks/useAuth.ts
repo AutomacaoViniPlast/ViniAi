@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getToken, getUser, type SessionUser } from "../lib/storage";
+import { getUser, type SessionUser } from "../lib/storage";
 import { getMe, signIn, signOut, signUp } from "../services/auth";
 
 export function useAuth() {
@@ -8,9 +8,9 @@ export function useAuth() {
 
   useEffect(() => {
     async function loadSession() {
-      const token = getToken();
-
-      if (!token) {
+      // Se não há dados de usuário em cache, não está logado
+      const cached = getUser();
+      if (!cached) {
         setLoading(false);
         return;
       }
@@ -19,7 +19,7 @@ export function useAuth() {
         const response = await getMe();
         setUser(response.user);
       } catch {
-        signOut();
+        await signOut();
         setUser(null);
       } finally {
         setLoading(false);
@@ -41,8 +41,8 @@ export function useAuth() {
     return response;
   }
 
-  function logout() {
-    signOut();
+  async function logout() {
+    await signOut();
     setUser(null);
   }
 

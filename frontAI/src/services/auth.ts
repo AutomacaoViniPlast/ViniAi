@@ -50,6 +50,11 @@ export async function changePassword(new_password: string, current_password?: st
   return data;
 }
 
-export function signOut() {
+export async function signOut() {
+  try {
+    await apiFetch("/auth/logout", { method: "POST" });
+  } catch {
+    // garante limpeza local mesmo se a chamada falhar
+  }
   clearSession();
 }

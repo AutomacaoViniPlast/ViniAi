@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { changePassword } from "../services/auth";
-import { isTokenValid } from "../lib/storage";
+import { isUserStored } from "../lib/storage";
 import logoVini from "../image/logoviniai2.png";
 
 function validatePassword(password: string): string | null {
@@ -16,7 +16,7 @@ function validatePassword(password: string): string | null {
 const ChangePassword = () => {
   const navigate = useNavigate();
 
-  if (!isTokenValid()) {
+  if (!isUserStored()) {
     navigate("/auth", { replace: true });
     return null;
   }
