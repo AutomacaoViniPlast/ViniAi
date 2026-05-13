@@ -591,6 +591,7 @@ class RuleBasedInterpreter:
     _QUALIDADE_RESUMO = re.compile(
         r"\binteiro\b|\bsem\s+defeito\b|"
         r"\bfora\s+de\s+padr[aã]o\b|\bfora\s+do\s+padr[aã]o\b|\bfp\b|"
+        r"\bbag\b|"
         r"por\s+qualidade|qualidade\s+da\s+produ[cç][aã]o|"
         r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
         r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
@@ -699,10 +700,10 @@ class RuleBasedInterpreter:
 
     # Produto específico
     _PRODUTO = re.compile(
-        r"\bprodutos?\b|\bmaterial(?:is)?\b|\breferencia\b|\breferência\b|"
+        r"\bprodutos?\b|\bmateri(?:al|ais)\b|\breferencia\b|\breferência\b|"
         r"\bcódigo\b|\bcodigo\b|"
         r"qual\s+produtos?|qual\s+material|que\s+produtos?|que\s+material|"
-        r"produtos?\s+(?:com\s+)?mais|material\s+(?:com\s+)?mais",
+        r"produtos?\s+(?:com\s+)?mais|materi(?:al|ais)\s+(?:com\s+)?mais",
         re.IGNORECASE,
     )
 
