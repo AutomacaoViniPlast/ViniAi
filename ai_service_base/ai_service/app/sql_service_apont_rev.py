@@ -157,6 +157,7 @@ class SQLServiceApontRev:
             WHERE CAST(DATAAPONT AS DATE)
                   BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
               AND LTRIM(RTRIM(PRODUTO)) != ''
+              AND SUBSTRING(LTRIM(RTRIM(PRODUTO)), 5, 1) IN ('I', 'P', 'Y')
             GROUP BY LTRIM(RTRIM(PRODUTO))
             ORDER BY total_metros DESC
         """
