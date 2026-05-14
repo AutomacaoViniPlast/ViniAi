@@ -596,10 +596,20 @@ class RuleBasedInterpreter:
         r"qualidade\s+do\s+material|diferenciar\s+(?:ld|inteiro|qualidade)|"
         r"separar\s+(?:por\s+)?qualidade|dividir\s+(?:por\s+)?qualidade|"
         r"resumo\s+de\s+qualidade|quebra\s+por\s+qualidade|"
-        r"[ií]ndice[s]?\s+(?:de|por)\s+qualidade|"
+        r"[ií]ndice[s]?\s+(?:de|por|em)\s+qualidade|"
+        r"[ií]ndices?\s+(?:em\s+)?percentuais?\s+(?:da|de)\s+qualidade|"
         r"taxa\s+(?:de\s+)?qualidade|"
-        r"percentual\s+(?:de\s+)?qualidade|"
-        r"porcentagem\s+(?:de\s+)?qualidade",
+        r"percentuais?\s+(?:da|de|do)\s+qualidade|"
+        r"porcentagem\s+(?:de\s+)?qualidade|"
+        r"como\s+(?:est[aá]|ficou|anda[ou]?)\s+(?:a\s+)?qualidade|"
+        r"situa[cç][aã]o\s+(?:da|de)\s+qualidade|"
+        r"resultado[s]?\s+(?:de|da)\s+qualidade|"
+        r"dados?\s+(?:de|da)\s+qualidade|"
+        r"n[uú]meros?\s+(?:de|da)\s+qualidade|"
+        r"vis[aã]o\s+(?:geral\s+)?(?:da|de)\s+qualidade|"
+        r"(?:ver|saber|consultar|checar|verificar)\s+(?:a\s+)?qualidade|"
+        r"me\s+(?:mostr[ae]|pass[ae]|d[aá]|traz)\s+(?:a\s+)?qualidade|"
+        r"qualidade\s+(?:hoje|ontem|geral|do\s+m[eê]s|nesse?\s+m[eê]s|desse?\s+m[eê]s|no\s+m[eê]s)",
         re.IGNORECASE,
     )
 
@@ -655,6 +665,12 @@ class RuleBasedInterpreter:
     _QUALIDADE_COMPLETA = re.compile(
         r"qualidade\s+da\s+produ[cç][aã]o|quebra\s+por\s+qualidade|resumo\s+de\s+qualidade|"
         r"por\s+qualidade|geral\s+de\s+qualidade|todos\s+os\s+(?:tipos|indicadores)|"
+        r"percentuais?\s+(?:da|de|do)\s+qualidade|"
+        r"[ií]ndices?\s+(?:em\s+)?percentuais?\s+(?:da|de)\s+qualidade|"
+        r"resultado[s]?\s+(?:de|da)\s+qualidade|"
+        r"situa[cç][aã]o\s+(?:da|de)\s+qualidade|"
+        r"dados?\s+(?:de|da)\s+qualidade|"
+        r"qualidade\s+geral|"
         r"\bgeral\b|\btudo\b|\bcompleto\b",
         re.IGNORECASE,
     )
@@ -974,11 +990,24 @@ class RuleBasedInterpreter:
             )
 
         # ── 3. Saudação curta ─────────────────────────────────────────────────
+        # Guard: saudação + dado na mesma frase (ex: "Olá, qual o índice de qualidade?")
+        # não pode ser classificada como smalltalk puro — deixa cair para regras SQL.
         if self._SMALLTALK.search(low) and len(text.split()) <= 8:
-            return InterpretationResult(
-                intent="smalltalk", route="smalltalk",
-                confidence=0.98, reasoning="Saudação identificada.",
+            _tem_dado_junto = (
+                self._LD.search(low)
+                or self._PRODUCAO.search(low)
+                or self._QUALIDADE_RESUMO.search(low)
+                or self._KGH.search(low)
+                or self._METROS_MIN.search(low)
+                or self._HORAS.search(low)
+                or self._RANKING.search(low)
+                or "qualidade" in low
             )
+            if not _tem_dado_junto:
+                return InterpretationResult(
+                    intent="smalltalk", route="smalltalk",
+                    confidence=0.98, reasoning="Saudação identificada.",
+                )
 
         # ── 3.5. Perguntas de definição/conceito — sempre smalltalk ──────────
         # Tem prioridade sobre qualquer regra SQL, mesmo que mencione LD/produção.
@@ -992,7 +1021,8 @@ class RuleBasedInterpreter:
         # ── 4. Conversa natural longa ─────────────────────────────────────────
         # Guard: se a mensagem contém LD ou produção E tem período explícito,
         # deixa cair para as regras SQL — ex: "me fale sobre o LD de janeiro"
-        _tem_dado = self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
+        _tem_dado = (self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
+                     or self._QUALIDADE_RESUMO.search(low) or "qualidade" in low)
         if self._SMALLTALK_LONGA.search(low) and not _tem_dado:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
