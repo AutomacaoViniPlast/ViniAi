@@ -788,6 +788,7 @@ class RuleBasedInterpreter:
         r"produto[s]?\s+(?:mais\s+)?revisados?|"
         r"(?:mais\s+)?revisados?\s+(?:por\s+)?(?:produto|material)|"
         r"qual\s+(?:material|produto)\s+(?:foi\s+)?(?:mais\s+)?revisad|"
+        r"que\s+(?:material|produto)\s+(?:foi\s+)?(?:mais\s+)?revisad|"
         r"quais\s+(?:os\s+)?(?:materiais?|produtos?)\s+(?:mais\s+|foram\s+)?revisados?|"
         r"ranking\s+(?:de\s+)?(?:materiais?|produtos?)\s+(?:mais\s+)?revisados?|"
         r"top\s+\d*\s*(?:materiais?|produtos?)\s+revisados?|"
@@ -805,7 +806,15 @@ class RuleBasedInterpreter:
         r"kg\s+revisados?|kg\s+(?:da\s+)?revis[aã]o|"
         r"metros?\s+revisados?|mais\s+metros?\s+(?:na\s+)?revis[aã]o|"
         r"metros?\s+(?:na\s+|de\s+|da\s+)?revis[aã]o|revis[aã]o\s+(?:em\s+)?metros?|"
-        r"mais\s+revisou|mais\s+revis[aã]o|quem\s+mais\s+revis",
+        r"mais\s+revisou|mais\s+revis[aã]o|quem\s+mais\s+revis|"
+        r"revisou\s+mais|quanto\s+revisou|"
+        r"qual\s+(?:a\s+|foi\s+a\s+)?revis[aã]o\b|"
+        r"revis[aã]o\s+(?:do|da|dos|das|de)\s+|"
+        r"como\s+(?:est[aá]|ficou|andou)\s+(?:a\s+)?revis[aã]o|"
+        r"estado\s+(?:da|de)\s+revis[aã]o|"
+        r"situa[cç][aã]o\s+(?:da|de)\s+revis[aã]o|"
+        r"resultado[s]?\s+(?:de|da)\s+revis[aã]o|"
+        r"n[uú]mero[s]?\s+(?:de|da)\s+revis[aã]o",
         re.IGNORECASE,
     )
 
@@ -1015,6 +1024,7 @@ class RuleBasedInterpreter:
                 or self._METROS_MIN.search(low)
                 or self._HORAS.search(low)
                 or self._RANKING.search(low)
+                or self._REVISAO.search(low)
                 or "qualidade" in low
             )
             if not _tem_dado_junto:
@@ -1036,7 +1046,7 @@ class RuleBasedInterpreter:
         # Guard: se a mensagem contém LD ou produção E tem período explícito,
         # deixa cair para as regras SQL — ex: "me fale sobre o LD de janeiro"
         _tem_dado = (self._LD.search(low) or self._PRODUCAO.search(low) or self._EXPEDICAO.search(low)
-                     or self._QUALIDADE_RESUMO.search(low) or "qualidade" in low)
+                     or self._QUALIDADE_RESUMO.search(low) or self._REVISAO.search(low) or "qualidade" in low)
         if self._SMALLTALK_LONGA.search(low) and not _tem_dado:
             return InterpretationResult(
                 intent="smalltalk", route="smalltalk",
@@ -1433,6 +1443,23 @@ class RuleBasedInterpreter:
                 setor=setor, origem=origem, recursos=recursos,
                 confidence=0.85,
                 reasoning="Produção sem qualificador de ranking ou operador → total da fábrica.",
+            )
+
+        # ── 17c. Revisão — operador específico (sem contexto de qualidade/LD) ──
+        # "quanto a kaua revisou?", "qual a revisão da kaua.chagas em maio?"
+        # LD+operador e qualidade+operador já foram capturados nos steps 8/8.5/9.
+        if (self._REVISAO.search(low) and operador
+                and not self._LD.search(low)
+                and not self._QUALIDADE_RESUMO.search(low)):
+            return InterpretationResult(
+                intent="ranking_revisao", route="sql",
+                metric="revisao_metros",
+                entity_type="operador",
+                entity_value=operador,
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                top_n=top_n or 10,
+                confidence=0.88,
+                reasoning="Consulta de revisão por operador específico.",
             )
 
         # ── 18. Produção por operador específico ──────────────────────────────
