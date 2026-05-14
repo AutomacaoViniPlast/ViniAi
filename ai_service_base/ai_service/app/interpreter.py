@@ -781,6 +781,20 @@ class RuleBasedInterpreter:
         re.IGNORECASE,
     )
 
+    # Produto/material mais revisado — V_APONT_REV_GERAL agrupado por PRODUTO
+    # Verificado antes de _RANKING_REVISAO para não cair no ranking de operadores.
+    _PRODUTO_REVISADO = re.compile(
+        r"materi(?:al|ais)\s+(?:mais\s+)?revisados?|"
+        r"produto[s]?\s+(?:mais\s+)?revisados?|"
+        r"(?:mais\s+)?revisados?\s+(?:por\s+)?(?:produto|material)|"
+        r"qual\s+(?:material|produto)\s+(?:foi\s+)?(?:mais\s+)?revisad|"
+        r"quais\s+(?:os\s+)?(?:materiais?|produtos?)\s+(?:mais\s+|foram\s+)?revisados?|"
+        r"ranking\s+(?:de\s+)?(?:materiais?|produtos?)\s+(?:mais\s+)?revisados?|"
+        r"top\s+\d*\s*(?:materiais?|produtos?)\s+revisados?|"
+        r"(?:materiais?|produtos?)\s+(?:mais\s+)?revisados?\s+(?:hoje|ontem|essa|este|do\s+m[eê]s|no\s+m[eê]s)",
+        re.IGNORECASE,
+    )
+
     # Ranking de revisão — apontamentos de bobinas revisadas (STG_APONT_REV_GERAL)
     # Distinguido do KARDEX/LD por combinar volume de revisão + contexto de ranking/produtividade.
     _RANKING_REVISAO = re.compile(
@@ -1181,6 +1195,19 @@ class RuleBasedInterpreter:
                 unidade_filtro="MT" if self._METROS_UNIDADE.search(low) else None,
                 confidence=0.78,
                 reasoning="LD mencionado sem operador — orchestrator usa usuário autenticado.",
+            )
+
+        # ── 10a-prod. Ranking de PRODUTOS mais revisados ─────────────────────
+        # Verificado antes do ranking de operadores de revisão.
+        if self._PRODUTO_REVISADO.search(low):
+            return InterpretationResult(
+                intent="ranking_produtos_revisao", route="sql",
+                metric="revisao_metros",
+                entity_type="produto",
+                data_inicio=ini, data_fim=fim, period_text=lbl,
+                top_n=top_n or 10,
+                confidence=0.91,
+                reasoning="Ranking de produtos por metros revisados (V_APONT_REV_GERAL).",
             )
 
         # ── 10a. Ranking de revisão (STG_APONT_REV_GERAL) ───────────────────

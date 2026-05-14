@@ -612,6 +612,19 @@ class ChatOrchestrator:
             )
             return header + linhas
 
+        # ── Ranking de produtos mais revisados ───────────────────────────────
+        if ir.intent == "ranking_produtos_revisao":
+            rows = self.apont_rev.get_ranking_produtos_revisao(ini, fim, top_n)
+            if not rows:
+                return f"🔍 Nenhum apontamento de revisão encontrado{periodo}."
+            header = f"📦 **Top {top_n} — Produtos mais revisados**{periodo}\n\n"
+            header += "| # | Produto | Total (m) | Bobinas |\n|---|---------|-----------|--------|\n"
+            linhas = "\n".join(
+                f"| {_posicao_label(r['posicao'])} | {r['produto']} | **{_fmt_metros(r['total_metros'])}** | {r['registros']} |"
+                for r in rows
+            )
+            return header + linhas
+
         # ── Listar operadores de um setor ─────────────────────────────────────
         if ir.intent == "list_operadores_revisao":
             alvo  = ir.setor or "revisao"

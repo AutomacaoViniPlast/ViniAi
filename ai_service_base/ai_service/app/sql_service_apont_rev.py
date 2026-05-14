@@ -138,6 +138,41 @@ class SQLServiceApontRev:
             })
         return result
 
+    def get_ranking_produtos_revisao(
+        self,
+        data_inicio: str,
+        data_fim: str,
+        top_n: int = 10,
+    ) -> list[dict]:
+        """
+        Retorna os produtos com mais metros revisados no período.
+        Agrupa por PRODUTO usando a mesma fórmula de metros de get_ranking_revisao.
+        """
+        sql = f"""
+            SELECT TOP {top_n}
+                LTRIM(RTRIM(PRODUTO))   AS produto,
+                SUM({_METROS_CASE})     AS total_metros,
+                COUNT(*)                AS registros
+            FROM V_APONT_REV_GERAL
+            WHERE CAST(DATAAPONT AS DATE)
+                  BETWEEN CONVERT(date, ?, 103) AND CONVERT(date, ?, 103)
+              AND LTRIM(RTRIM(PRODUTO)) != ''
+            GROUP BY LTRIM(RTRIM(PRODUTO))
+            ORDER BY total_metros DESC
+        """
+        with get_mssql_conn() as conn:
+            rows = conn.execute(sql, (data_inicio, data_fim)).fetchall()
+
+        return [
+            {
+                "posicao":      pos,
+                "produto":      row[0] or "",
+                "total_metros": float(row[1] or 0),
+                "registros":    int(row[2] or 0),
+            }
+            for pos, row in enumerate(rows, start=1)
+        ]
+
     def get_periodos_disponiveis(self) -> list[dict]:
         """
         Retorna anos e meses com dados em V_APONT_REV_GERAL, agrupados por ano.
